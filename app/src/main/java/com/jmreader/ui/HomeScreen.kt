@@ -1,22 +1,23 @@
 package com.jmreader.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -31,18 +32,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.jmreader.data.AlbumBrief
 import com.jmreader.data.JmRepository
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(repo: JmRepository, onOpen: (Long) -> Unit) {
+fun HomeScreen(
+    repo: JmRepository,
+    onOpen: (Long) -> Unit,
+    onSearch: () -> Unit,
+    onMe: () -> Unit,
+) {
     var albums by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
     var page by remember { mutableIntStateOf(1) }
     var loading by remember { mutableStateOf(false) }
@@ -65,7 +67,19 @@ fun HomeScreen(repo: JmRepository, onOpen: (Long) -> Unit) {
     LaunchedEffect(Unit) { load(true) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("JMReader") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("JMReader") },
+                actions = {
+                    IconButton(onClick = onSearch) {
+                        Icon(Icons.Filled.Search, contentDescription = "搜索")
+                    }
+                    IconButton(onClick = onMe) {
+                        Icon(Icons.Filled.Person, contentDescription = "我的")
+                    }
+                },
+            )
+        },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
@@ -103,31 +117,5 @@ fun HomeScreen(repo: JmRepository, onOpen: (Long) -> Unit) {
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun AlbumCard(repo: JmRepository, album: AlbumBrief, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-    ) {
-        AsyncImage(
-            model = repo.coverUrl(album.id, tall = true),
-            contentDescription = album.name,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(3f / 4f)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-        )
-        Text(
-            text = album.name,
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp),
-        )
     }
 }

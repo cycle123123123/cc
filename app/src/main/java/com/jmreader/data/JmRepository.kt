@@ -22,11 +22,14 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Cache
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
 /** 所有网络访问的入口。无第三方 DI，直接构造。 */
 class JmRepository(context: Context) {
+
+    val auth = AuthStore(context)
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -49,7 +52,7 @@ class JmRepository(context: Context) {
     var imgBase: String = JmConfig.IMG_HOST_FALLBACK
         private set
 
-    // ------------------------------------------------------------ public API
+    // ------------------------------------------------------------ 浏览
 
     suspend fun latest(page: Int): List<AlbumBrief> =
         get("latest", mapOf("page" to page.toString()), ListSerializer(AlbumBrief.serializer()))
@@ -63,10 +66,60 @@ class JmRepository(context: Context) {
     suspend fun comicRead(id: Long): ComicRead =
         get("comic_read", mapOf("id" to id.toString()), ComicRead.serializer())
 
+    suspend fun search(query: String, page: Int): SearchPage =
+        get(
+            "search",
+            mapOf("search_query" to query, "page" to page.toString()),
+            SearchPage.serializer(),
+        )
+
     fun coverUrl(albumId: String, tall: Boolean = false): String {
         val suffix = if (tall) "_3x4" else ""
         return "$imgBase/media/albums/$albumId$suffix.jpg"
     }
+
+    // ------------------------------------------------------------ 账号
+
+    suspend fun login(username: String, password: String): Member = withContext(Dispatchers.IO) {
+        ensureReady()
+        val base = apiBase ?: throw JmException.Network("线路未就绪")
+        val body = formPost(
+            base,
+            "login",
+            mapOf("username" to username, "password" to password),
+        )
+        val member = try {
+            json.decodeFromString(Member.serializer(), body)
+        } catch (t: Throwable) {
+            throw JmException.Parse(t)
+        }
+        auth.save(member)
+        member
+    }
+
+    suspend fun logout() = withContext(Dispatchers.IO) {
+        runCatching {
+            ensureReady()
+            apiBase?.let { formPost(it, "logout", emptyMap()) }
+        }
+        auth.clear()
+    }
+
+    suspend fun favorites(page: Int): FavoritePage =
+        get("favorite", mapOf("page" to page.toString()), FavoritePage.serializer())
+
+    suspend fun history(page: Int): HistoryPage =
+        get("watch_list", mapOf("page" to page.toString()), HistoryPage.serializer())
+
+    /** 收藏 / 取消收藏。接口为 POST favorite，form 里带 aid。 */
+    suspend fun addFavorite(aid: Long): Boolean = withContext(Dispatchers.IO) {
+        ensureReady()
+        val base = apiBase ?: throw JmException.Network("线路未就绪")
+        formPost(base, "favorite", mapOf("aid" to aid.toString()))
+        true
+    }
+
+    // ------------------------------------------------------------ 图片
 
     /** 下载并还原一页。targetWidth 用于计算解码采样率。 */
     suspend fun loadPage(url: String, aid: Long, scrambleId: Long, targetWidth: Int): Bitmap =
@@ -145,13 +198,38 @@ class JmRepository(context: Context) {
         }
         val request = Request.Builder()
             .url(base + path + "?" + query)
-            .header("Token", JmCrypto.token(ts))
-            .header("Tokenparam", JmCrypto.tokenParam(ts))
-            .header("Accept", "application/json")
-            .header("Referer", JmConfig.WEB_REFERER)
-            .header("User-Agent", JmConfig.USER_AGENT)
+            .get()
+            .withCommonHeaders(ts)
             .build()
+        return execute(request, ts)
+    }
 
+    private fun formPost(base: String, path: String, form: Map<String, String>): String {
+        val ts = System.currentTimeMillis() / 1000
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .apply { form.forEach { (key, value) -> addFormDataPart(key, value) } }
+            .build()
+        val request = Request.Builder()
+            .url(base + path + "?lang=" + JmConfig.DEFAULT_LANG)
+            .post(body)
+            .withCommonHeaders(ts)
+            .build()
+        return execute(request, ts)
+    }
+
+    private fun Request.Builder.withCommonHeaders(ts: Long): Request.Builder {
+        header("Token", JmCrypto.token(ts))
+        header("Tokenparam", JmCrypto.tokenParam(ts))
+        header("Accept", "application/json")
+        header("Referer", JmConfig.WEB_REFERER)
+        header("User-Agent", JmConfig.USER_AGENT)
+        auth.jwt?.let { header("Authorization", "Bearer $it") }
+        auth.session?.let { header("Cookie", "AVS=$it") }
+        return this
+    }
+
+    private fun execute(request: Request, ts: Long): String {
         http.newCall(request).execute().use { response ->
             if (response.code == 401) throw JmException.Auth()
             if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")

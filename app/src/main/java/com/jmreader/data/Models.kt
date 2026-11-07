@@ -69,3 +69,33 @@ data class ChapterEntry(
     val title: String,
     val sort: Int? = null,
 )
+
+@Serializable
+data class Member(
+    val uid: String = "",
+    val username: String = "",
+    val email: String = "",
+    val s: String = "",
+    val jwttoken: String = "",
+    @SerialName("album_favorites") val totalFavorites: Int = 0,
+    val level: Int = 0,
+)
+
+@Serializable
+data class FavoritePage(
+    val list: List<AlbumBrief> = emptyList(),
+    val total: String = "",
+    val count: Int = 0,
+)
+
+@Serializable
+data class HistoryPage(
+    val list: List<AlbumBrief> = emptyList(),
+    val total: Int = 0,
+)
+
+@Serializable
+data class SearchPage(
+    val total: Int = 0,
+    val content: List<AlbumBrief> = emptyList(),
+)

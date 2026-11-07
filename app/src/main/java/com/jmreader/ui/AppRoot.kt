@@ -2,40 +2,57 @@ package com.jmreader.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import com.jmreader.data.JmRepository
 
 sealed interface Screen {
     data object Home : Screen
+    data object Search : Screen
+    data object Me : Screen
     data class Detail(val id: Long) : Screen
     data class Reader(val aid: Long, val cid: Long, val title: String) : Screen
 }
 
 @Composable
 fun AppRoot(repo: JmRepository) {
-    var screen by remember { mutableStateOf<Screen>(Screen.Home) }
+    val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
 
-    BackHandler(enabled = screen !is Screen.Home) {
-        screen = when (val current = screen) {
-            is Screen.Reader -> Screen.Detail(current.aid)
-            else -> Screen.Home
-        }
+    fun push(screen: Screen) {
+        stack.add(screen)
     }
 
-    when (val current = screen) {
+    fun pop() {
+        if (stack.size > 1) stack.removeAt(stack.lastIndex)
+    }
+
+    BackHandler(enabled = stack.size > 1) { pop() }
+
+    when (val current = stack.last()) {
         Screen.Home -> HomeScreen(
             repo = repo,
-            onOpen = { screen = Screen.Detail(it) },
+            onOpen = { push(Screen.Detail(it)) },
+            onSearch = { push(Screen.Search) },
+            onMe = { push(Screen.Me) },
+        )
+
+        Screen.Search -> SearchScreen(
+            repo = repo,
+            onBack = { pop() },
+            onOpen = { push(Screen.Detail(it)) },
+        )
+
+        Screen.Me -> MeScreen(
+            repo = repo,
+            onBack = { pop() },
+            onOpen = { push(Screen.Detail(it)) },
         )
 
         is Screen.Detail -> DetailScreen(
             repo = repo,
             albumId = current.id,
-            onBack = { screen = Screen.Home },
-            onRead = { cid, title -> screen = Screen.Reader(current.id, cid, title) },
+            onBack = { pop() },
+            onRead = { cid, title -> push(Screen.Reader(current.id, cid, title)) },
         )
 
         is Screen.Reader -> ReaderScreen(
@@ -43,8 +60,10 @@ fun AppRoot(repo: JmRepository) {
             albumId = current.aid,
             cid = current.cid,
             title = current.title,
-            onBack = { screen = Screen.Detail(current.aid) },
-            onOpenChapter = { newCid, newTitle -> screen = Screen.Reader(current.aid, newCid, newTitle) },
+            onBack = { pop() },
+            onOpenChapter = { newCid, newTitle ->
+                stack[stack.lastIndex] = Screen.Reader(current.aid, newCid, newTitle)
+            },
         )
     }
 }

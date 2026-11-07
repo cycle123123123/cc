@@ -236,6 +236,99 @@ Base = `https://{host}/`，全部为 GET，自动追加 `lang=TW`（或其他语
 实测样本：`aid=598174`，`series` 219 项；`sort` 从 1 递增，但相邻两项的 id
 不连续（例如第 23 项 `598196`、第 24 项 `1214150`），所以不能靠 id 推算顺序。
 
+### 5.6 账号
+
+登录是 **POST + FormData**：
+
+```
+POST /login?lang=TW
+username=...
+password=...
+```
+
+成功返回（字段已实测）：
+
+```json
+{
+  "uid": "15429330",
+  "username": "cycle1",
+  "email": "...",
+  "s": "gnju008at2l4ekvaaol5rcigqs",
+  "jwttoken": "eyJhbGciOiJIUzI1NiIs...",
+  "album_favorites": 1163,
+  "level": 6,
+  "coin": 7468
+}
+```
+
+之后所有请求带：
+
+```
+Authorization: Bearer {jwttoken}
+Cookie: AVS={s}
+```
+
+- 未登录或 token 过期访问需要鉴权的接口会返回 **HTTP 401**（不是 JSON code）。
+- 官方前端把 token 有效期按 1 小时处理（`authExpiry = Date.now() + 3600_000`），
+  到期后用它保存在 localStorage 的账号密码重新登录。
+- `coin` 字段类型不稳定（有时数字有时字符串），解析时建议忽略或用宽松类型。
+
+### 5.7 收藏与历史
+
+收藏列表：
+
+```
+GET /favorite?page=1
+```
+
+```json
+{
+  "list": [ { "id": "1215913", "name": "...", "author": "...", "category": {...} } ],
+  "folder_list": [],
+  "total": "1163",
+  "count": 20
+}
+```
+
+注意 `total` 是**字符串**。
+
+收藏动作：
+
+```
+POST /favorite   (FormData: aid=...)
+```
+
+历史：
+
+```
+GET /watch_list?page=1
+```
+
+```json
+{ "list": [ ... ], "total": 19 }
+```
+
+这里的 `total` 是**数字**。两个接口同名字段类型不同，别共用模型。
+
+### 5.8 搜索
+
+```
+GET /search?search_query=test&page=1
+```
+
+```json
+{
+  "search_query": "test",
+  "search_type": "site",
+  "y": null,
+  "m": null,
+  "total": 48,
+  "content": [ { "id": "1487787", "name": "...", "author": "...", "update_at": 1793606324 } ]
+}
+```
+
+结果在 `content` 里，不是 `list`。`total` 是数字。
+
 ---
 
 ## 6. 图片还原（关键）
