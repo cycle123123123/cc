@@ -36,3 +36,20 @@
 
 - **决定**：本地缓存上次可用 base，启动直接用；失败再拉 `newsvr` 清单并逐个探测。
 - **理由**：官方每次启动都串行「拉清单 → 测速 → 拉 setting」，是首屏慢的主因之一。
+
+## D7 音量键翻页走 Activity 转发
+
+- **决定**：Compose 层订阅 `ReaderKeyBus`，`MainActivity.onKeyDown` 转发音量键。
+- **理由**：系统音量键不会稳定进入 Compose 焦点链；Activity 是最可靠的一层。
+- **代价**：需要在阅读器可见时设置 `active`，否则会吞掉其他页面的音量键。
+
+## D8 横向翻页只在双指时拦截手势
+
+- **决定**：自定义 `awaitEachGesture`，只有 `changes.size >= 2` 时才处理缩放/平移。
+- **理由**：`detectTransformGestures` 会消费单指拖动，导致 Pager 无法翻页。
+- **代价**：单指不能平移已放大的图，只能用双指拖动；双击缩放仍可用。
+
+## D9 进度按话保存
+
+- **决定**：`progress_{cid}` 存 SharedPreferences，进入阅读器时恢复。
+- **理由**：多话作品每话页数不同，按话存才不会串位。
