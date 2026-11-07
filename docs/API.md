@@ -329,6 +329,120 @@ GET /search?search_query=test&page=1
 
 结果在 `content` 里，不是 `list`。`total` 是数字。
 
+### 5.9 周榜
+
+筛选选项：
+
+```
+GET /week
+```
+
+```json
+{
+  "categories": [ { "id": "265", "title": "", "time": "2026第264期11.06 - 10.30" } ],
+  "type": [ { "id": "manga", "title": "日漫" } ]
+}
+```
+
+榜单：
+
+```
+GET /week/filter?type=manga&category=265&page=1
+```
+
+```json
+{ "total": 20, "list": [ { "id": "...", "name": "...", "author": "..." } ] }
+```
+
+`type` / `category` 可省略，省略时接口有默认值。
+
+### 5.10 评论
+
+```
+GET /forum?aid={aid}&page=1
+```
+
+```json
+{
+  "list": [
+    {
+      "CID": "11295452",
+      "UID": "18508358",
+      "username": "hell_tractor_",
+      "nickname": "hell_tractor_",
+      "content": "<div style='...'>评论正文</div>",
+      "likes": "0",
+      "addtime": "Nov 07, 2026",
+      "parent_CID": "0"
+    }
+  ],
+  "total": 24
+}
+```
+
+注意：
+
+- `content` 是 **HTML**，展示前要转纯文本。
+- `likes` 是字符串。
+- `CID` 是评论 id，`parent_CID != "0"` 表示回复。
+
+发表评论（需登录）：
+
+```
+POST /comment   (FormData: aid=..., content=...)
+```
+
+### 5.11 点赞
+
+作品点赞是切换操作：
+
+```
+POST /like      (FormData: id={aid})
+```
+
+成功返回 `{"status":"success","msg":"點讚成功!"}`。
+注意参数名是 `id`，不是 `aid`（用 `aid` 会 400）。
+
+评论点赞：
+
+```
+POST /comment_vote   (FormData: id={cid})
+```
+
+该接口返回体可能为空，只判断 HTTP 状态。
+
+### 5.12 分类页数据
+
+```
+GET /categories
+```
+
+返回 `categories`（大类 + `sub_categories`）和 `blocks`：
+
+```json
+{ "title": "主題A漫", "content": ["劇情向", "校園", "純愛", "..."] }
+```
+
+`blocks` 里的标签可以直接作为 `search_query` 搜索，这是目前验证可用的分类浏览方式。
+
+`/categories/filter` 的参数名没确认下来：传 `id` / `category` / `cid` / `slug` 都返回同一批默认数据，
+暂不使用。
+
+### 5.13 图源切换
+
+官方设置里有「圖源1~4」，对应 `setting.app_shunts`。
+实测 CDN host 可以直接替换，9 个 host 都能取到同一张图：
+
+```
+cdn-msp.jmapiproxy1.cc
+cdn-msp2.jmapiproxy1.cc
+cdn-msp3.jmapiproxy1.cc
+cdn-msp.jmapiproxy2.cc / cdn-msp2... / cdn-msp3...
+cdn-msp.jmapiproxy3.cc / cdn-msp2... / cdn-msp3...
+```
+
+客户端做法：保留接口返回的 path 和 query，只替换 host。
+
 ---
 
 ## 6. 图片还原（关键）

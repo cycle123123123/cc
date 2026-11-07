@@ -26,7 +26,10 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,6 +67,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import com.jmreader.core.JmConfig
 import com.jmreader.data.ChapterEntry
 import com.jmreader.data.ComicRead
 import com.jmreader.data.DownloadRepository
@@ -94,6 +98,8 @@ fun ReaderScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var uiVisible by remember { mutableStateOf(true) }
     var zoomed by remember { mutableStateOf(false) }
+    var shard by remember { mutableStateOf(repo.imageShard) }
+    var sourceMenuOpen by remember { mutableStateOf(false) }
     var mode by remember {
         mutableStateOf(
             if (prefs.getString("mode", "vertical") == "horizontal") ReaderMode.HORIZONTAL else ReaderMode.VERTICAL,
@@ -123,7 +129,7 @@ fun ReaderScreen(
     val pagerState = rememberPagerState(initialPage = savedPage, pageCount = { read?.images?.size ?: 0 })
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = savedPage)
 
-    val store = remember(data?.id, data?.scrambleId) {
+    val store = remember(data?.id, data?.scrambleId, shard) {
         data?.let {
             PageStore(
                 repo = repo,
@@ -257,6 +263,39 @@ fun ReaderScreen(
                     }
                 },
                 actions = {
+                    Box {
+                        IconButton(onClick = { sourceMenuOpen = true }) {
+                            Icon(Icons.Filled.Tune, contentDescription = "圖源")
+                        }
+                        DropdownMenu(
+                            expanded = sourceMenuOpen,
+                            onDismissRequest = { sourceMenuOpen = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(if (shard == 0) "✓ 自動" else "自動") },
+                                onClick = {
+                                    repo.imageShard = 0
+                                    shard = 0
+                                    sourceMenuOpen = false
+                                },
+                            )
+                            JmConfig.IMAGE_SHARDS.forEachIndexed { index, host ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (shard == index + 1) "✓ 圖源 ${index + 1}"
+                                            else "圖源 ${index + 1}",
+                                        )
+                                    },
+                                    onClick = {
+                                        repo.imageShard = index + 1
+                                        shard = index + 1
+                                        sourceMenuOpen = false
+                                    },
+                                )
+                            }
+                        }
+                    }
                     IconButton(onClick = { toggleMode() }) {
                         Icon(
                             Icons.Filled.SwapVert,

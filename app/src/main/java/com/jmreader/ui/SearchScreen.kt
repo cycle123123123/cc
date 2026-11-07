@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,8 +48,9 @@ fun SearchScreen(
     repo: JmRepository,
     onBack: () -> Unit,
     onOpen: (Long) -> Unit,
+    initialQuery: String = "",
 ) {
-    var query by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf(initialQuery) }
     var results by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
     var total by remember { mutableIntStateOf(0) }
     var page by remember { mutableIntStateOf(1) }
@@ -75,6 +77,10 @@ fun SearchScreen(
             }
             .onFailure { error = it.message ?: "搜尋失敗" }
         loading = false
+    }
+
+    LaunchedEffect(initialQuery) {
+        if (initialQuery.isNotBlank()) runSearch(true)
     }
 
     Scaffold(

@@ -22,6 +22,14 @@ object JmConfig {
 
     const val IMG_HOST_FALLBACK = "https://cdn-msp3.jmapiproxy1.cc"
 
+    /** 图源切换：实测这些 CDN host 都能取到同一张图。 */
+    val IMAGE_SHARDS = listOf(
+        "cdn-msp.jmapiproxy1.cc",
+        "cdn-msp2.jmapiproxy1.cc",
+        "cdn-msp3.jmapiproxy1.cc",
+        "cdn-msp.jmapiproxy3.cc",
+    )
+
     val BUILTIN_HOSTS = listOf(
         "www.cdnbtd.cc",
         "www.cdnutc.cc",

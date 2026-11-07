@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -44,6 +45,7 @@ fun HomeScreen(
     onOpen: (Long) -> Unit,
     onSearch: () -> Unit,
     onMe: () -> Unit,
+    onDiscover: () -> Unit,
 ) {
     var albums by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
     var page by remember { mutableIntStateOf(1) }
@@ -71,6 +73,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("JMReader") },
                 actions = {
+                    IconButton(onClick = onDiscover) {
+                        Icon(Icons.Filled.Explore, contentDescription = "發現")
+                    }
                     IconButton(onClick = onSearch) {
                         Icon(Icons.Filled.Search, contentDescription = "搜索")
                     }

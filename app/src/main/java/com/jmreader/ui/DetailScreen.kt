@@ -1,8 +1,8 @@
 package com.jmreader.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,20 +19,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,8 +50,11 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.jmreader.data.AlbumDetail
 import com.jmreader.data.ChapterEntry
+import com.jmreader.data.CommentItem
 import com.jmreader.data.DownloadRepository
+import com.jmreader.data.ForumPage
 import com.jmreader.data.JmRepository
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,9 +66,15 @@ fun DetailScreen(
 ) {
     var detail by remember { mutableStateOf<AlbumDetail?>(null) }
     var chapters by remember { mutableStateOf<List<ChapterEntry>>(emptyList()) }
+    var forum by remember { mutableStateOf<ForumPage?>(null) }
+    var commentText by remember { mutableStateOf("") }
+    var posting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val member by repo.auth.member.collectAsState()
+    val loggedIn = member != null
 
     LaunchedEffect(albumId) {
         loading = true
@@ -71,7 +85,34 @@ fun DetailScreen(
                     .ifEmpty { listOf(ChapterEntry(album.id, album.name.ifBlank { "開始閱讀" })) }
             }
             .onFailure { error = it.message ?: "載入失敗" }
+        runCatching { repo.forum(albumId, 1) }
+            .onSuccess { forum = it }
         loading = false
+    }
+
+    fun refreshComments() {
+        scope.launch {
+            runCatching { repo.forum(albumId, 1) }.onSuccess { forum = it }
+        }
+    }
+
+    fun submitComment() {
+        val text = commentText.trim()
+        if (text.isEmpty() || posting) return
+        if (!loggedIn) {
+            Toast.makeText(context, "請先登入", Toast.LENGTH_SHORT).show()
+            return
+        }
+        posting = true
+        scope.launch {
+            runCatching { repo.postComment(albumId, text) }
+                .onSuccess {
+                    commentText = ""
+                    refreshComments()
+                }
+                .onFailure { Toast.makeText(context, it.message ?: "發送失敗", Toast.LENGTH_SHORT).show() }
+            posting = false
+        }
     }
 
     Scaffold(
@@ -102,7 +143,26 @@ fun DetailScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    item { Header(repo = repo, album = album) }
+                    item {
+                        Header(
+                            repo = repo,
+                            album = album,
+                            onLike = {
+                                scope.launch {
+                                    runCatching { repo.toggleLike(albumId) }
+                                        .onSuccess {
+                                            detail = album.copy(
+                                                liked = !album.liked,
+                                                likes = (album.likes + if (album.liked) -1 else 1).coerceAtLeast(0),
+                                            )
+                                        }
+                                        .onFailure {
+                                            Toast.makeText(context, it.message ?: "操作失敗", Toast.LENGTH_SHORT).show()
+                                        }
+                                }
+                            },
+                        )
+                    }
 
                     if (album.description.isNotBlank()) {
                         item {
@@ -125,35 +185,71 @@ fun DetailScreen(
                     }
 
                     items(items = chapters, key = { it.id }) { chapter ->
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .padding(horizontal = 4.dp, vertical = 4.dp),
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = chapter.title,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable { onRead(chapter.id, chapter.title) }
-                                        .padding(vertical = 8.dp),
-                                )
-                                IconButton(
-                                    onClick = {
-                                        DownloadRepository.of(context)
-                                            .enqueue(chapter.id, album.id, chapter.title)
-                                        Toast.makeText(context, "已加入下載", Toast.LENGTH_SHORT).show()
-                                    },
-                                ) {
-                                    Icon(Icons.Filled.Download, contentDescription = "下載")
-                                }
+                        ChapterRow(
+                            chapter = chapter,
+                            onRead = { onRead(chapter.id, chapter.title) },
+                            onDownload = {
+                                DownloadRepository.of(context).enqueue(chapter.id, album.id, chapter.title)
+                                Toast.makeText(context, "已加入下載", Toast.LENGTH_SHORT).show()
+                            },
+                        )
+                    }
+
+                    item {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(top = 12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                        )
+                    }
+
+                    item {
+                        Text(
+                            text = "評論（${forum?.total ?: album.commentTotal}）",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = commentText,
+                                onValueChange = { commentText = it },
+                                placeholder = { Text(if (loggedIn) "說點什麼…" else "登入後可評論") },
+                                enabled = loggedIn && !posting,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Button(
+                                onClick = { submitComment() },
+                                enabled = loggedIn && !posting && commentText.isNotBlank(),
+                                modifier = Modifier.padding(start = 8.dp),
+                            ) {
+                                Text("發送")
                             }
-                            HorizontalDivider(
-                                modifier = Modifier.padding(top = 4.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
+                        }
+                    }
+
+                    val list = forum?.list.orEmpty()
+                    if (list.isEmpty()) {
+                        item {
+                            Text(
+                                text = "還沒有評論",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    } else {
+                        items(items = list, key = { it.cid }) { comment ->
+                            CommentRow(
+                                comment = comment,
+                                onLike = {
+                                    scope.launch {
+                                        runCatching { repo.voteComment(comment.cid) }
+                                            .onFailure {
+                                                Toast.makeText(context, it.message ?: "操作失敗", Toast.LENGTH_SHORT).show()
+                                            }
+                                    }
+                                },
                             )
                         }
                     }
@@ -164,7 +260,71 @@ fun DetailScreen(
 }
 
 @Composable
-private fun Header(repo: JmRepository, album: AlbumDetail) {
+private fun ChapterRow(
+    chapter: ChapterEntry,
+    onRead: () -> Unit,
+    onDownload: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = chapter.title,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onRead)
+                    .padding(vertical = 8.dp),
+            )
+            IconButton(onClick = onDownload) {
+                Icon(Icons.Filled.Download, contentDescription = "下載")
+            }
+        }
+        HorizontalDivider(
+            modifier = Modifier.padding(top = 4.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun CommentRow(comment: CommentItem, onLike: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = comment.nickname.ifBlank { comment.username },
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = comment.addtime,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = stripHtml(comment.content),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        TextButton(onClick = onLike) {
+            Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.width(16.dp))
+            Text(text = " ${comment.likes}", style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@Composable
+private fun Header(repo: JmRepository, album: AlbumDetail, onLike: () -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         AsyncImage(
             model = repo.coverUrl(album.id.toString()),
@@ -196,10 +356,22 @@ private fun Header(repo: JmRepository, album: AlbumDetail) {
                 )
             }
             Text(
-                text = "${album.totalPhotos} 頁 · ${album.likes} 喜歡",
+                text = "${album.totalPhotos} 頁",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            TextButton(onClick = onLike) {
+                Icon(
+                    Icons.Filled.ThumbUp,
+                    contentDescription = "點讚",
+                    modifier = Modifier.width(18.dp),
+                    tint = if (album.liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = " ${album.likes}",
+                    color = if (album.liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (album.tags.isNotEmpty()) {
                 Text(
                     text = album.tags.joinToString(" · "),
@@ -212,3 +384,9 @@ private fun Header(repo: JmRepository, album: AlbumDetail) {
         }
     }
 }
+
+/** 评论内容带 HTML（<div>、<br> 等），展示前转成纯文本。 */
+private fun stripHtml(raw: String): String =
+    runCatching {
+        android.text.Html.fromHtml(raw, android.text.Html.FROM_HTML_MODE_LEGACY).toString().trim()
+    }.getOrDefault(raw)

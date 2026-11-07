@@ -8,9 +8,10 @@ import com.jmreader.data.JmRepository
 
 sealed interface Screen {
     data object Home : Screen
-    data object Search : Screen
     data object Me : Screen
     data object Downloads : Screen
+    data object Discover : Screen
+    data class Search(val query: String = "") : Screen
     data class Detail(val id: Long) : Screen
     data class Reader(val aid: Long, val cid: Long, val title: String) : Screen
 }
@@ -33,14 +34,23 @@ fun AppRoot(repo: JmRepository) {
         Screen.Home -> HomeScreen(
             repo = repo,
             onOpen = { push(Screen.Detail(it)) },
-            onSearch = { push(Screen.Search) },
+            onSearch = { push(Screen.Search()) },
             onMe = { push(Screen.Me) },
+            onDiscover = { push(Screen.Discover) },
         )
 
-        Screen.Search -> SearchScreen(
+        Screen.Discover -> DiscoverScreen(
             repo = repo,
             onBack = { pop() },
             onOpen = { push(Screen.Detail(it)) },
+            onSearchTag = { push(Screen.Search(it)) },
+        )
+
+        is Screen.Search -> SearchScreen(
+            repo = repo,
+            onBack = { pop() },
+            onOpen = { push(Screen.Detail(it)) },
+            initialQuery = current.query,
         )
 
         Screen.Me -> MeScreen(

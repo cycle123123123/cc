@@ -31,6 +31,8 @@ data class AlbumDetail(
     @SerialName("series_id") val seriesId: String = "0",
     val series: JsonElement = JsonNull,
     val likes: Int = 0,
+    val liked: Boolean = false,
+    @SerialName("comment_total") val commentTotal: Int = 0,
 )
 
 @Serializable
@@ -98,4 +100,58 @@ data class HistoryPage(
 data class SearchPage(
     val total: Int = 0,
     val content: List<AlbumBrief> = emptyList(),
+)
+
+@Serializable
+data class WeekOptions(
+    val categories: List<WeekCategory> = emptyList(),
+    val type: List<WeekType> = emptyList(),
+)
+
+@Serializable
+data class WeekCategory(
+    val id: String = "",
+    val title: String = "",
+    val time: String = "",
+)
+
+@Serializable
+data class WeekType(
+    val id: String = "",
+    val title: String = "",
+)
+
+@Serializable
+data class WeekPage(
+    val total: Int = 0,
+    val list: List<AlbumBrief> = emptyList(),
+)
+
+@Serializable
+data class CategoryBlock(
+    val title: String = "",
+    val content: List<String> = emptyList(),
+)
+
+@Serializable
+data class CategoryResponse(
+    val categories: JsonElement = JsonNull,
+    val blocks: List<CategoryBlock> = emptyList(),
+)
+
+@Serializable
+data class CommentItem(
+    @SerialName("CID") val cid: String = "",
+    val username: String = "",
+    val nickname: String = "",
+    val content: String = "",
+    val likes: String = "0",
+    val addtime: String = "",
+    @SerialName("parent_CID") val parentCid: String = "0",
+)
+
+@Serializable
+data class ForumPage(
+    val list: List<CommentItem> = emptyList(),
+    val total: Int = 0,
 )

@@ -75,6 +75,20 @@ class JmRepository(context: Context) {
             SearchPage.serializer(),
         )
 
+    suspend fun week(): WeekOptions = get("week", emptyMap(), WeekOptions.serializer())
+
+    suspend fun weekList(type: String, category: String, page: Int): WeekPage {
+        val params = mutableMapOf("page" to page.toString())
+        if (type.isNotBlank()) params["type"] = type
+        if (category.isNotBlank()) params["category"] = category
+        return get("week/filter", params, WeekPage.serializer())
+    }
+
+    suspend fun categories(): CategoryResponse = get("categories", emptyMap(), CategoryResponse.serializer())
+
+    suspend fun forum(aid: Long, page: Int): ForumPage =
+        get("forum", mapOf("aid" to aid.toString(), "page" to page.toString()), ForumPage.serializer())
+
     fun coverUrl(albumId: String, tall: Boolean = false): String {
         val suffix = if (tall) "_3x4" else ""
         return "$imgBase/media/albums/$albumId$suffix.jpg"
@@ -120,6 +134,34 @@ class JmRepository(context: Context) {
         formPost(base, "favorite", mapOf("aid" to aid.toString()))
         true
     }
+
+    /** 点赞（切换）。接口为 POST like，form 里带 id。 */
+    suspend fun toggleLike(aid: Long): Boolean = withContext(Dispatchers.IO) {
+        ensureReady()
+        val base = apiBase ?: throw JmException.Network("线路未就绪")
+        formPost(base, "like", mapOf("id" to aid.toString()))
+        true
+    }
+
+    /** 发表评论（需要登录）。接口为 POST comment。 */
+    suspend fun postComment(aid: Long, content: String): Boolean = withContext(Dispatchers.IO) {
+        ensureReady()
+        val base = apiBase ?: throw JmException.Network("线路未就绪")
+        formPost(base, "comment", mapOf("aid" to aid.toString(), "content" to content))
+        true
+    }
+
+    /** 评论点赞（需要登录），返回体可能为空，只看 HTTP 是否成功。 */
+    suspend fun voteComment(cid: String): Boolean = withContext(Dispatchers.IO) {
+        ensureReady()
+        val base = apiBase ?: throw JmException.Network("线路未就绪")
+        formPostRaw(base, "comment_vote", mapOf("id" to cid))
+    }
+
+    /** 图源：0 = 跟随接口返回，1..4 = 指定 CDN host。 */
+    var imageShard: Int
+        get() = prefs.getInt(KEY_IMG_SHARD, 0)
+        set(value) = prefs.edit().putInt(KEY_IMG_SHARD, value.coerceIn(0, JmConfig.IMAGE_SHARDS.size)).apply()
 
     // ------------------------------------------------------------ 图片
 
@@ -230,6 +272,36 @@ class JmRepository(context: Context) {
         return execute(request, ts)
     }
 
+    /** 有些接口返回空 body（例如 comment_vote），只判断 HTTP 状态。 */
+    private fun formPostRaw(base: String, path: String, form: Map<String, String>): Boolean {
+        val ts = System.currentTimeMillis() / 1000
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .apply { form.forEach { (key, value) -> addFormDataPart(key, value) } }
+            .build()
+        val request = Request.Builder()
+            .url(base + path + "?lang=" + JmConfig.DEFAULT_LANG)
+            .post(body)
+            .withCommonHeaders(ts)
+            .build()
+        http.newCall(request).execute().use { response ->
+            if (response.code == 401) throw JmException.Auth()
+            if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")
+            return true
+        }
+    }
+
+    /** 图源切换：只替换 host，路径和参数保持接口返回的原样。 */
+    private fun rewriteImageHost(url: String): String {
+        val index = imageShard
+        if (index <= 0) return url
+        val host = JmConfig.IMAGE_SHARDS.getOrNull(index - 1) ?: return url
+        return runCatching {
+            val uri = java.net.URI(url)
+            java.net.URI(uri.scheme, uri.userInfo, host, uri.port, uri.path, uri.query, uri.fragment).toString()
+        }.getOrDefault(url)
+    }
+
     private fun Request.Builder.withCommonHeaders(ts: Long): Request.Builder {
         header("Token", JmCrypto.token(ts))
         header("Tokenparam", JmCrypto.tokenParam(ts))
@@ -266,7 +338,7 @@ class JmRepository(context: Context) {
 
     private fun fetchBytes(url: String): ByteArray {
         val request = Request.Builder()
-            .url(url)
+            .url(rewriteImageHost(url))
             .header("Referer", JmConfig.WEB_REFERER)
             .header("User-Agent", JmConfig.USER_AGENT)
             .build()
@@ -306,6 +378,7 @@ class JmRepository(context: Context) {
 
     private companion object {
         const val KEY_API_BASE = "api_base"
+        const val KEY_IMG_SHARD = "img_shard"
         const val HTTP_CACHE_BYTES = 256L * 1024 * 1024
     }
 }
