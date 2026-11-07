@@ -66,6 +66,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.jmreader.data.ChapterEntry
 import com.jmreader.data.ComicRead
+import com.jmreader.data.DownloadRepository
 import com.jmreader.data.JmRepository
 import com.jmreader.data.PageStore
 import com.jmreader.data.SeriesParser
@@ -104,7 +105,11 @@ fun ReaderScreen(
     LaunchedEffect(cid) {
         runCatching { repo.comicRead(cid) }
             .onSuccess { read = it }
-            .onFailure { error = it.message ?: "載入失敗" }
+            .onFailure { throwable ->
+                // 断网时用本地下载元数据打开已下载章节
+                val local = DownloadRepository.of(context).localComicRead(cid)
+                if (local != null) read = local else error = throwable.message ?: "載入失敗"
+            }
     }
 
     LaunchedEffect(albumId) {
@@ -122,6 +127,7 @@ fun ReaderScreen(
         data?.let {
             PageStore(
                 repo = repo,
+                cid = cid,
                 aid = it.id,
                 scrambleId = it.scrambleId,
                 targetWidth = context.resources.displayMetrics.widthPixels,
@@ -151,7 +157,7 @@ fun ReaderScreen(
     // 预取后 3 页
     LaunchedEffect(currentIndex, data?.id, mode) {
         val comic = data ?: return@LaunchedEffect
-        val next = comic.images.drop(currentIndex + 1).take(3).map { it.image }
+        val next = comic.images.drop(currentIndex + 1).take(3).map { it.image to it.page }
         store?.prefetch(next)
     }
 
@@ -329,7 +335,7 @@ private fun VerticalPage(
     onTap: () -> Unit,
 ) {
     val bitmap by produceState<Bitmap?>(initialValue = store.cached(url), url) {
-        if (value == null) value = store.load(url)
+        if (value == null) value = store.load(url, page)
     }
 
     Box(
@@ -348,6 +354,12 @@ private fun VerticalPage(
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            url.isBlank() -> Text(
+                text = "第 $page 頁未下載",
+                color = Color(0xFF888888),
+                style = MaterialTheme.typography.bodySmall,
+            )
+
             else -> CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
         }
     }
@@ -362,13 +374,21 @@ private fun HorizontalPage(
     onZoomChanged: (Boolean) -> Unit,
 ) {
     val bitmap by produceState<Bitmap?>(initialValue = store.cached(url), url) {
-        if (value == null) value = store.load(url)
+        if (value == null) value = store.load(url, page)
     }
 
     val image = bitmap
     if (image == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+            if (url.isBlank()) {
+                Text(
+                    text = "第 $page 頁未下載",
+                    color = Color(0xFF888888),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(28.dp))
+            }
         }
         return
     }

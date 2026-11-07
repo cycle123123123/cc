@@ -31,6 +31,8 @@ class JmRepository(context: Context) {
 
     val auth = AuthStore(context)
 
+    private val appContext = context.applicationContext
+
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -121,10 +123,20 @@ class JmRepository(context: Context) {
 
     // ------------------------------------------------------------ 图片
 
-    /** 下载并还原一页。targetWidth 用于计算解码采样率。 */
-    suspend fun loadPage(url: String, aid: Long, scrambleId: Long, targetWidth: Int): Bitmap =
-        withContext(Dispatchers.IO) {
-            val bytes = fetchBytes(url)
+    /** 下载原始字节（不做任何处理），供离线下载使用。 */
+    suspend fun downloadBytes(url: String): ByteArray = withContext(Dispatchers.IO) { fetchBytes(url) }
+
+    /** 下载并还原一页。优先读本地下载文件，缺失时回退网络。 */
+    suspend fun loadPage(
+        cid: Long,
+        page: Int,
+        url: String,
+        aid: Long,
+        scrambleId: Long,
+        targetWidth: Int,
+    ): Bitmap = withContext(Dispatchers.IO) {
+            val local = DownloadRepository.of(appContext).pageFile(cid, page)
+            val bytes = local?.readBytes() ?: fetchBytes(url)
 
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)

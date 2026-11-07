@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,6 +56,7 @@ fun MeScreen(
     repo: JmRepository,
     onBack: () -> Unit,
     onOpen: (Long) -> Unit,
+    onDownloads: () -> Unit,
 ) {
     val member by repo.auth.member.collectAsState()
 
@@ -65,6 +67,11 @@ fun MeScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onDownloads) {
+                        Icon(Icons.Filled.Download, contentDescription = "下載管理")
                     }
                 },
             )

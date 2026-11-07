@@ -18,6 +18,7 @@ import kotlinx.coroutines.sync.withLock
  */
 class PageStore(
     private val repo: JmRepository,
+    private val cid: Long,
     private val aid: Long,
     private val scrambleId: Long,
     private val targetWidth: Int,
@@ -33,13 +34,22 @@ class PageStore(
 
     fun cached(url: String): Bitmap? = cache.get(url)
 
-    suspend fun load(url: String): Bitmap? {
+    suspend fun load(url: String, page: Int): Bitmap? {
         cache.get(url)?.let { return it }
 
         val job = mutex.withLock {
             cache.get(url)?.let { return it }
             inflight[url] ?: scope.async {
-                runCatching { repo.loadPage(url, aid, scrambleId, targetWidth) }.getOrNull()
+                runCatching {
+                    repo.loadPage(
+                        cid = cid,
+                        page = page,
+                        url = url,
+                        aid = aid,
+                        scrambleId = scrambleId,
+                        targetWidth = targetWidth,
+                    )
+                }.getOrNull()
             }.also { inflight[url] = it }
         }
 
@@ -49,10 +59,10 @@ class PageStore(
         return bitmap
     }
 
-    fun prefetch(urls: List<String>) {
-        for (url in urls) {
+    fun prefetch(pages: List<Pair<String, Int>>) {
+        for ((url, page) in pages) {
             if (cache.get(url) != null) continue
-            scope.launch { runCatching { load(url) } }
+            scope.launch { runCatching { load(url, page) } }
         }
     }
 

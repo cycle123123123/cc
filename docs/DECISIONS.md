@@ -53,3 +53,24 @@
 
 - **决定**：`progress_{cid}` 存 SharedPreferences，进入阅读器时恢复。
 - **理由**：多话作品每话页数不同，按话存才不会串位。
+
+## D10 离线下载不用 WorkManager
+
+- **决定**：用应用内 `CoroutineScope` + `Job` 管理下载队列，暂停/继续由 Job 控制。
+- **理由**：实测在模拟器上，JobScheduler 认为网络未 `VALIDATED`，任务一直停在
+  `pending` 不执行（`dumpsys jobscheduler` 可见 unsatisfied）。个人项目没有必要为此
+  引入前台服务，应用内队列更可控、更容易调试。
+- **代价**：进程被杀后下载会中断；下次启动会把 running/pending 重置为 paused，
+  用户手动继续。文件级断点续传保证不会重复下载。
+
+## D11 只下载原始字节
+
+- **决定**：存服务端返回的置乱图 `{page}.bin`，阅读时再还原。
+- **理由**：和网络路径共用同一套解码逻辑；还原后的图体积大且不可逆。
+- **代价**：离线阅读每页仍要跑一次 Canvas 还原（单页个位数毫秒，可接受）。
+
+## D12 断网时的章节元数据
+
+- **决定**：meta.json 保存 `scramble_id` / `totalPages`，网络失败时用
+  `localComicRead()` 构造 `ComicRead`。
+- **理由**：只缓存图片不够——`/comic_read` 拿不到时连页数都没有，阅读器直接报错。

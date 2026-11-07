@@ -2,6 +2,7 @@ package com.jmreader.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -37,11 +39,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.jmreader.data.AlbumDetail
 import com.jmreader.data.ChapterEntry
+import com.jmreader.data.DownloadRepository
 import com.jmreader.data.JmRepository
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,6 +60,7 @@ fun DetailScreen(
     var chapters by remember { mutableStateOf<List<ChapterEntry>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
+    val context = LocalContext.current
 
     LaunchedEffect(albumId) {
         loading = true
@@ -124,12 +129,30 @@ fun DetailScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .clickable { onRead(chapter.id, chapter.title) }
-                                .padding(horizontal = 4.dp, vertical = 12.dp),
+                                .padding(horizontal = 4.dp, vertical = 4.dp),
                         ) {
-                            Text(text = chapter.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = chapter.title,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { onRead(chapter.id, chapter.title) }
+                                        .padding(vertical = 8.dp),
+                                )
+                                IconButton(
+                                    onClick = {
+                                        DownloadRepository.of(context)
+                                            .enqueue(chapter.id, album.id, chapter.title)
+                                        Toast.makeText(context, "已加入下載", Toast.LENGTH_SHORT).show()
+                                    },
+                                ) {
+                                    Icon(Icons.Filled.Download, contentDescription = "下載")
+                                }
+                            }
                             HorizontalDivider(
-                                modifier = Modifier.padding(top = 10.dp),
+                                modifier = Modifier.padding(top = 4.dp),
                                 color = MaterialTheme.colorScheme.surfaceVariant,
                             )
                         }
