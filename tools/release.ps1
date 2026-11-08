@@ -1,4 +1,4 @@
-﻿param(
+﻿﻿param(
     [string]$Notes = "常规更新"
 )
 
@@ -15,9 +15,14 @@ $tokenFile = Join-Path $env:USERPROFILE '.config\jmreader\token.txt'
 if (-not (Test-Path $tokenFile)) { throw "缺少 token 文件: $tokenFile" }
 $token = (Get-Content $tokenFile -Raw).Trim()
 
-# 这台机器 .gitconfig 里有个不在线的 127.0.0.1 代理，GitHub 走直连
-$env:no_proxy = 'github.com'
-$env:NO_PROXY = 'github.com'
+# 网络：优先走系统代理（这台机器 github.com 直连不稳）
+$sysProxy = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction SilentlyContinue).ProxyServer
+if ($sysProxy) {
+    if ($sysProxy -notmatch '^https?://') { $sysProxy = "http://$sysProxy" }
+    $env:HTTP_PROXY = $sysProxy
+    $env:HTTPS_PROXY = $sysProxy
+    Write-Host "==> 使用代理 $sysProxy"
+}
 
 function AuthHeader {
     @{ Authorization = "token $token"; 'User-Agent' = 'jmreader-release' }
