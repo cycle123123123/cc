@@ -1,0 +1,421 @@
+package com.jmreader.ui
+
+import android.widget.Toast
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Reply
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
+import com.jmreader.data.userMessage
+import com.jmreader.core.runCatchingCancellable
+import com.jmreader.data.AlbumDetail
+import com.jmreader.data.ChapterEntry
+import com.jmreader.data.ComicRead
+import com.jmreader.data.CommentItem
+import com.jmreader.data.ContentFilter
+import com.jmreader.data.DownloadRepository
+import com.jmreader.data.ForumPage
+import com.jmreader.data.JmRepository
+import com.jmreader.data.PageImage
+import kotlinx.coroutines.launch
+
+@Composable
+internal fun DetailStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(value, style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+internal fun ChapterRow(
+    chapter: ChapterEntry,
+    onRead: () -> Unit,
+    onDownload: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = chapter.title,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onRead)
+                    .padding(vertical = 8.dp),
+            )
+            IconButton(onClick = onDownload) {
+                Icon(Icons.Filled.Download, contentDescription = "下載")
+            }
+        }
+        HorizontalDivider(
+            modifier = Modifier.padding(top = 4.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+        )
+    }
+}
+
+@Composable
+internal fun CommentRow(
+    comment: CommentItem,
+    canDelete: Boolean,
+    onLike: () -> Unit,
+    onReply: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val isReply = comment.parentCid != "0" && comment.parentCid.isNotBlank()
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = if (isReply) 24.dp else 0.dp, top = 6.dp, bottom = 6.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = comment.nickname.ifBlank { comment.username },
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = comment.addtime,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = stripHtml(comment.content),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onLike) {
+                Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.width(16.dp))
+                Text(text = " ${comment.likes}", style = MaterialTheme.typography.labelMedium)
+            }
+            TextButton(onClick = onReply) {
+                Icon(Icons.Filled.Reply, contentDescription = null, modifier = Modifier.width(16.dp))
+                Text(text = " 回覆", style = MaterialTheme.typography.labelMedium)
+            }
+            if (canDelete) {
+                TextButton(onClick = onDelete) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.width(16.dp))
+                    Text(text = " 刪除", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun Header(
+    repo: JmRepository,
+    album: AlbumDetail,
+    isFavorite: Boolean,
+    onFavorite: () -> Unit,
+    onLike: () -> Unit,
+    onBlockTags: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        AsyncImage(
+            model = repo.coverUrl(album.id.toString()),
+            contentDescription = album.name,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .width(120.dp)
+                .aspectRatio(3f / 4f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        )
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = album.name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+            )
+            TextButton(onClick = onFavorite) {
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = "收藏",
+                    modifier = Modifier.width(18.dp),
+                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = if (isFavorite) " 已收藏" else " 收藏",
+                    color = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = onLike) {
+                Icon(
+                    Icons.Filled.ThumbUp,
+                    contentDescription = "點讚",
+                    modifier = Modifier.width(18.dp),
+                    tint = if (album.liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = " 讚",
+                    color = if (album.liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Row {
+                val filter = ContentFilter.of(androidx.compose.ui.platform.LocalContext.current)
+                TextButton(
+                    onClick = {
+                        album.author.firstOrNull()?.let { filter.addAuthor(it) }
+                    },
+                ) {
+                    Text("屏蔽作者", style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(onClick = onBlockTags) {
+                    Text("屏蔽标签", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+/** 详情页顶部预览：从第一话随机取几页，还原后等比裁切；点开是全屏看图。 */
+@Composable
+internal fun PreviewStrip(
+    repo: JmRepository,
+    albumId: Long,
+    chapterId: Long,
+) {
+    var comic by remember(chapterId) { mutableStateOf<ComicRead?>(null) }
+    var thumbs by remember(chapterId) { mutableStateOf<List<Pair<PageImage, Bitmap>>>(emptyList()) }
+    var loading by remember(chapterId) { mutableStateOf(true) }
+    var viewerIndex by remember(chapterId) { mutableStateOf<Int?>(null) }
+
+    LaunchedEffect(chapterId) {
+        loading = true
+        val data = runCatchingCancellable { repo.comicRead(chapterId) }.getOrNull()
+        if (data != null) {
+            val picked = data.images.shuffled().take(PREVIEW_COUNT).sortedBy { it.page }
+            thumbs = picked.mapNotNull { page ->
+                runCatchingCancellable {
+                    repo.loadPage(
+                        cid = chapterId,
+                        page = page.page,
+                        url = page.image,
+                        aid = albumId,
+                        scrambleId = data.scrambleId,
+                        targetWidth = PREVIEW_WIDTH_PX,
+                    )
+                }.getOrNull()?.let { page to it }
+            }
+            comic = data
+        }
+        loading = false
+    }
+
+    if (thumbs.isEmpty() && !loading) return
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (thumbs.isEmpty()) {
+            repeat(PREVIEW_COUNT) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                )
+            }
+        } else {
+            thumbs.forEachIndexed { index, (_, bitmap) ->
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "預覽",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { viewerIndex = index },
+                )
+            }
+        }
+    }
+
+    val data = comic
+    val index = viewerIndex
+    if (data != null && index != null && thumbs.isNotEmpty()) {
+        PreviewViewer(
+            repo = repo,
+            albumId = albumId,
+            chapterId = chapterId,
+            scrambleId = data.scrambleId,
+            pages = thumbs.map { it.first },
+            initialIndex = index.coerceIn(0, thumbs.lastIndex),
+            onDismiss = { viewerIndex = null },
+        )
+    }
+}
+
+/** 全屏看图：左右滑动切页，按屏幕宽度重新解码，保证清晰度。 */
+@Composable
+internal fun PreviewViewer(
+    repo: JmRepository,
+    albumId: Long,
+    chapterId: Long,
+    scrambleId: Long,
+    pages: List<PageImage>,
+    initialIndex: Int,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val screenWidth = remember { context.resources.displayMetrics.widthPixels }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        val pager = rememberPagerState(initialPage = initialIndex, pageCount = { pages.size })
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { pageIndex ->
+                val page = pages[pageIndex]
+                var bitmap by remember(page.page) { mutableStateOf<Bitmap?>(null) }
+
+                LaunchedEffect(page.page) {
+                    bitmap = runCatchingCancellable {
+                        repo.loadPage(
+                            cid = chapterId,
+                            page = page.page,
+                            url = page.image,
+                            aid = albumId,
+                            scrambleId = scrambleId,
+                            targetWidth = screenWidth,
+                        )
+                    }.getOrNull()
+                }
+
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    val image = bitmap
+                    if (image != null) {
+                        Image(
+                            bitmap = image.asImageBitmap(),
+                            contentDescription = "第 ${page.page} 頁",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        CircularProgressIndicator(color = Color.White)
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(top = 32.dp, start = 16.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "第 ${pages[pager.currentPage].page} 頁",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "關閉", tint = Color.White)
+                }
+            }
+        }
+    }
+}
+
+internal const val PREVIEW_COUNT = 4
+internal const val PREVIEW_WIDTH_PX = 220
+
+/** 评论内容带 HTML（<div>、<br> 等），展示前转成纯文本。 */
+internal fun stripHtml(raw: String): String =
+    runCatchingCancellable {
+        android.text.Html.fromHtml(raw, android.text.Html.FROM_HTML_MODE_LEGACY).toString().trim()
+    }.getOrDefault(raw)

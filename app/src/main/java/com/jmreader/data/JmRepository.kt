@@ -2,14 +2,10 @@ package com.jmreader.data
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import com.jmreader.core.ImageDescrambler
 import com.jmreader.core.JmConfig
 import com.jmreader.core.JmCrypto
 import com.jmreader.core.awaitResponse
 import java.io.File
-import java.io.IOException
-import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -28,7 +24,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Cache
-import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -58,8 +53,14 @@ class JmRepository(context: Context) {
 
     private val hostBenchmark = HostBenchmark(http, json, PROBE_TIMEOUT_MS)
 
+    /** 信封层：拼参数、签名头、解密；仓库只管线路与重试。 */
+    private val jmHttp = JmHttp(http, json, auth)
+
     /** 页面字节缓存（带容量上限和 LRU 淘汰）。 */
     private val pageCache = PageCache(File(appContext.cacheDir, "pages"))
+
+    /** 阅读页加载/解码，和接口调用分开。 */
+    private val pageLoader = PageLoader(appContext, pageCache) { url -> fetchBytes(url) }
 
     @Volatile
     private var apiBase: String? = null
@@ -460,42 +461,7 @@ class JmRepository(context: Context) {
         aid: Long,
         scrambleId: Long,
         targetWidth: Int,
-    ): Bitmap = withContext(Dispatchers.IO) {
-            val local = DownloadRepository.of(appContext).pageFile(cid, page)
-            val bytes = local?.readBytes()
-                ?: pageCache.read(cid, page)
-                ?: fetchBytes(url).also { pageCache.write(cid, page, it) }
-
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-
-            var sample = 1
-            val srcWidth = bounds.outWidth.coerceAtLeast(1)
-            val srcHeight = bounds.outHeight.coerceAtLeast(1)
-            while (true) {
-                val width = srcWidth / sample
-                val height = srcHeight / sample
-                val withinWidth = width / 2 < targetWidth
-                val withinPixels = width.toLong() * height <= MAX_DECODE_PIXELS
-                if (withinWidth && withinPixels) break
-                sample *= 2
-            }
-
-            val options = BitmapFactory.Options().apply {
-                inSampleSize = sample
-                inPreferredConfig = Bitmap.Config.ARGB_8888
-            }
-            val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-                ?: throw JmException.Parse(IOException("图片解码失败"))
-
-            val cleanUrl = url.substringBefore('?')
-            if (cleanUrl.endsWith(".gif", ignoreCase = true)) {
-                bitmap
-            } else {
-                val key = cleanUrl.substringAfterLast('/').substringBeforeLast('.')
-                ImageDescrambler.decode(bitmap, aid, scrambleId, key)
-            }
-        }
+    ): Bitmap = pageLoader.load(cid, page, url, aid, scrambleId, targetWidth)
 
     /** 从 /album 的 series 字段提取目录；单本作品返回空列表。 */
     fun seriesChapters(detail: AlbumDetail): List<ChapterEntry> = SeriesParser.parse(detail.series)
@@ -595,51 +561,15 @@ class JmRepository(context: Context) {
         apiBase
     }
 
-    private suspend fun request(base: String, path: String, params: Map<String, String>): String {
-        val ts = System.currentTimeMillis() / 1000
-        val query = (params + ("lang" to JmConfig.DEFAULT_LANG)).entries.joinToString("&") { (key, value) ->
-            "$key=${URLEncoder.encode(value, "UTF-8")}"
-        }
-        val request = Request.Builder()
-            .url(base + path + "?" + query)
-            .get()
-            .withCommonHeaders(ts)
-            .build()
-        return execute(request, ts)
-    }
+    private suspend fun request(base: String, path: String, params: Map<String, String>): String =
+        jmHttp.get(base, path, params)
 
-    private suspend fun formPost(base: String, path: String, form: Map<String, String>): String {
-        val ts = System.currentTimeMillis() / 1000
-        val body = MultipartBody.Builder()
-            .setType(MultipartBody.FORM)
-            .apply { form.forEach { (key, value) -> addFormDataPart(key, value) } }
-            .build()
-        val request = Request.Builder()
-            .url(base + path + "?lang=" + JmConfig.DEFAULT_LANG)
-            .post(body)
-            .withCommonHeaders(ts)
-            .build()
-        return execute(request, ts)
-    }
+    private suspend fun formPost(base: String, path: String, form: Map<String, String>): String =
+        jmHttp.post(base, path, form)
 
     /** 有些接口返回空 body（例如 comment_vote），只判断 HTTP 状态。 */
-    private suspend fun formPostRaw(base: String, path: String, form: Map<String, String>): Boolean {
-        val ts = System.currentTimeMillis() / 1000
-        val body = MultipartBody.Builder()
-            .setType(MultipartBody.FORM)
-            .apply { form.forEach { (key, value) -> addFormDataPart(key, value) } }
-            .build()
-        val request = Request.Builder()
-            .url(base + path + "?lang=" + JmConfig.DEFAULT_LANG)
-            .post(body)
-            .withCommonHeaders(ts)
-            .build()
-        http.newCall(request).awaitResponse().use { response ->
-            if (response.code == 401) throw JmException.Auth()
-            if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")
-            return true
-        }
-    }
+    private suspend fun formPostRaw(base: String, path: String, form: Map<String, String>): Boolean =
+        jmHttp.postRaw(base, path, form)
 
     /** 图源切换：只替换 host，路径和参数保持接口返回的原样。 */
     private fun rewriteImageHost(url: String): String = when (val index = imageShard) {
@@ -653,52 +583,7 @@ class JmRepository(context: Context) {
         java.net.URI(uri.scheme, uri.userInfo, host, uri.port, uri.path, uri.query, uri.fragment).toString()
     }.getOrDefault(url)
 
-    private fun Request.Builder.withCommonHeaders(ts: Long): Request.Builder {
-        header("Token", JmCrypto.token(ts))
-        header("Tokenparam", JmCrypto.tokenParam(ts))
-        header("Accept", "application/json")
-        header("Referer", JmConfig.WEB_REFERER)
-        header("User-Agent", JmConfig.USER_AGENT)
-        auth.jwt?.let { header("Authorization", "Bearer $it") }
-        auth.session?.let { header("Cookie", "AVS=$it") }
-        return this
-    }
-
-    private suspend fun execute(request: Request, ts: Long): String {
-        http.newCall(request).awaitResponse().use { response ->
-            if (response.code == 401) throw JmException.Auth()
-            if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")
-
-            val body = response.body?.string().orEmpty()
-            val envelope = try {
-                json.parseToJsonElement(body).jsonObject
-            } catch (t: Throwable) {
-                throw JmException.Parse(t)
-            }
-            val code = envelope["code"]?.jsonPrimitive?.intOrNull ?: -1
-            if (code != 200) throw JmException.Api(code, "接口返回 code=$code")
-            val data = envelope["data"]?.jsonPrimitive?.contentOrNull
-                ?: throw JmException.Api(code, "接口返回缺少 data")
-            return try {
-                JmCrypto.decryptPayload(data, ts)
-            } catch (t: Throwable) {
-                throw JmException.Decrypt(t)
-            }
-        }
-    }
-
-    private suspend fun fetchBytes(url: String): ByteArray {
-        val request = Request.Builder()
-            .url(rewriteImageHost(url))
-            .header("Referer", JmConfig.WEB_REFERER)
-            .header("User-Agent", JmConfig.USER_AGENT)
-            .build()
-        http.newCall(request).awaitResponse().use { response ->
-            if (response.code == 401) throw JmException.Auth()
-            if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")
-            return response.body?.bytes() ?: throw JmException.Network("响应为空")
-        }
-    }
+    private suspend fun fetchBytes(url: String): ByteArray = jmHttp.bytes(rewriteImageHost(url))
 
     /** 拉取并解密线路清单。失败不影响后续兜底逻辑。 */
     private suspend fun collectNetworkHosts(target: MutableSet<String>) {
@@ -752,6 +637,5 @@ class JmRepository(context: Context) {
         private const val PROBE_TIMEOUT_MS = 2500L
         private const val ALBUM_TTL_MS = 60L * 1000L
         private const val READ_TTL_MS = 5L * 60L * 1000L
-        private const val MAX_DECODE_PIXELS = 6_000_000L
     }
 }

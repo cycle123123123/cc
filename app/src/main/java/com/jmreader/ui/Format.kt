@@ -19,3 +19,10 @@ internal fun formatEpochSeconds(raw: String): String {
         SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(seconds * 1000L))
     }.getOrDefault(raw)
 }
+
+internal fun formatCacheSize(bytes: Long): String = when {
+    bytes >= 1024L * 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f GB", bytes / 1024.0 / 1024 / 1024)
+    bytes >= 1024L * 1024 -> String.format(java.util.Locale.US, "%.0f MB", bytes / 1024.0 / 1024)
+    bytes >= 1024L -> String.format(java.util.Locale.US, "%.0f KB", bytes / 1024.0)
+    else -> "$bytes B"
+}
