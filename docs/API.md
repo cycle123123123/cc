@@ -362,6 +362,15 @@ GET /search?search_query=test&c=doujin&page=1
 
 用 `c=<slug>_<subslug>` 可以带子分类（和 `categories/filter` 一致）。
 
+排序用 `o`：
+
+```
+GET /search?search_query=test&o=mv&page=1     # 最多點閱
+GET /search?search_query=test&o=tf&page=1     # 最多愛心
+```
+
+`order=mv` / `order=tf` 无效（和默认顺序一样）；`o=mp` 会返回 500。
+
 ### 5.9 周榜
 
 筛选选项：

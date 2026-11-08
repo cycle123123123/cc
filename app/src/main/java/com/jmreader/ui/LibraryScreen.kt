@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -238,6 +240,7 @@ private fun LibraryContent(repo: JmRepository, member: Member, onOpen: (Long) ->
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var sortByName by remember { mutableStateOf(false) }
+    var searchOpen by remember { mutableStateOf(false) }
 
     // 收藏
     var favorites by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
@@ -391,18 +394,34 @@ private fun LibraryContent(repo: JmRepository, member: Member, onOpen: (Long) ->
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = {
-                    Text(
-                        if (tab == 0) "搜尋收藏（已載入 ${favorites.size} 筆）"
-                        else "搜尋歷史（已載入 ${historyItems.size} 筆）",
-                    )
-                },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
+            if (searchOpen) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = {
+                        Text(
+                            if (tab == 0) "搜尋收藏（已載入 ${favorites.size} 筆）"
+                            else "搜尋歷史（已載入 ${historyItems.size} 筆）",
+                        )
+                    },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = {
+                        searchOpen = false
+                        query = ""
+                    },
+                ) { Text("收起") }
+            } else {
+                TextButton(
+                    onClick = { searchOpen = true },
+                    modifier = Modifier.weight(1f, fill = false),
+                ) {
+                    Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.width(18.dp))
+                    Text(" 搜尋")
+                }
+            }
             TextButton(onClick = { sortByName = !sortByName }) {
                 Text(if (sortByName) "名稱↓" else "默認")
             }

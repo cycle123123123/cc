@@ -64,6 +64,9 @@ class AuthorWorksState {
     var category by mutableStateOf("")
     var categories by mutableStateOf<List<CategoryNode>>(emptyList())
 
+    /** 排序：""=默認，mv=最多點閱，tf=最多愛心。 */
+    var order by mutableStateOf("")
+
     /** 点击量 / 爱心数 / 是否日文（卡片可见时按需从 /album 补）。 */
     val metas = mutableStateMapOf<String, AlbumMeta>()
     val albumRequests = mutableSetOf<String>()
@@ -101,7 +104,7 @@ fun AuthorWorksScreen(
         if (state.loading) return
         state.loading = true
         state.error = null
-        runCatchingCancellable { repo.search(authorName, if (reset) 1 else state.page, state.category) }
+        runCatchingCancellable { repo.search(authorName, if (reset) 1 else state.page, state.category, state.order) }
             .onSuccess { result ->
                 val fresh = result.content.filter { new -> state.albums.none { it.id == new.id } }
                 state.albums = if (reset) result.content else state.albums + fresh
@@ -156,6 +159,16 @@ fun AuthorWorksScreen(
                     onSelect = { slug ->
                         if (slug != state.category) {
                             state.category = slug
+                            state.hasMore = true
+                            scope.launch { load(true) }
+                        }
+                    },
+                )
+                SortChips(
+                    selected = state.order,
+                    onSelect = { value ->
+                        if (value != state.order) {
+                            state.order = value
                             state.hasMore = true
                             scope.launch { load(true) }
                         }

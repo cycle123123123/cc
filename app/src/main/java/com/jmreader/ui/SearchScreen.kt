@@ -77,7 +77,7 @@ fun SearchScreen(
         if (keyword.isEmpty() || state.loading) return
         state.loading = true
         state.error = null
-        runCatchingCancellable { repo.search(keyword, if (reset) 1 else state.page, state.category) }
+        runCatchingCancellable { repo.search(keyword, if (reset) 1 else state.page, state.category, state.order) }
             .onSuccess { result ->
                 val fresh = result.content.filter { new -> state.results.none { it.id == new.id } }
                 state.results = if (reset) result.content else state.results + fresh
@@ -150,6 +150,15 @@ fun SearchScreen(
                     onSelect = { slug ->
                         if (slug != state.category) {
                             state.category = slug
+                            scope.launch { runSearch(true) }
+                        }
+                    },
+                )
+                SortChips(
+                    selected = state.order,
+                    onSelect = { value ->
+                        if (value != state.order) {
+                            state.order = value
                             scope.launch { runSearch(true) }
                         }
                     },

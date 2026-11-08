@@ -55,6 +55,35 @@ fun CategoryChips(
     }
 }
 
+/** 搜索页/作者页的排序选项（对应接口参数 o）。`mp` 服务端会 500，不提供。 */
+internal val SEARCH_SORTS = listOf(
+    "" to "默認",
+    "mv" to "最多點閱",
+    "tf" to "最多愛心",
+)
+
+/** 排序行，搜索页和作者页共用。 */
+@Composable
+fun SortChips(
+    selected: String,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyRow(
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(items = SEARCH_SORTS, key = { it.first }) { sort ->
+            FilterChip(
+                selected = selected == sort.first,
+                onClick = { onSelect(sort.first) },
+                label = { Text(sort.second) },
+            )
+        }
+    }
+}
+
 /** `/categories` 里 type=slug 的才是作品大类（同人/單本/短篇/韓漫…）。 */
 suspend fun loadWorkCategories(repo: JmRepository): List<CategoryNode> =
     runCatchingCancellable { repo.categories() }

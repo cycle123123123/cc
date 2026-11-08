@@ -123,10 +123,14 @@ class JmRepository(context: Context) {
         return comic
     }
 
-    /** @param category 分类 slug（同人 doujin / 單本 single / 短篇 short / 韓漫 hanman…），空串表示全部 */
-    suspend fun search(query: String, page: Int, category: String = ""): SearchPage {
+    /**
+     * @param category 分类 slug（同人 doujin / 單本 single / 短篇 short / 韓漫 hanman…），空串表示全部
+     * @param order 排序：空=默認，`mv`=最多點閱，`tf`=最多愛心（`mp` 服务端会 500，不用）
+     */
+    suspend fun search(query: String, page: Int, category: String = "", order: String = ""): SearchPage {
         val params = mutableMapOf("search_query" to query, "page" to page.toString())
         if (category.isNotBlank()) params["c"] = category
+        if (order.isNotBlank()) params["o"] = order
         return get("search", params, SearchPage.serializer())
     }
 

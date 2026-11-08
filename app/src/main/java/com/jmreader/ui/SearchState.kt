@@ -27,6 +27,9 @@ class SearchState {
     var error by mutableStateOf<String?>(null)
     var category by mutableStateOf("")
 
+    /** 排序：""=默認，mv=最多點閱，tf=最多愛心。 */
+    var order by mutableStateOf("")
+
     /** 首次进入是否已经处理过（防止从详情返回时重复发起首屏请求）。 */
     var started by mutableStateOf(false)
 
