@@ -96,13 +96,22 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
-        if (!state.loaded) load(true)
+        if (!state.loaded) {
+            // 先用上次缓存的首页内容垫着，再走网络刷新
+            if (state.albums.isEmpty()) {
+                repo.cachedLatest()?.let { state.albums = it }
+            }
+            // 先选最快线路（最多 2.5s），否则可能一直用最慢的那条
+            runCatchingCancellable { repo.optimizeHost() }
+            load(true)
+        }
+    }
 
+    LaunchedEffect(Unit) {
         runCatchingCancellable { repo.settingInfo() }
             .onSuccess { setting ->
                 val latest = setting.jm3Version
                 val dismissed = prefs.getString("dismissed_protocol", null)
-
                 if (latest.isNotBlank() && latest != JmConfig.PROTOCOL_VERSION && latest != dismissed) {
                     state.update = setting
                 }

@@ -12,7 +12,9 @@ import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.ListSerializer
@@ -43,6 +45,9 @@ class JmRepository(context: Context) {
 
     private val prefs = context.applicationContext.getSharedPreferences("jmreader", Context.MODE_PRIVATE)
 
+    /** 给 Coil 复用同一个连接池和磁盘缓存。 */
+    val okHttpClient: OkHttpClient get() = http
+
     private val http = OkHttpClient.Builder()
         .cache(Cache(File(context.applicationContext.cacheDir, "http"), HTTP_CACHE_BYTES))
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -52,23 +57,61 @@ class JmRepository(context: Context) {
     @Volatile
     private var apiBase: String? = null
 
+    private val albumCache = android.util.LruCache<Long, AlbumDetail>(16)
+    private val albumCacheAt = mutableMapOf<Long, Long>()
+    private val readCache = android.util.LruCache<Long, ComicRead>(8)
+    private val readCacheAt = mutableMapOf<Long, Long>()
+
     @Volatile
     var imgBase: String = JmConfig.IMG_HOST_FALLBACK
         private set
 
     // ------------------------------------------------------------ 浏览
 
-    suspend fun latest(page: Int): List<AlbumBrief> =
-        get("latest", mapOf("page" to page.toString()), ListSerializer(AlbumBrief.serializer()))
+    suspend fun latest(page: Int): List<AlbumBrief> {
+        val list = get("latest", mapOf("page" to page.toString()), ListSerializer(AlbumBrief.serializer()))
+        if (page == 1) saveLatestCache(list)
+        return list
+    }
 
-    suspend fun album(id: Long): AlbumDetail =
-        get("album", mapOf("id" to id.toString()), AlbumDetail.serializer())
+    /** 冷启动时先用上次的首页数据垫着，避免一直转圈。 */
+    fun cachedLatest(): List<AlbumBrief>? = runCatching {
+        val file = File(appContext.filesDir, HOME_CACHE)
+        if (!file.exists()) return null
+        json.decodeFromString(ListSerializer(AlbumBrief.serializer()), file.readText())
+    }.getOrNull()
+
+    private fun saveLatestCache(list: List<AlbumBrief>) {
+        runCatching {
+            File(appContext.filesDir, HOME_CACHE)
+                .writeText(json.encodeToString(ListSerializer(AlbumBrief.serializer()), list))
+        }
+    }
+
+    suspend fun album(id: Long): AlbumDetail {
+        val cached = albumCache.get(id)
+        val cachedAt = albumCacheAt[id] ?: 0L
+        if (cached != null && System.currentTimeMillis() - cachedAt < ALBUM_TTL_MS) return cached
+
+        val album = get("album", mapOf("id" to id.toString()), AlbumDetail.serializer())
+        albumCache.put(id, album)
+        albumCacheAt[id] = System.currentTimeMillis()
+        return album
+    }
 
     suspend fun chapter(id: Long): ChapterInfo =
         get("chapter", mapOf("id" to id.toString()), ChapterInfo.serializer())
 
-    suspend fun comicRead(id: Long): ComicRead =
-        get("comic_read", mapOf("id" to id.toString()), ComicRead.serializer())
+    suspend fun comicRead(id: Long): ComicRead {
+        val cached = readCache.get(id)
+        val cachedAt = readCacheAt[id] ?: 0L
+        if (cached != null && System.currentTimeMillis() - cachedAt < READ_TTL_MS) return cached
+
+        val comic = get("comic_read", mapOf("id" to id.toString()), ComicRead.serializer())
+        readCache.put(id, comic)
+        readCacheAt[id] = System.currentTimeMillis()
+        return comic
+    }
 
     suspend fun search(query: String, page: Int): SearchPage =
         get(
@@ -107,11 +150,29 @@ class JmRepository(context: Context) {
         val cached = cachedSetting
         if (!force && cached != null && now - cachedSettingAt < SETTING_TTL_MS) return@withContext cached
 
+        if (!force) {
+            val raw = prefs.getString(KEY_SETTING_JSON, null)
+            val at = prefs.getLong(KEY_SETTING_AT, 0)
+            if (raw != null && now - at < SETTING_TTL_MS) {
+                runCatching { json.decodeFromString(AppSetting.serializer(), raw) }.getOrNull()?.let {
+                    cachedSetting = it
+                    cachedSettingAt = at
+                    if (it.imgHost.isNotBlank()) imgBase = it.imgHost
+                    return@withContext it
+                }
+            }
+        }
+
         ensureReady()
         val base = apiBase ?: throw JmException.Network("线路未就绪")
         val setting = json.decodeFromString(AppSetting.serializer(), request(base, "setting", emptyMap()))
         cachedSetting = setting
         cachedSettingAt = now
+        if (setting.imgHost.isNotBlank()) imgBase = setting.imgHost
+        prefs.edit()
+            .putString(KEY_SETTING_JSON, json.encodeToString(AppSetting.serializer(), setting))
+            .putLong(KEY_SETTING_AT, now)
+            .apply()
         setting
     }
 
@@ -396,6 +457,10 @@ class JmRepository(context: Context) {
         } catch (e: JmException.Auth) {
             // token 失效：用记住的密码重登一次再重试
             if (silentLogin()) request(base, path, params) else throw e
+        } catch (e: JmException.Network) {
+            // 缓存线路失效：重新发现一次再重试
+            val fresh = recoverBase()
+            if (fresh != null && fresh != base) request(fresh, path, params) else throw e
         }
         try {
             json.decodeFromString(deserializer, body)
@@ -408,19 +473,104 @@ class JmRepository(context: Context) {
     private fun ensureReady() {
         if (apiBase != null) return
 
+        // 有缓存线路就直接用，把「拉线路清单 + 探测 setting」留给真正的失败路径
+        prefs.getString(KEY_API_BASE, null)?.let { cached ->
+            apiBase = cached
+            runCatching {
+                val raw = prefs.getString(KEY_SETTING_JSON, null) ?: return@runCatching
+                val setting = json.decodeFromString(AppSetting.serializer(), raw)
+                if (setting.imgHost.isNotBlank()) imgBase = setting.imgHost
+            }
+            return
+        }
+
+        rediscover()
+    }
+
+    /** 并发/顺序探测可用线路，成功后写入缓存。 */
+    @Synchronized
+    private fun rediscover() {
         val candidates = LinkedHashSet<String>()
-        prefs.getString(KEY_API_BASE, null)?.let { candidates.add(it) }
         collectNetworkHosts(candidates)
         JmConfig.BUILTIN_HOSTS.forEach { candidates.add("https://$it/") }
 
-        for (base in candidates) {
-            val setting = runCatching { requestSetting(base) }.getOrNull() ?: continue
-            apiBase = base
-            imgBase = setting.imgHost.ifBlank { JmConfig.IMG_HOST_FALLBACK }
-            prefs.edit().putString(KEY_API_BASE, base).apply()
-            return
+        val best = benchmarkHosts(candidates) ?: throw JmException.Network("没有可用线路")
+        adopt(best)
+    }
+
+    private data class HostProbe(val base: String, val setting: AppSetting?, val ms: Long)
+
+    /** 并发请求每个线路的 /setting，取耗时最短的。 */
+    private fun benchmarkHosts(candidates: Collection<String>): HostProbe? = runBlocking {
+        candidates.map { base ->
+            async(Dispatchers.IO) { probeHost(base) }
+        }.awaitAll()
+            .filter { it.setting != null }
+            .minByOrNull { it.ms }
+    }
+
+    private fun probeHost(base: String): HostProbe {
+        val started = System.currentTimeMillis()
+        val setting = runCatching {
+            val ts = System.currentTimeMillis() / 1000
+            val request = Request.Builder()
+                .url(base + "setting?lang=" + JmConfig.DEFAULT_LANG)
+                .header("Token", JmCrypto.token(ts))
+                .header("Tokenparam", JmCrypto.tokenParam(ts))
+                .header("Accept", "application/json")
+                .header("Referer", JmConfig.WEB_REFERER)
+                .header("User-Agent", JmConfig.USER_AGENT)
+                .build()
+            val call = http.newCall(request)
+            call.timeout().timeout(PROBE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            call.execute().use { response ->
+                if (!response.isSuccessful) return@use null
+                val body = response.body?.string().orEmpty()
+                val envelope = json.parseToJsonElement(body).jsonObject
+                val code = envelope["code"]?.jsonPrimitive?.intOrNull ?: -1
+                if (code != 200) return@use null
+                val data = envelope["data"]?.jsonPrimitive?.contentOrNull ?: return@use null
+                json.decodeFromString(AppSetting.serializer(), JmCrypto.decryptPayload(data, ts))
+            }
+        }.getOrNull()
+        return HostProbe(base, setting, System.currentTimeMillis() - started)
+    }
+
+    private fun adopt(probe: HostProbe) {
+        apiBase = probe.base
+        val setting = probe.setting ?: return
+        imgBase = setting.imgHost.ifBlank { JmConfig.IMG_HOST_FALLBACK }
+        prefs.edit()
+            .putString(KEY_API_BASE, probe.base)
+            .putString(KEY_SETTING_JSON, json.encodeToString(AppSetting.serializer(), setting))
+            .putLong(KEY_SETTING_AT, System.currentTimeMillis())
+            .putLong(KEY_BENCH_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    /**
+     * 在后台重新测速并切到最快线路。默认 30 分钟内不重复测。
+     * 之前缓存的那条线路可能刚好是最慢的（实测 8s vs 0.8s）。
+     */
+    suspend fun optimizeHost(force: Boolean = false) = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        if (!force && now - prefs.getLong(KEY_BENCH_AT, 0) < BENCH_TTL_MS) return@withContext
+        val current = apiBase ?: prefs.getString(KEY_API_BASE, null) ?: return@withContext
+
+        val candidates = LinkedHashSet<String>().apply {
+            add(current)
+            JmConfig.BUILTIN_HOSTS.forEach { add("https://$it/") }
         }
-        throw JmException.Network("没有可用线路")
+        val best = benchmarkHosts(candidates) ?: return@withContext
+        prefs.edit().putLong(KEY_BENCH_AT, now).apply()
+        if (best.base != current) adopt(best)
+    }
+
+    /** 请求失败时重新发现线路；返回新的 base 或 null。 */
+    private fun recoverBase(): String? = synchronized(this) {
+        apiBase = null
+        runCatching { rediscover() }
+        apiBase
     }
 
     private fun requestSetting(base: String): AppSetting =
@@ -562,7 +712,15 @@ class JmRepository(context: Context) {
         const val KEY_API_BASE = "api_base"
         const val KEY_IMG_SHARD = "img_shard"
         const val KEY_AUTO_HOST = "auto_host"
+        const val KEY_SETTING_JSON = "setting_json"
+        const val KEY_SETTING_AT = "setting_at"
+        const val KEY_BENCH_AT = "bench_at"
+        const val HOME_CACHE = "home_cache.json"
         const val HTTP_CACHE_BYTES = 256L * 1024 * 1024
         const val SETTING_TTL_MS = 10L * 60L * 1000L
+        const val BENCH_TTL_MS = 30L * 60L * 1000L
+        const val PROBE_TIMEOUT_MS = 2500L
+        const val ALBUM_TTL_MS = 60L * 1000L
+        const val READ_TTL_MS = 5L * 60L * 1000L
     }
 }

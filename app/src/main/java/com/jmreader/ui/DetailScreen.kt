@@ -93,9 +93,12 @@ fun DetailScreen(
                     .ifEmpty { listOf(ChapterEntry(album.id, album.name.ifBlank { "開始閱讀" })) }
             }
             .onFailure { error = it.userMessage() }
+        loading = false
+    }
+
+    LaunchedEffect(albumId) {
         runCatchingCancellable { repo.forum(albumId, 1) }
             .onSuccess { forum = it }
-        loading = false
     }
 
     fun refreshComments() {
