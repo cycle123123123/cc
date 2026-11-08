@@ -26,6 +26,7 @@ import com.jmreader.data.JmRepository
 
 sealed interface Screen {
     data class Search(val query: String = "", val state: SearchState = SearchState()) : Screen
+    data class AuthorWorks(val name: String, val state: AuthorWorksState = AuthorWorksState()) : Screen
     data class Detail(val id: Long) : Screen
     data class Reader(val aid: Long, val cid: Long, val title: String) : Screen
     data object Downloads : Screen
@@ -115,11 +116,21 @@ fun AppRoot(repo: JmRepository) {
                     initialQuery = current.query,
                 )
 
+                is Screen.AuthorWorks -> AuthorWorksScreen(
+                    repo = repo,
+                    authorName = current.name,
+                    state = current.state,
+                    onBack = { pop() },
+                    onOpen = { push(Screen.Detail(it)) },
+                )
+
                 is Screen.Detail -> DetailScreen(
                     repo = repo,
                     albumId = current.id,
                     onBack = { pop() },
                     onRead = { cid, title -> push(Screen.Reader(current.id, cid, title)) },
+                    onOpenAuthor = { name -> push(Screen.AuthorWorks(name)) },
+                    onSearchTag = { tag -> push(Screen.Search(tag)) },
                 )
 
                 is Screen.Reader -> ReaderScreen(

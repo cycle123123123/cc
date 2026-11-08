@@ -8,6 +8,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -31,6 +33,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -78,13 +81,15 @@ import com.jmreader.data.JmRepository
 import com.jmreader.data.PageImage
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun DetailScreen(
     repo: JmRepository,
     albumId: Long,
     onBack: () -> Unit,
     onRead: (Long, String) -> Unit,
+    onOpenAuthor: (String) -> Unit,
+    onSearchTag: (String) -> Unit,
 ) {
     var showTagBlock by remember { mutableStateOf(false) }
     var tagsToBlock by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -269,7 +274,7 @@ fun DetailScreen(
                                         Modifier.weight(1f),
                                     )
                                 }
-                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (album.addTime.isNotBlank()) {
                                         Text(
                                             text = "上架 ${formatEpochSeconds(album.addTime)}",
@@ -278,18 +283,46 @@ fun DetailScreen(
                                         )
                                     }
                                     if (album.author.isNotEmpty()) {
-                                        Text(
-                                            text = "作者 ${album.author.joinToString(" / ")}",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "作者",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(end = 8.dp),
+                                            )
+                                            FlowRow(
+                                                modifier = Modifier.weight(1f),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            ) {
+                                                album.author.forEach { name ->
+                                                    AssistChip(
+                                                        onClick = { onOpenAuthor(name) },
+                                                        label = { Text(name, style = MaterialTheme.typography.labelMedium) },
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                     if (album.tags.isNotEmpty()) {
-                                        Text(
-                                            text = "標籤 ${album.tags.joinToString(" · ")}",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = "標籤",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(end = 8.dp),
+                                            )
+                                            FlowRow(
+                                                modifier = Modifier.weight(1f),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            ) {
+                                                album.tags.forEach { tag ->
+                                                    AssistChip(
+                                                        onClick = { onSearchTag(tag) },
+                                                        label = { Text(tag, style = MaterialTheme.typography.labelMedium) },
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
