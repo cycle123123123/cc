@@ -1,5 +1,6 @@
 package com.jmreader.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,13 +18,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -52,36 +52,46 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.jmreader.data.userMessage
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
 import com.jmreader.data.FolderItem
 import com.jmreader.data.JmException
 import com.jmreader.data.JmRepository
 import com.jmreader.data.Member
+import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
-import android.widget.Toast
 
+/**
+ * 「我的」：账号 + 收藏 / 历史。收藏与历史各自独立分页，避免切 tab 时互相串数据。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(repo: JmRepository, onOpen: (Long) -> Unit, onLoginRequired: () -> Unit) {
+fun LibraryScreen(
+    repo: JmRepository,
+    onOpen: (Long) -> Unit,
+    onDownloads: () -> Unit,
+    onBlocks: () -> Unit,
+) {
     val member by repo.auth.member.collectAsState()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("書架") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("我的") },
+                actions = {
+                    IconButton(onClick = onBlocks) {
+                        Icon(Icons.Filled.Block, contentDescription = "屏蔽管理")
+                    }
+                    IconButton(onClick = onDownloads) {
+                        Icon(Icons.Filled.Download, contentDescription = "下載管理")
+                    }
+                },
+            )
+        },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             if (member == null) {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(24.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text("登入後可查看收藏與歷史", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Button(onClick = onLoginRequired, modifier = Modifier.padding(top = 16.dp)) {
-                        Text("去登入")
-                    }
-                }
+                LoginForm(repo)
             } else {
                 LibraryContent(repo, member!!, onOpen)
             }
@@ -90,17 +100,110 @@ fun LibraryScreen(repo: JmRepository, onOpen: (Long) -> Unit, onLoginRequired: (
 }
 
 @Composable
-private fun LibraryContent(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) {
-    var tab by remember { mutableIntStateOf(0) }
-    var items by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
-    var folders by remember { mutableStateOf<List<FolderItem>>(emptyList()) }
-    var folderId by remember { mutableStateOf("") }
-    var page by remember { mutableIntStateOf(1) }
-    var total by remember { mutableIntStateOf(0) }
-    var query by remember { mutableStateOf("") }
-    var sortByName by remember { mutableStateOf(false) }
+private fun LoginForm(repo: JmRepository) {
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var remember by remember { mutableStateOf(true) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun submit() {
+        if (loading) return
+        if (username.isBlank() || password.isBlank()) {
+            error = "請輸入帳號與密碼"
+            return
+        }
+        loading = true
+        error = null
+        scope.launch {
+            runCatchingCancellable { repo.login(username.trim(), password, remember) }
+                .onFailure { error = if (it is JmException.Auth) "帳號或密碼錯誤" else it.userMessage() }
+            loading = false
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("登入 JM", style = MaterialTheme.typography.headlineSmall)
+        OutlinedTextField(
+            value = username,
+            onValueChange = { username = it },
+            label = { Text("帳號") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        )
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text("密碼") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = KeyboardActions(onDone = { submit() }),
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = remember, onCheckedChange = { remember = it })
+            Text("記住密碼（自動登入）", style = MaterialTheme.typography.bodySmall)
+        }
+        if (error != null) {
+            Text(
+                text = error!!,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            )
+        }
+        Button(
+            onClick = { submit() },
+            enabled = !loading,
+            modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+        ) {
+            if (loading) CircularProgressIndicator(Modifier.padding(4.dp)) else Text("登入")
+        }
+        Text(
+            text = "密碼用 Android Keystore 加密保存，只用於自動登入",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+    }
+}
+
+@Composable
+private fun LibraryContent(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) {
+    var tab by remember { mutableIntStateOf(0) }
+    var query by remember { mutableStateOf("") }
+    var sortByName by remember { mutableStateOf(false) }
+
+    // 收藏
+    var favorites by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
+    var folders by remember { mutableStateOf<List<FolderItem>>(emptyList()) }
+    var folderId by remember { mutableStateOf("") }
+    var favoritesPage by remember { mutableIntStateOf(1) }
+    var favoritesTotal by remember { mutableIntStateOf(0) }
+    var favoritesLoading by remember { mutableStateOf(false) }
+    var favoritesError by remember { mutableStateOf<String?>(null) }
+    var favoritesLoaded by remember { mutableStateOf(false) }
+    var loadedFolder by remember { mutableStateOf<String?>(null) }
+
+    // 歷史
+    var historyItems by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
+    var historyPage by remember { mutableIntStateOf(1) }
+    var historyTotal by remember { mutableIntStateOf(0) }
+    var historyLoading by remember { mutableStateOf(false) }
+    var historyError by remember { mutableStateOf<String?>(null) }
+    var historyLoaded by remember { mutableStateOf(false) }
+
     var showFolders by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<FolderItem?>(null) }
@@ -110,42 +213,77 @@ private fun LibraryContent(repo: JmRepository, member: Member, onOpen: (Long) ->
     val context = LocalContext.current
 
     suspend fun loadFavorites(selected: String, reset: Boolean) {
-        loading = true
-        error = null
-        val target = if (reset) 1 else page
+        favoritesLoading = true
+        favoritesError = null
+        val target = if (reset) 1 else favoritesPage
         runCatchingCancellable { repo.favorites(target, selected) }
             .onSuccess { result ->
-                items = if (reset) {
+                favorites = if (reset) {
                     result.list
                 } else {
-                    items + result.list.filter { item -> items.none { it.id == item.id } }
+                    favorites + result.list.filter { item -> favorites.none { it.id == item.id } }
                 }
                 folders = result.folderList
-                total = result.total.toIntOrNull() ?: result.list.size
-                page = if (reset) 2 else page + 1
+                favoritesTotal = result.total.toIntOrNull() ?: result.list.size
+                favoritesPage = if (reset) 2 else favoritesPage + 1
+                favoritesLoaded = true
             }
             .onFailure {
                 if (it is JmException.Auth) repo.auth.clearMember()
-                error = it.userMessage()
+                favoritesError = it.userMessage()
             }
-        loading = false
+        favoritesLoading = false
     }
 
-    LaunchedEffect(member.uid, tab, folderId) {
-        if (tab == 0) {
-            page = 1
-            loadFavorites(folderId, true)
-        } else {
-            loading = true
-            error = null
-            runCatchingCancellable { repo.history(1).list }
-                .onSuccess { items = it }
-                .onFailure {
-                    if (it is JmException.Auth) repo.auth.clearMember()
-                    error = it.userMessage()
+    suspend fun loadHistory(reset: Boolean) {
+        historyLoading = true
+        historyError = null
+        val target = if (reset) 1 else historyPage
+        runCatchingCancellable { repo.history(target) }
+            .onSuccess { result ->
+                historyItems = if (reset) {
+                    result.list
+                } else {
+                    historyItems + result.list.filter { item -> historyItems.none { it.id == item.id } }
                 }
-            loading = false
+                historyTotal = result.total
+                historyPage = if (reset) 2 else historyPage + 1
+                historyLoaded = true
+            }
+            .onFailure {
+                if (it is JmException.Auth) repo.auth.clearMember()
+                historyError = it.userMessage()
+            }
+        historyLoading = false
+    }
+
+    // 收藏：换账号 / 换收藏夹时重新拉取；切回收藏 tab 不重复请求
+    LaunchedEffect(member.uid, folderId, tab) {
+        if (tab == 0 && (loadedFolder != folderId || !favoritesLoaded)) {
+            loadedFolder = folderId
+            favoritesPage = 1
+            favoritesLoaded = false
+            loadFavorites(folderId, true)
         }
+    }
+
+    // 歷史：首次进入时拉取，之后切 tab 复用缓存
+    LaunchedEffect(member.uid, tab) {
+        if (tab == 1 && !historyLoaded) {
+            historyPage = 1
+            loadHistory(true)
+        }
+    }
+
+    val list = if (tab == 0) favorites else historyItems
+    val currentLoading = if (tab == 0) favoritesLoading else historyLoading
+    val currentError = if (tab == 0) favoritesError else historyError
+    val currentTotal = if (tab == 0) favoritesTotal else historyTotal
+
+    val shown = remember(list, query, sortByName) {
+        list
+            .filter { query.isBlank() || it.name.contains(query, true) || it.author.contains(query, true) }
+            .let { if (sortByName) it.sortedBy { album -> album.name } else it }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -193,40 +331,43 @@ private fun LibraryContent(repo: JmRepository, member: Member, onOpen: (Long) ->
                     TextButton(onClick = { showFolders = true }) { Text("管理") }
                 }
             }
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = { Text("搜尋收藏（已載入 ${items.size} 筆）") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = { sortByName = !sortByName }) {
-                    Text(if (sortByName) "名稱↓" else "默認")
-                }
-            }
         }
 
-        val shown = remember(items, query, sortByName) {
-            items
-                .filter { query.isBlank() || it.name.contains(query, true) || it.author.contains(query, true) }
-                .let { if (sortByName) it.sortedBy { album -> album.name } else it }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = {
+                    Text(
+                        if (tab == 0) "搜尋收藏（已載入 ${favorites.size} 筆）"
+                        else "搜尋歷史（已載入 ${historyItems.size} 筆）",
+                    )
+                },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { sortByName = !sortByName }) {
+                Text(if (sortByName) "名稱↓" else "默認")
+            }
         }
 
         Box(Modifier.fillMaxSize()) {
             when {
-                loading && items.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                error != null && items.isEmpty() -> Text(
-                    text = error!!,
+                currentLoading && shown.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                currentError != null && shown.isEmpty() -> Text(
+                    text = currentError!!,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.align(Alignment.Center),
                 )
                 shown.isEmpty() -> Text(
-                    text = if (query.isBlank()) "沒有資料" else "沒有符合的收藏",
+                    text = when {
+                        query.isNotBlank() -> "沒有符合的結果"
+                        tab == 0 -> "沒有資料"
+                        else -> "還沒有閱讀記錄"
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -237,22 +378,32 @@ private fun LibraryContent(repo: JmRepository, member: Member, onOpen: (Long) ->
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(items = shown, key = { it.id }) { album ->
+                    items(items = shown, key = { "${tab}_${it.id}" }) { album ->
                         AlbumCard(
                             repo = repo,
                             album = album,
                             onClick = { album.id.toLongOrNull()?.let(onOpen) },
-                            onLongClick = { moveTarget = album },
+                            onLongClick = if (tab == 0) {
+                                { moveTarget = album }
+                            } else {
+                                null
+                            },
                         )
                     }
-                    if (tab == 0 && items.size < total) {
+                    if (shown.size < currentTotal) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                if (loading) {
+                                if (currentLoading) {
                                     CircularProgressIndicator()
                                 } else {
-                                    Button(onClick = { scope.launch { loadFavorites(folderId, false) } }) {
-                                        Text("載入更多（${items.size}/$total）")
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                if (tab == 0) loadFavorites(folderId, false) else loadHistory(false)
+                                            }
+                                        },
+                                    ) {
+                                        Text("載入更多（${shown.size}/$currentTotal）")
                                     }
                                 }
                             }

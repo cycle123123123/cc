@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +33,7 @@ sealed interface Screen {
     data object Blocks : Screen
 }
 
-private enum class RootTab { HOME, DISCOVER, LIBRARY, ME }
+private enum class RootTab { HOME, DISCOVER, ME }
 
 @Composable
 fun AppRoot(repo: JmRepository) {
@@ -71,12 +70,6 @@ fun AppRoot(repo: JmRepository) {
                         label = { Text("發現") },
                     )
                     NavigationBarItem(
-                        selected = tab == RootTab.LIBRARY,
-                        onClick = { tab = RootTab.LIBRARY },
-                        icon = { Icon(Icons.Filled.MenuBook, contentDescription = "書架") },
-                        label = { Text("書架") },
-                    )
-                    NavigationBarItem(
                         selected = tab == RootTab.ME,
                         onClick = { tab = RootTab.ME },
                         icon = { Icon(Icons.Filled.Person, contentDescription = "我的") },
@@ -103,14 +96,9 @@ fun AppRoot(repo: JmRepository) {
                     onOpenAuthor = { id, name -> push(Screen.Author(id, name)) },
                 )
 
-                RootTab.LIBRARY -> LibraryScreen(
+                RootTab.ME -> LibraryScreen(
                     repo = repo,
                     onOpen = { push(Screen.Detail(it)) },
-                    onLoginRequired = { tab = RootTab.ME },
-                )
-
-                RootTab.ME -> MeScreen(
-                    repo = repo,
                     onDownloads = { push(Screen.Downloads) },
                     onBlocks = { push(Screen.Blocks) },
                 )
