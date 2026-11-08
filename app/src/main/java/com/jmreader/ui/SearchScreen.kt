@@ -257,9 +257,9 @@ fun SearchScreen(
                                 repo = repo,
                                 album = album,
                                 onClick = { album.id.toLongOrNull()?.let(onOpen) },
-                                badge = viewBadge(state.views, id),
+                                badge = metaBadge(state.metas[id]),
                                 onVisible = {
-                                    ensureViewCount(repo, scope, viewGate, state.views, state.viewRequests, id)
+                                    ensureAlbumMeta(repo, scope, viewGate, state.metas, state.albumRequests, id)
                                 },
                             )
                         }

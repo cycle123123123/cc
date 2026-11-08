@@ -37,6 +37,8 @@ class SearchState {
     var hasMore by mutableStateOf(true)
 
     val gridState = LazyGridState()
-    val views = mutableStateMapOf<String, Int>()
-    val viewRequests = mutableSetOf<String>()
+
+    /** 点击量 / 爱心数 / 是否日文（卡片可见时按需从 /album 补）。 */
+    val metas = mutableStateMapOf<String, AlbumMeta>()
+    val albumRequests = mutableSetOf<String>()
 }

@@ -64,9 +64,9 @@ class AuthorWorksState {
     var category by mutableStateOf("")
     var categories by mutableStateOf<List<CategoryNode>>(emptyList())
 
-    /** 点击量缓存（列表接口没有，按卡片可见时补）。 */
-    val views = mutableStateMapOf<String, Int>()
-    val viewRequests = mutableSetOf<String>()
+    /** 点击量 / 爱心数 / 是否日文（卡片可见时按需从 /album 补）。 */
+    val metas = mutableStateMapOf<String, AlbumMeta>()
+    val albumRequests = mutableSetOf<String>()
 
     /** 是否还有下一页。用「已加载条数」判断，不能用屏蔽后的数量，否则会一直显示「載入更多」却加不出东西。 */
     var hasMore by mutableStateOf(true)
@@ -209,9 +209,9 @@ fun AuthorWorksScreen(
                             repo = repo,
                             album = album,
                             onClick = { album.id.toLongOrNull()?.let(onOpen) },
-                            badge = viewBadge(state.views, id),
+                            badge = metaBadge(state.metas[id]),
                             onVisible = {
-                                ensureViewCount(repo, scope, viewGate, state.views, state.viewRequests, id)
+                                ensureAlbumMeta(repo, scope, viewGate, state.metas, state.albumRequests, id)
                             },
                         )
                     }

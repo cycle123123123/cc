@@ -17,6 +17,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
+/** 列表卡片要显示的补充信息：点击量 / 爱心数 / 是否日文。都来自 `/album`。 */
+data class AlbumMeta(
+    val views: Int = 0,
+    val likes: Int = 0,
+    val japanese: Boolean = false,
+)
+
 /** 同人 / 單本 / 短篇 / 韓漫… 分类筛选行，搜索页和作者页共用。 */
 @Composable
 fun CategoryChips(
@@ -56,27 +63,45 @@ suspend fun loadWorkCategories(repo: JmRepository): List<CategoryNode> =
         ?.filter { it.type == "slug" && it.slug.isNotBlank() }
         .orEmpty()
 
-/** 列表接口不返回点击量，只有 /album 有：卡片可见时按需补一次（并发 2、结果缓存）。 */
-internal fun ensureViewCount(
+/**
+ * 列表接口不返回点击量/爱心数/标签，只有 `/album` 有：
+ * 卡片可见时按需补一次（并发 2，结果缓存在调用方的 map 里）。
+ */
+internal fun ensureAlbumMeta(
     repo: JmRepository,
     scope: CoroutineScope,
     gate: Semaphore,
-    views: MutableMap<String, Int>,
+    metas: MutableMap<String, AlbumMeta>,
     requested: MutableSet<String>,
     albumId: String,
 ) {
-    if (views[albumId] != null) return
+    if (metas[albumId] != null) return
     if (!requested.add(albumId)) return
     scope.launch {
         val aid = albumId.toLongOrNull() ?: return@launch
         gate.withPermit {
             runCatchingCancellable { repo.album(aid) }
                 .onSuccess { detail ->
-                    if (detail.viewCount > 0) views[albumId] = detail.viewCount
+                    metas[albumId] = AlbumMeta(
+                        views = detail.viewCount,
+                        likes = detail.likes,
+                        // 日文/日語是语言标签，生肉=未翻译的日文原版
+                        japanese = detail.tags.any { tag ->
+                            tag.contains("日語") || tag.contains("日文") || tag.contains("生肉")
+                        },
+                    )
                 }
         }
     }
 }
 
-internal fun viewBadge(views: Map<String, Int>, albumId: String): String? =
-    views[albumId]?.takeIf { it > 0 }?.let { "觀看 ${formatCount(it)}" }
+/** 「觀看 6.1 萬 · ♥ 329 · 日文」 */
+internal fun metaBadge(meta: AlbumMeta?): String? {
+    if (meta == null) return null
+    val parts = buildList {
+        if (meta.views > 0) add("觀看 ${formatCount(meta.views)}")
+        if (meta.likes > 0) add("♥ ${formatCount(meta.likes)}")
+        if (meta.japanese) add("日文")
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+}

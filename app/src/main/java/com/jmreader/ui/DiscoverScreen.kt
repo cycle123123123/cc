@@ -39,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -58,6 +59,7 @@ import com.jmreader.data.ContentFilter
 import com.jmreader.data.JmRepository
 import com.jmreader.data.WeekOptions
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +70,10 @@ fun DiscoverScreen(
     onBack: (() -> Unit)? = null,
 ) {
     var tab by remember { mutableIntStateOf(0) }
+    // 发现页共用一份补充信息（点击量/爱心/日文），切 tab 不用重新拉
+    val metas = remember { mutableStateMapOf<String, AlbumMeta>() }
+    val metaRequests = remember { mutableSetOf<String>() }
+    val metaGate = remember { Semaphore(2) }
 
     Scaffold(
         topBar = {
@@ -91,10 +97,10 @@ fun DiscoverScreen(
                 Tab(selected = tab == 3, onClick = { tab = 3 }, text = { Text("推薦") })
             }
             when (tab) {
-                0 -> CategoryTab(repo, onOpen)
+                0 -> CategoryTab(repo, onOpen, metas, metaRequests, metaGate)
                 1 -> TagTab(repo, onSearchTag)
-                2 -> WeekTab(repo, onOpen)
-                else -> RecommendTab(repo, onOpen)
+                2 -> WeekTab(repo, onOpen, metas, metaRequests, metaGate)
+                else -> RecommendTab(repo, onOpen, metas, metaRequests, metaGate)
             }
         }
     }
@@ -102,7 +108,13 @@ fun DiscoverScreen(
 
 /** 分类浏览：/categories/filter?c=<slug>&o=<排序>&page= */
 @Composable
-private fun CategoryTab(repo: JmRepository, onOpen: (Long) -> Unit) {
+private fun CategoryTab(
+    repo: JmRepository,
+    onOpen: (Long) -> Unit,
+    metas: MutableMap<String, AlbumMeta>,
+    metaRequests: MutableSet<String>,
+    metaGate: Semaphore,
+) {
     var categories by remember { mutableStateOf<List<CategoryNode>>(emptyList()) }
     var slug by remember { mutableStateOf("") }
     var subSlug by remember { mutableStateOf("") }
@@ -257,7 +269,15 @@ private fun CategoryTab(repo: JmRepository, onOpen: (Long) -> Unit) {
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(items = albums.filterNot { ContentFilter.matches(it, blockRules) }, key = { it.id }) { album ->
-                        AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
+                        AlbumCard(
+                            repo = repo,
+                            album = album,
+                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                            badge = metaBadge(metas[album.id]),
+                            onVisible = {
+                                ensureAlbumMeta(repo, scope, metaGate, metas, metaRequests, album.id)
+                            },
+                        )
                     }
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
@@ -329,7 +349,14 @@ private fun TagTab(repo: JmRepository, onSearchTag: (String) -> Unit) {
 }
 
 @Composable
-private fun WeekTab(repo: JmRepository, onOpen: (Long) -> Unit) {
+private fun WeekTab(
+    repo: JmRepository,
+    onOpen: (Long) -> Unit,
+    metas: MutableMap<String, AlbumMeta>,
+    metaRequests: MutableSet<String>,
+    metaGate: Semaphore,
+) {
+    val scope = rememberCoroutineScope()
     var options by remember { mutableStateOf<WeekOptions?>(null) }
     var type by remember { mutableStateOf("") }
     var period by remember { mutableStateOf("") }
@@ -407,7 +434,15 @@ private fun WeekTab(repo: JmRepository, onOpen: (Long) -> Unit) {
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(items = albums.filterNot { ContentFilter.matches(it, blockRules) }, key = { it.id }) { album ->
-                        AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
+                        AlbumCard(
+                            repo = repo,
+                            album = album,
+                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                            badge = metaBadge(metas[album.id]),
+                            onVisible = {
+                                ensureAlbumMeta(repo, scope, metaGate, metas, metaRequests, album.id)
+                            },
+                        )
                     }
                 }
             }
@@ -416,7 +451,13 @@ private fun WeekTab(repo: JmRepository, onOpen: (Long) -> Unit) {
 }
 
 @Composable
-private fun RecommendTab(repo: JmRepository, onOpen: (Long) -> Unit) {
+private fun RecommendTab(
+    repo: JmRepository,
+    onOpen: (Long) -> Unit,
+    metas: MutableMap<String, AlbumMeta>,
+    metaRequests: MutableSet<String>,
+    metaGate: Semaphore,
+) {
     var albums by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -476,7 +517,15 @@ private fun RecommendTab(repo: JmRepository, onOpen: (Long) -> Unit) {
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(items = albums.filterNot { ContentFilter.matches(it, blockRules) }, key = { it.id }) { album ->
-                        AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
+                        AlbumCard(
+                            repo = repo,
+                            album = album,
+                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                            badge = metaBadge(metas[album.id]),
+                            onVisible = {
+                                ensureAlbumMeta(repo, scope, metaGate, metas, metaRequests, album.id)
+                            },
+                        )
                     }
                 }
             }
