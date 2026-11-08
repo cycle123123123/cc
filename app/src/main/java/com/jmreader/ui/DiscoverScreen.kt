@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -21,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -140,21 +142,26 @@ private fun CategoryTab(
 
     suspend fun load(reset: Boolean) {
         val cValue = if (subSlug.isNotBlank()) "${slug}_$subSlug" else slug
-        if (cValue.isBlank() || loading) return
+        // 刷新/切筛选允许打断上一次请求；「載入更多」才需要防重复
+        if (cValue.isBlank() || (loading && !reset)) return
         loading = true
         error = null
-        runCatchingCancellable { repo.categoryList(cValue, order, if (reset) 1 else page) }
-            .onSuccess { result ->
-                albums = if (reset) {
-                    result.content
-                } else {
-                    albums + result.content.filter { item -> albums.none { it.id == item.id } }
+        try {
+            runCatchingCancellable { repo.categoryList(cValue, order, if (reset) 1 else page) }
+                .onSuccess { result ->
+                    albums = if (reset) {
+                        result.content
+                    } else {
+                        albums + result.content.filter { item -> albums.none { it.id == item.id } }
+                    }
+                    total = result.total
+                    page = if (reset) 2 else page + 1
                 }
-                total = result.total
-                page = if (reset) 2 else page + 1
-            }
-            .onFailure { error = it.userMessage() }
-        loading = false
+                .onFailure { error = it.userMessage() }
+        } finally {
+            // 被 LaunchedEffect 取消时也要复位，否则 loading 永远卡住，后续点标签不再请求
+            loading = false
+        }
     }
 
     LaunchedEffect(slug) {
@@ -185,9 +192,27 @@ private fun CategoryTab(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            IconButton(
+                onClick = { scope.launch { load(true) } },
+                enabled = !loading,
+            ) {
+                Icon(Icons.Filled.Refresh, contentDescription = "刷新")
+            }
             TextButton(onClick = { filtersOpen = !filtersOpen }) {
                 Text(if (filtersOpen) "收起" else "篩選")
             }
+        }
+
+        if (error != null && albums.isNotEmpty()) {
+            Text(
+                text = "更新失敗：$error（點此重試）",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { scope.launch { load(true) } }
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+            )
         }
 
         if (filtersOpen) {
@@ -381,10 +406,13 @@ private fun WeekTab(
         if (period.isBlank()) return@LaunchedEffect
         loading = true
         error = null
-        runCatchingCancellable { repo.weekList(type, period, 1) }
-            .onSuccess { albums = it.list }
-            .onFailure { error = it.userMessage() }
-        loading = false
+        try {
+            runCatchingCancellable { repo.weekList(type, period, 1) }
+                .onSuccess { albums = it.list }
+                .onFailure { error = it.userMessage() }
+        } finally {
+            loading = false
+        }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -469,10 +497,13 @@ private fun RecommendTab(
         loading = true
         error = null
         scope.launch {
-            runCatchingCancellable { repo.randomRecommend() }
-                .onSuccess { albums = it }
-                .onFailure { error = it.userMessage() }
-            loading = false
+            try {
+                runCatchingCancellable { repo.randomRecommend() }
+                    .onSuccess { albums = it }
+                    .onFailure { error = it.userMessage() }
+            } finally {
+                loading = false
+            }
         }
     }
 
