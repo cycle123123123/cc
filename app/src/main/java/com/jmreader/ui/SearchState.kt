@@ -33,6 +33,9 @@ class SearchState {
     var categories by mutableStateOf<List<CategoryNode>>(emptyList())
     var hotBlocks by mutableStateOf<List<CategoryBlock>>(emptyList())
 
+    /** 是否还有下一页（避免「載入更多」点了没反应）。 */
+    var hasMore by mutableStateOf(true)
+
     val gridState = LazyGridState()
     val views = mutableStateMapOf<String, Int>()
     val viewRequests = mutableSetOf<String>()

@@ -83,14 +83,16 @@ fun SearchScreen(
         state.error = null
         runCatchingCancellable { repo.search(keyword, if (reset) 1 else state.page, state.category) }
             .onSuccess { result ->
-                state.results = if (reset) {
-                    result.content
-                } else {
-                    state.results + result.content.filter { new -> state.results.none { it.id == new.id } }
-                }
+                val fresh = result.content.filter { new -> state.results.none { it.id == new.id } }
+                state.results = if (reset) result.content else state.results + fresh
                 state.total = result.total
                 state.page = if (reset) 2 else state.page + 1
                 state.searched = true
+                state.hasMore = if (reset) {
+                    result.content.isNotEmpty() && result.content.size < result.total
+                } else {
+                    fresh.isNotEmpty() && state.results.size < result.total
+                }
                 searchHistory.add(keyword)
             }
             .onFailure { state.error = it.userMessage() }
@@ -256,7 +258,8 @@ fun SearchScreen(
                     else -> LazyVerticalGrid(
                         state = state.gridState,
                         columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(12.dp),
+                        // 底部多留一点：否则「載入更多」会贴在手势条下面，点不到
+                        contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 72.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier.fillMaxSize(),
@@ -295,15 +298,21 @@ fun SearchScreen(
                                 },
                             )
                         }
-                        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                horizontalArrangement = Arrangement.Center,
-                            ) {
-                                if (state.loading) {
-                                    CircularProgressIndicator()
-                                } else {
-                                    Button(onClick = { scope.launch { runSearch(false) } }) { Text("載入更多") }
+                        if (state.hasMore) {
+                            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    when {
+                                        state.loading -> CircularProgressIndicator()
+                                        state.error != null -> Button(onClick = { scope.launch { runSearch(false) } }) {
+                                            Text("載入失敗，點擊重試")
+                                        }
+                                        else -> Button(onClick = { scope.launch { runSearch(false) } }) {
+                                            Text("載入更多（${state.results.size}/${state.total}）")
+                                        }
+                                    }
                                 }
                             }
                         }

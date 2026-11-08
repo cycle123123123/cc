@@ -56,6 +56,9 @@ class AuthorWorksState {
     var loading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
     var started by mutableStateOf(false)
+
+    /** 是否还有下一页。用「已加载条数」判断，不能用屏蔽后的数量，否则会一直显示「載入更多」却加不出东西。 */
+    var hasMore by mutableStateOf(true)
     val gridState = LazyGridState()
 }
 
@@ -89,13 +92,16 @@ fun AuthorWorksScreen(
         state.error = null
         runCatchingCancellable { repo.search(authorName, if (reset) 1 else state.page) }
             .onSuccess { result ->
-                state.albums = if (reset) {
-                    result.content
-                } else {
-                    state.albums + result.content.filter { new -> state.albums.none { it.id == new.id } }
-                }
+                val fresh = result.content.filter { new -> state.albums.none { it.id == new.id } }
+                state.albums = if (reset) result.content else state.albums + fresh
                 state.total = result.total
                 state.page = if (reset) 2 else state.page + 1
+                // 服务端有时会把越界页返回成上一页（全是重复 id），拿不到新数据就停止翻页
+                state.hasMore = if (reset) {
+                    result.content.isNotEmpty() && result.content.size < result.total
+                } else {
+                    fresh.isNotEmpty() && state.albums.size < result.total
+                }
             }
             .onFailure { state.error = it.userMessage() }
         state.loading = false
@@ -150,7 +156,8 @@ fun AuthorWorksScreen(
                 else -> LazyVerticalGrid(
                     state = state.gridState,
                     columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(12.dp),
+                    // 底部多留一点：否则「載入更多」会贴在手势条下面，点不到
+                    contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 72.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
@@ -173,16 +180,20 @@ fun AuthorWorksScreen(
                             onClick = { album.id.toLongOrNull()?.let(onOpen) },
                         )
                     }
-                    if (shown.size < state.total) {
+                    if (state.hasMore) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                                 horizontalArrangement = Arrangement.Center,
                             ) {
-                                if (state.loading) {
-                                    CircularProgressIndicator()
-                                } else {
-                                    Button(onClick = { scope.launch { load(false) } }) { Text("載入更多") }
+                                when {
+                                    state.loading -> CircularProgressIndicator()
+                                    state.error != null -> Button(onClick = { scope.launch { load(false) } }) {
+                                        Text("載入失敗，點擊重試")
+                                    }
+                                    else -> Button(onClick = { scope.launch { load(false) } }) {
+                                        Text("載入更多（${state.albums.size}/${state.total}）")
+                                    }
                                 }
                             }
                         }
