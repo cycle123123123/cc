@@ -278,25 +278,38 @@ Cookie: AVS={s}
 收藏列表：
 
 ```
-GET /favorite?page=1
+GET /favorite?page=1&folder_id={FID}
 ```
 
 ```json
 {
   "list": [ { "id": "1215913", "name": "...", "author": "...", "category": {...} } ],
-  "folder_list": [],
+  "folder_list": [ { "FID": "4799712", "UID": "15429330", "name": "默认夹" } ],
   "total": "1163",
   "count": 20
 }
 ```
 
-注意 `total` 是**字符串**。
-
-收藏动作：
+收藏动作是 **toggle**：
 
 ```
 POST /favorite   (FormData: aid=...)
 ```
+
+返回 `{"status":"ok","msg":"...","type":"add"|"remove"}`，用 `type` 判断加还是取消。
+
+收藏夹操作（同一个接口，按 `type` 区分）：
+
+```
+POST /favorite_folder
+  type=add    folder_name=xxx
+  type=edit   folder_id=xxx folder_name=yyy
+  type=del    folder_id=xxx
+  type=move   folder_id=xxx aid={作品id}
+```
+
+注意移动作品到收藏夹用的是 **`aid`**，不是 `nid`（用 nid 会返回「參數錯誤」）。
+删除收藏夹前必须先把里面的作品移走（换夹用 move，或取消收藏再加回来）。
 
 历史：
 
@@ -386,10 +399,18 @@ GET /forum?aid={aid}&page=1
 - `likes` 是字符串。
 - `CID` 是评论 id，`parent_CID != "0"` 表示回复。
 
-发表评论（需登录）：
+发表评论 / 回复（需登录）：
 
 ```
-POST /comment   (FormData: aid=..., content=...)
+POST /comment   (FormData: comment=内容&aid={aid}[&comment_id={父评论CID}])
+```
+
+注意字段名是 `comment`，不是 `content`。带 `comment_id` 就是楼中楼回复。
+
+删除自己的评论：
+
+```
+POST /comment_delete   (FormData: comment_id={CID})
 ```
 
 ### 5.11 点赞
@@ -436,6 +457,49 @@ GET /categories/filter?c={slug}&o={order}&page=1
 - 实测：`c=hanman` 结果全部是韓漫，`total=2259`；`c=doujin` 全部同人。
 
 `blocks` 里的标签可以直接作为 `search_query` 搜索。
+
+子分类：把 slug 拼成 `{slug}_{sub_slug}` 传给 `c`，例如 `c=doujin_chinese`。
+
+### 5.14 推荐 / 随机 / 作者
+
+首页推荐位（每週必看等）：
+
+```
+GET /promote
+```
+
+返回数组，每项是一块推荐位：
+
+```json
+{ "id": "26", "title": "連載更新·...", "type": "promote", "filter_val": "26",
+  "content": [ { "id": "1221144", "name": "...", "author": "..." } ] }
+```
+
+随机推荐：
+
+```
+GET /random_recommend    ->  [ 30 本作品 ]
+```
+
+作者列表 / 作者作品：
+
+```
+GET /creator_author?page=1
+-> { "status": "200", "data": { "total": "20931",
+     "content": [ { "id": "7118", "author_name": "...", "author_avatar": "/media/..." } ] } }
+
+GET /creator_work?author_id={作者id}&page=1
+-> { "status": 200, "data": { "total": "...",
+     "content": [ { "id": "1100557", "work_title": "...", "work_image": "/media/..." } ] } }
+```
+
+注意两个接口的 `status` 类型不同（字符串 vs 数字）；`creator_work.content[].id` 就是作品 id。
+
+**未确认**：
+
+- `hot_tags` 的 `data` 用现有两把密钥都解不出来（返回乱码），暂不使用；
+- `serialization`（连载专区）传 `page` / `type` 都返回「參數錯誤」；
+- `tag_block`（标签屏蔽）GET 一律 400，POST 403。
 
 ### 5.13 图源切换
 

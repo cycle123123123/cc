@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -19,7 +21,9 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +45,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -48,10 +53,12 @@ import androidx.compose.ui.unit.dp
 import com.jmreader.data.userMessage
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
+import com.jmreader.data.FolderItem
 import com.jmreader.data.JmException
 import com.jmreader.data.JmRepository
 import com.jmreader.data.Member
 import kotlinx.coroutines.launch
+import android.widget.Toast
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -174,22 +181,47 @@ private fun LoginForm(repo: JmRepository) {
 private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) {
     var tab by remember { mutableIntStateOf(0) }
     var items by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
+    var folders by remember { mutableStateOf<List<FolderItem>>(emptyList()) }
+    var folderId by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var showFolders by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
+    var renameTarget by remember { mutableStateOf<FolderItem?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    var moveTarget by remember { mutableStateOf<AlbumBrief?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
-    LaunchedEffect(member.uid, tab) {
+    suspend fun loadFavorites(selected: String) {
         loading = true
         error = null
-        runCatchingCancellable {
-            if (tab == 0) repo.favorites(1).list else repo.history(1).list
-        }.onSuccess {
-            items = it
-        }.onFailure {
-            if (it is JmException.Auth) repo.auth.clearMember()
-            error = it.userMessage()
-        }
+        runCatchingCancellable { repo.favorites(1, selected) }
+            .onSuccess { page ->
+                items = page.list
+                folders = page.folderList
+            }
+            .onFailure {
+                if (it is JmException.Auth) repo.auth.clearMember()
+                error = it.userMessage()
+            }
         loading = false
+    }
+
+    LaunchedEffect(member.uid, tab, folderId) {
+        if (tab == 0) {
+            loadFavorites(folderId)
+        } else {
+            loading = true
+            error = null
+            runCatchingCancellable { repo.history(1).list }
+                .onSuccess { items = it }
+                .onFailure {
+                    if (it is JmException.Auth) repo.auth.clearMember()
+                    error = it.userMessage()
+                }
+            loading = false
+        }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -214,6 +246,31 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
             Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("歷史") })
         }
 
+        if (tab == 0) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item {
+                    FilterChip(
+                        selected = folderId.isBlank(),
+                        onClick = { folderId = "" },
+                        label = { Text("全部") },
+                    )
+                }
+                items(items = folders, key = { it.fid }) { folder ->
+                    FilterChip(
+                        selected = folderId == folder.fid,
+                        onClick = { folderId = folder.fid },
+                        label = { Text(folder.name) },
+                    )
+                }
+                item {
+                    TextButton(onClick = { showFolders = true }) { Text("管理") }
+                }
+            }
+        }
+
         Box(Modifier.fillMaxSize()) {
             when {
                 loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -235,10 +292,154 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(items = items, key = { it.id }) { album ->
-                        AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
+                        AlbumCard(
+                            repo = repo,
+                            album = album,
+                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                            onLongClick = { moveTarget = album },
+                        )
                     }
                 }
             }
         }
+    }
+
+    if (showFolders) {
+        AlertDialog(
+            onDismissRequest = { showFolders = false },
+            title = { Text("收藏夾") },
+            text = {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = newFolderName,
+                            onValueChange = { newFolderName = it },
+                            label = { Text("新收藏夾") },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(
+                            enabled = newFolderName.isNotBlank(),
+                            onClick = {
+                                val name = newFolderName.trim()
+                                scope.launch {
+                                    runCatchingCancellable { repo.addFavoriteFolder(name) }
+                                        .onSuccess {
+                                            newFolderName = ""
+                                            loadFavorites(folderId)
+                                        }
+                                        .onFailure {
+                                            Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                        }
+                                }
+                            },
+                        ) { Text("新增") }
+                    }
+                    folders.forEach { folder ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(folder.name, modifier = Modifier.weight(1f))
+                            TextButton(
+                                onClick = {
+                                    renameTarget = folder
+                                    renameText = folder.name
+                                },
+                            ) { Text("改名") }
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        runCatchingCancellable { repo.deleteFavoriteFolder(folder.fid) }
+                                            .onSuccess {
+                                                if (folderId == folder.fid) folderId = ""
+                                                loadFavorites(folderId)
+                                            }
+                                            .onFailure {
+                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                            }
+                                    }
+                                },
+                            ) { Text("刪除") }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showFolders = false }) { Text("關閉") }
+            },
+        )
+    }
+
+    renameTarget?.let { folder ->
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("重新命名") },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = renameText.isNotBlank(),
+                    onClick = {
+                        val name = renameText.trim()
+                        scope.launch {
+                            runCatchingCancellable { repo.renameFavoriteFolder(folder.fid, name) }
+                                .onSuccess {
+                                    renameTarget = null
+                                    loadFavorites(folderId)
+                                }
+                                .onFailure {
+                                    Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                }
+                        }
+                    },
+                ) { Text("確定") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text("取消") }
+            },
+        )
+    }
+
+    moveTarget?.let { album ->
+        AlertDialog(
+            onDismissRequest = { moveTarget = null },
+            title = { Text("移動到收藏夾") },
+            text = {
+                Column {
+                    if (folders.isEmpty()) {
+                        Text("先建立一個收藏夾")
+                    }
+                    folders.forEach { folder ->
+                        TextButton(
+                            onClick = {
+                                val aid = album.id.toLongOrNull()
+                                moveTarget = null
+                                if (aid != null) {
+                                    scope.launch {
+                                        runCatchingCancellable { repo.moveFavorite(folder.fid, aid) }
+                                            .onSuccess {
+                                                Toast.makeText(context, "已移動到 ${folder.name}", Toast.LENGTH_SHORT).show()
+                                                loadFavorites(folderId)
+                                            }
+                                            .onFailure {
+                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                            }
+                                    }
+                                }
+                            },
+                        ) { Text(folder.name) }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { moveTarget = null }) { Text("取消") }
+            },
+        )
     }
 }

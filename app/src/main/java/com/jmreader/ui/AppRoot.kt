@@ -12,6 +12,7 @@ sealed interface Screen {
     data object Downloads : Screen
     data object Discover : Screen
     data class Search(val query: String = "") : Screen
+    data class Author(val id: String, val name: String) : Screen
     data class Detail(val id: Long) : Screen
     data class Reader(val aid: Long, val cid: Long, val title: String) : Screen
 }
@@ -47,6 +48,15 @@ fun AppRoot(repo: JmRepository) {
             onBack = { pop() },
             onOpen = { push(Screen.Detail(it)) },
             onSearchTag = { push(Screen.Search(it)) },
+            onOpenAuthor = { id, name -> push(Screen.Author(id, name)) },
+        )
+
+        is Screen.Author -> AuthorScreen(
+            repo = repo,
+            authorId = current.id,
+            authorName = current.name,
+            onBack = { pop() },
+            onOpen = { push(Screen.Detail(it)) },
         )
 
         is Screen.Search -> SearchScreen(

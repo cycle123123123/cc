@@ -123,3 +123,23 @@
 - **决定**：UI 层的挂起调用统一用 `runCatchingCancellable`，取消异常原样抛出；
   错误文案统一走 `Throwable.userMessage()`，不把异常原文甩到界面上。
 - **教训**：任何包住 suspend 调用的 `runCatching` 都有这个风险，不只是这一处。
+
+## D20 收藏与收藏夹的真实参数
+
+- **决定**：收藏用 `POST /favorite {aid}` 做 toggle，靠返回的 `type` 判断加/取消；
+  收藏夹用 `POST /favorite_folder`，`type=add/edit/del/move`。
+- **坑**：移动作品到收藏夹的参数是 **`aid`**；JS 里写的是 `nid`（那是小说的字段），
+  照抄会一直「參數錯誤」。
+- **坑**：删除收藏夹前必须先清空，空夹才能删。
+
+## D21 评论接口字段
+
+- **决定**：发表 `{comment, aid}`，回复再加 `comment_id`；删除 `{comment_id}`。
+- **坑**：字段名是 `comment` 不是 `content`；回复没有 `parent_CID` 这种字段。
+
+## D22 推荐位与作者接口
+
+- **决定**：每週必看用 `/promote`（返回多块推荐位），实时推荐用 `/random_recommend`；
+  作者列表 `/creator_author`，作者作品 `/creator_work?author_id=`。
+- **坑**：两个 creator 接口的 `status` 类型不同（字符串 vs 数字），要分开建模。
+- **未解决**：`hot_tags` 解密失败、`serialization` 参数未知、`tag_block` 一直 400/403。

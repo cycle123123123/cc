@@ -123,6 +123,10 @@ class JmRepository(context: Context) {
         return "$imgBase/media/albums/$albumId$suffix.jpg"
     }
 
+    /** 把接口返回的 `/media/...` 相对路径拼成完整地址。 */
+    fun assetUrl(path: String): String =
+        if (path.startsWith("http")) path else imgBase + path
+
     // ------------------------------------------------------------ 账号
 
     suspend fun login(username: String, password: String, remember: Boolean = true): Member =
@@ -181,8 +185,76 @@ class JmRepository(context: Context) {
     suspend fun favorites(page: Int): FavoritePage =
         get("favorite", mapOf("page" to page.toString()), FavoritePage.serializer())
 
+    suspend fun favorites(page: Int, folderId: String): FavoritePage {
+        val params = mutableMapOf("page" to page.toString())
+        if (folderId.isNotBlank()) params["folder_id"] = folderId
+        return get("favorite", params, FavoritePage.serializer())
+    }
+
     suspend fun history(page: Int): HistoryPage =
         get("watch_list", mapOf("page" to page.toString()), HistoryPage.serializer())
+
+    /** 收藏 / 取消收藏（toggle），返回 type = add / remove。 */
+    suspend fun toggleFavorite(aid: Long): FavoriteToggleResult = withContext(Dispatchers.IO) {
+        ensureReady()
+        ensureSession()
+        val base = apiBase ?: throw JmException.Network("线路未就绪")
+        val body = formPost(base, "favorite", mapOf("aid" to aid.toString()))
+        runCatching { json.decodeFromString(FavoriteToggleResult.serializer(), body) }
+            .getOrElse { FavoriteToggleResult() }
+    }
+
+    suspend fun addFavoriteFolder(name: String): SimpleResult =
+        folderOperation(mapOf("type" to "add", "folder_name" to name, "folder_id" to "", "nid" to ""))
+
+    suspend fun renameFavoriteFolder(folderId: String, name: String): SimpleResult =
+        folderOperation(mapOf("type" to "edit", "folder_name" to name, "folder_id" to folderId))
+
+    suspend fun deleteFavoriteFolder(folderId: String): SimpleResult =
+        folderOperation(mapOf("type" to "del", "folder_name" to "", "folder_id" to folderId))
+
+    suspend fun moveFavorite(folderId: String, aid: Long): SimpleResult =
+        folderOperation(mapOf("type" to "move", "folder_id" to folderId, "aid" to aid.toString()))
+
+    private suspend fun folderOperation(form: Map<String, String>): SimpleResult = withContext(Dispatchers.IO) {
+        ensureReady()
+        ensureSession()
+        val base = apiBase ?: throw JmException.Network("线路未就绪")
+        val body = formPost(base, "favorite_folder", form)
+        runCatching { json.decodeFromString(SimpleResult.serializer(), body) }.getOrElse { SimpleResult() }
+    }
+
+    suspend fun deleteComment(commentId: String): SimpleResult = withContext(Dispatchers.IO) {
+        ensureReady()
+        ensureSession()
+        val base = apiBase ?: throw JmException.Network("线路未就绪")
+        val body = formPost(base, "comment_delete", mapOf("comment_id" to commentId))
+        runCatching { json.decodeFromString(SimpleResult.serializer(), body) }.getOrElse { SimpleResult() }
+    }
+
+    suspend fun promote(): List<PromoteSection> =
+        get("promote", emptyMap(), ListSerializer(PromoteSection.serializer()))
+
+    suspend fun randomRecommend(): List<AlbumBrief> =
+        get("random_recommend", emptyMap(), ListSerializer(AlbumBrief.serializer()))
+
+    suspend fun creatorAuthors(page: Int): List<CreatorAuthor> {
+        val response = get(
+            "creator_author",
+            mapOf("page" to page.toString()),
+            CreatorAuthorResponse.serializer(),
+        )
+        return response.data.content
+    }
+
+    suspend fun creatorWorks(authorId: String, page: Int): List<CreatorWork> {
+        val response = get(
+            "creator_work",
+            mapOf("author_id" to authorId, "page" to page.toString()),
+            CreatorWorkResponse.serializer(),
+        )
+        return response.data.content
+    }
 
     /** 收藏 / 取消收藏。接口为 POST favorite，form 里带 aid。 */
     suspend fun addFavorite(aid: Long): Boolean = withContext(Dispatchers.IO) {
@@ -202,14 +274,17 @@ class JmRepository(context: Context) {
         true
     }
 
-    /** 发表评论（需要登录）。接口为 POST comment。 */
-    suspend fun postComment(aid: Long, content: String): Boolean = withContext(Dispatchers.IO) {
-        ensureReady()
-        ensureSession()
-        val base = apiBase ?: throw JmException.Network("线路未就绪")
-        formPost(base, "comment", mapOf("aid" to aid.toString(), "content" to content))
-        true
-    }
+    /** 发表评论 / 回复（需要登录）。接口为 POST comment。 */
+    suspend fun postComment(aid: Long, content: String, parentCommentId: String? = null): Boolean =
+        withContext(Dispatchers.IO) {
+            ensureReady()
+            ensureSession()
+            val base = apiBase ?: throw JmException.Network("线路未就绪")
+            val form = mutableMapOf("comment" to content, "aid" to aid.toString())
+            if (!parentCommentId.isNullOrBlank()) form["comment_id"] = parentCommentId
+            formPost(base, "comment", form)
+            true
+        }
 
     /** 评论点赞（需要登录），返回体可能为空，只看 HTTP 是否成功。 */
     suspend fun voteComment(cid: String): Boolean = withContext(Dispatchers.IO) {

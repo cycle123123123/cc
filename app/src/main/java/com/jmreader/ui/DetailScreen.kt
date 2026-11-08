@@ -19,6 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Reply
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -70,6 +73,8 @@ fun DetailScreen(
     var chapters by remember { mutableStateOf<List<ChapterEntry>>(emptyList()) }
     var forum by remember { mutableStateOf<ForumPage?>(null) }
     var commentText by remember { mutableStateOf("") }
+    var replyTo by remember { mutableStateOf<CommentItem?>(null) }
+    var isFavorite by remember { mutableStateOf(false) }
     var posting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
@@ -83,6 +88,7 @@ fun DetailScreen(
         runCatchingCancellable { repo.album(albumId) }
             .onSuccess { album ->
                 detail = album
+                isFavorite = album.isFavorite
                 chapters = repo.seriesChapters(album)
                     .ifEmpty { listOf(ChapterEntry(album.id, album.name.ifBlank { "開始閱讀" })) }
             }
@@ -107,9 +113,10 @@ fun DetailScreen(
         }
         posting = true
         scope.launch {
-            runCatchingCancellable { repo.postComment(albumId, text) }
+            runCatchingCancellable { repo.postComment(albumId, text, replyTo?.cid) }
                 .onSuccess {
                     commentText = ""
+                    replyTo = null
                     refreshComments()
                 }
                 .onFailure { Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show() }
@@ -149,6 +156,27 @@ fun DetailScreen(
                         Header(
                             repo = repo,
                             album = album,
+                            isFavorite = isFavorite,
+                            onFavorite = {
+                                scope.launch {
+                                    runCatchingCancellable { repo.toggleFavorite(albumId) }
+                                        .onSuccess { result ->
+                                            isFavorite = when (result.type) {
+                                                "add" -> true
+                                                "remove" -> false
+                                                else -> !isFavorite
+                                            }
+                                            Toast.makeText(
+                                                context,
+                                                if (isFavorite) "已加入收藏" else "已取消收藏",
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                        .onFailure {
+                                            Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                        }
+                                }
+                            },
                             onLike = {
                                 scope.launch {
                                     runCatchingCancellable { repo.toggleLike(albumId) }
@@ -213,20 +241,36 @@ fun DetailScreen(
                     }
 
                     item {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            OutlinedTextField(
-                                value = commentText,
-                                onValueChange = { commentText = it },
-                                placeholder = { Text(if (loggedIn) "說點什麼…" else "登入後可評論") },
-                                enabled = loggedIn && !posting,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Button(
-                                onClick = { submitComment() },
-                                enabled = loggedIn && !posting && commentText.isNotBlank(),
-                                modifier = Modifier.padding(start = 8.dp),
-                            ) {
-                                Text("發送")
+                        Column {
+                            replyTo?.let { target ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = "回覆 @${target.nickname.ifBlank { target.username }}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    TextButton(onClick = { replyTo = null }) { Text("取消") }
+                                }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                OutlinedTextField(
+                                    value = commentText,
+                                    onValueChange = { commentText = it },
+                                    placeholder = { Text(if (loggedIn) "說點什麼…" else "登入後可評論") },
+                                    enabled = loggedIn && !posting,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Button(
+                                    onClick = { submitComment() },
+                                    enabled = loggedIn && !posting && commentText.isNotBlank(),
+                                    modifier = Modifier.padding(start = 8.dp),
+                                ) {
+                                    Text("發送")
+                                }
                             }
                         }
                     }
@@ -244,9 +288,30 @@ fun DetailScreen(
                         items(items = list, key = { it.cid }) { comment ->
                             CommentRow(
                                 comment = comment,
+                                canDelete = loggedIn && member?.uid == comment.uid,
                                 onLike = {
                                     scope.launch {
                                         runCatchingCancellable { repo.voteComment(comment.cid) }
+                                            .onFailure {
+                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                            }
+                                    }
+                                },
+                                onReply = {
+                                    replyTo = comment
+                                    commentText = ""
+                                },
+                                onDelete = {
+                                    scope.launch {
+                                        runCatchingCancellable { repo.deleteComment(comment.cid) }
+                                            .onSuccess { result ->
+                                                Toast.makeText(
+                                                    context,
+                                                    if (result.status == "ok") "已刪除" else (result.msg.ifBlank { "刪除失敗" }),
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
+                                                refreshComments()
+                                            }
                                             .onFailure {
                                                 Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
                                             }
@@ -295,8 +360,19 @@ private fun ChapterRow(
 }
 
 @Composable
-private fun CommentRow(comment: CommentItem, onLike: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+private fun CommentRow(
+    comment: CommentItem,
+    canDelete: Boolean,
+    onLike: () -> Unit,
+    onReply: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val isReply = comment.parentCid != "0" && comment.parentCid.isNotBlank()
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = if (isReply) 24.dp else 0.dp, top = 6.dp, bottom = 6.dp),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -318,15 +394,33 @@ private fun CommentRow(comment: CommentItem, onLike: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 4.dp),
         )
-        TextButton(onClick = onLike) {
-            Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.width(16.dp))
-            Text(text = " ${comment.likes}", style = MaterialTheme.typography.labelMedium)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onLike) {
+                Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.width(16.dp))
+                Text(text = " ${comment.likes}", style = MaterialTheme.typography.labelMedium)
+            }
+            TextButton(onClick = onReply) {
+                Icon(Icons.Filled.Reply, contentDescription = null, modifier = Modifier.width(16.dp))
+                Text(text = " 回覆", style = MaterialTheme.typography.labelMedium)
+            }
+            if (canDelete) {
+                TextButton(onClick = onDelete) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.width(16.dp))
+                    Text(text = " 刪除", style = MaterialTheme.typography.labelMedium)
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun Header(repo: JmRepository, album: AlbumDetail, onLike: () -> Unit) {
+private fun Header(
+    repo: JmRepository,
+    album: AlbumDetail,
+    isFavorite: Boolean,
+    onFavorite: () -> Unit,
+    onLike: () -> Unit,
+) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         AsyncImage(
             model = repo.coverUrl(album.id.toString()),
@@ -362,6 +456,18 @@ private fun Header(repo: JmRepository, album: AlbumDetail, onLike: () -> Unit) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            TextButton(onClick = onFavorite) {
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = "收藏",
+                    modifier = Modifier.width(18.dp),
+                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = if (isFavorite) " 已收藏" else " 收藏",
+                    color = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             TextButton(onClick = onLike) {
                 Icon(
                     Icons.Filled.ThumbUp,

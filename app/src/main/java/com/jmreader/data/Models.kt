@@ -32,6 +32,7 @@ data class AlbumDetail(
     val series: JsonElement = JsonNull,
     val likes: Int = 0,
     val liked: Boolean = false,
+    @SerialName("is_favorite") val isFavorite: Boolean = false,
     @SerialName("comment_total") val commentTotal: Int = 0,
 )
 
@@ -89,6 +90,7 @@ data class Member(
 @Serializable
 data class FavoritePage(
     val list: List<AlbumBrief> = emptyList(),
+    @SerialName("folder_list") val folderList: List<FolderItem> = emptyList(),
     val total: String = "",
     val count: Int = 0,
 )
@@ -160,6 +162,7 @@ data class CategoryResponse(
 @Serializable
 data class CommentItem(
     @SerialName("CID") val cid: String = "",
+    @SerialName("UID") val uid: String = "",
     val username: String = "",
     val nickname: String = "",
     val content: String = "",
@@ -172,4 +175,76 @@ data class CommentItem(
 data class ForumPage(
     val list: List<CommentItem> = emptyList(),
     val total: Int = 0,
+)
+
+@Serializable
+data class FolderItem(
+    @SerialName("FID") val fid: String = "",
+    val name: String = "",
+)
+
+@Serializable
+data class FavoriteToggleResult(
+    val status: String = "",
+    val type: String = "",
+    val msg: String = "",
+)
+
+@Serializable
+data class SimpleResult(
+    val status: String = "",
+    val msg: String = "",
+    val type: String = "",
+)
+
+@Serializable
+data class PromoteSection(
+    val id: String = "",
+    val title: String = "",
+    val type: String = "",
+    @SerialName("filter_val") val filterVal: String = "",
+    val content: List<AlbumBrief> = emptyList(),
+)
+
+@Serializable
+data class CreatorAuthor(
+    val id: String = "",
+    @SerialName("author_name") val name: String = "",
+    @SerialName("author_avatar") val avatar: String = "",
+    @SerialName("background_image") val background: String = "",
+    @SerialName("update_date") val updateDate: String = "",
+)
+
+@Serializable
+data class CreatorAuthorPage(
+    val total: String = "",
+    val content: List<CreatorAuthor> = emptyList(),
+)
+
+@Serializable
+data class CreatorAuthorResponse(
+    val status: String = "",
+    val data: CreatorAuthorPage = CreatorAuthorPage(),
+)
+
+@Serializable
+data class CreatorWork(
+    val id: String = "",
+    @SerialName("work_image") val image: String = "",
+    @SerialName("work_title") val title: String = "",
+    @SerialName("author_name") val authorName: String = "",
+    @SerialName("author_id") val authorId: String = "",
+    @SerialName("platform_name") val platform: String = "",
+)
+
+@Serializable
+data class CreatorWorkPage(
+    val total: String = "",
+    val content: List<CreatorWork> = emptyList(),
+)
+
+@Serializable
+data class CreatorWorkResponse(
+    val status: Int = 0,
+    val data: CreatorWorkPage = CreatorWorkPage(),
 )

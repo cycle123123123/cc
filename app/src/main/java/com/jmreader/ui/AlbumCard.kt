@@ -2,6 +2,7 @@ package com.jmreader.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,13 +20,21 @@ import coil.compose.AsyncImage
 import com.jmreader.data.AlbumBrief
 import com.jmreader.data.JmRepository
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun AlbumCard(repo: JmRepository, album: AlbumBrief, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-    ) {
+fun AlbumCard(
+    repo: JmRepository,
+    album: AlbumBrief,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+) {
+    val base = Modifier.clip(RoundedCornerShape(12.dp))
+    val clickModifier = if (onLongClick != null) {
+        base.combinedClickable(onClick = onClick, onLongClick = onLongClick)
+    } else {
+        base.clickable(onClick = onClick)
+    }
+    Column(modifier = clickModifier) {
         AsyncImage(
             model = repo.coverUrl(album.id, tall = true),
             contentDescription = album.name,
