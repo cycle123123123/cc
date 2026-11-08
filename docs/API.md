@@ -281,6 +281,9 @@ Cookie: AVS={s}
 GET /favorite?page=1&folder_id={FID}
 ```
 
+排序参数 `o` 和搜索参数在实测中都会返回 400（HTTP Bad Request），
+只有 `page` 和 `folder_id` 可用。客户端只能对已加载的收藏做本地排序/过滤。
+
 ```json
 {
   "list": [ { "id": "1215913", "name": "...", "author": "...", "category": {...} } ],
