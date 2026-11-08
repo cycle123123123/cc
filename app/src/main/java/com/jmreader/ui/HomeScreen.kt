@@ -134,8 +134,8 @@ fun HomeScreen(
             if (state.albums.isEmpty()) {
                 repo.cachedLatest()?.let { state.albums = it }
             }
-            // 先选最快线路（最多 2.5s），否则可能一直用最慢的那条
-            runCatchingCancellable { repo.optimizeHost() }
+            // 测速放后台：首屏不用等（首启最多要 2.5s）
+            launch { runCatchingCancellable { repo.optimizeHost() } }
             load(true)
         }
     }

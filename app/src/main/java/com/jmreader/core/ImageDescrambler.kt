@@ -42,6 +42,8 @@ object ImageDescrambler {
             )
             dstTop += strip.height
         }
+        // 源图只是中间产物：尽早回收，避免解码长条图时同时占着两张 ARGB_8888
+        src.recycle()
         return out
     }
 }

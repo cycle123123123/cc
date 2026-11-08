@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import com.jmreader.core.ImageDescrambler
 import com.jmreader.core.JmConfig
 import com.jmreader.core.JmCrypto
+import com.jmreader.core.awaitResponse
 import java.io.File
 import java.io.IOException
 import java.net.URLEncoder
@@ -14,7 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.ListSerializer
@@ -30,7 +32,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-/** 所有网络访问的入口。无第三方 DI，直接构造。 */
+/** 所有网络访问的入口。无第三方 DI，直接构造（用 [of] 取单例）。 */
 class JmRepository(context: Context) {
 
     val auth = AuthStore(context)
@@ -54,8 +56,16 @@ class JmRepository(context: Context) {
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
 
+    private val hostBenchmark = HostBenchmark(http, json, PROBE_TIMEOUT_MS)
+
+    /** 页面字节缓存（带容量上限和 LRU 淘汰）。 */
+    private val pageCache = PageCache(File(appContext.cacheDir, "pages"))
+
     @Volatile
     private var apiBase: String? = null
+
+    /** 线路发现/切换要串行，用 Mutex 而不是 @Synchronized（里面会挂起）。 */
+    private val initMutex = Mutex()
 
     private val albumCache = android.util.LruCache<Long, AlbumDetail>(16)
     private val albumCacheAt = mutableMapOf<Long, Long>()
@@ -210,7 +220,7 @@ class JmRepository(context: Context) {
     @Volatile
     private var loggingIn = false
 
-    private fun performLoginRequest(base: String, username: String, password: String): Member {
+    private suspend fun performLoginRequest(base: String, username: String, password: String): Member {
         val body = formPost(base, "login", mapOf("username" to username, "password" to password))
         val member = try {
             json.decodeFromString(Member.serializer(), body)
@@ -222,12 +232,12 @@ class JmRepository(context: Context) {
     }
 
     /** token 过期但有记住的密码时，静默重新登录。 */
-    private fun ensureSession() {
+    private suspend fun ensureSession() {
         if (auth.isValid) return
         if (auth.hasCredentials) silentLogin()
     }
 
-    private fun silentLogin(): Boolean {
+    private suspend fun silentLogin(): Boolean {
         if (loggingIn) return false
         val credentials = auth.credentials() ?: return false
         loggingIn = true
@@ -395,7 +405,7 @@ class JmRepository(context: Context) {
                             .header("User-Agent", JmConfig.USER_AGENT)
                             .head()
                             .build()
-                        http.newCall(request).execute().use { it.isSuccessful }
+                        http.newCall(request).awaitResponse().use { it.isSuccessful }
                     }.getOrDefault(false)
                     if (ok) System.currentTimeMillis() - started else Long.MAX_VALUE
                 }
@@ -416,26 +426,25 @@ class JmRepository(context: Context) {
     /** 下载原始字节（不做任何处理），供离线下载使用。 */
     suspend fun downloadBytes(url: String): ByteArray = withContext(Dispatchers.IO) { fetchBytes(url) }
 
+    /** 磁盘缓存占用（阅读页缓存 + HTTP 缓存），给「清除快取」显示用。 */
+    suspend fun cacheSizeBytes(): Long = withContext(Dispatchers.IO) {
+        pageCache.sizeBytes() + (http.cache?.size() ?: 0L)
+    }
+
+    /** 清空阅读页字节缓存和 HTTP 缓存（Coil 的图片缓存由 UI 层清）。 */
+    suspend fun clearCaches() = withContext(Dispatchers.IO) {
+        pageCache.clear()
+        runCatching { http.cache?.evictAll() }
+    }
+
     /** 预取下一话的前 3 页到磁盘缓存，切话时首屏不用等。 */
     suspend fun prefetchChapter(cid: Long) = withContext(Dispatchers.IO) {
         val comic = runCatching { comicRead(cid) }.getOrNull() ?: return@withContext
         comic.images.take(3).forEach { page ->
-            if (readPageCache(cid, page.page) == null) {
-                runCatching { writePageCache(cid, page.page, fetchBytes(page.image)) }
+            if (pageCache.read(cid, page.page) == null) {
+                runCatching { pageCache.write(cid, page.page, fetchBytes(page.image)) }
             }
         }
-    }
-
-    private fun pageCacheFile(cid: Long, page: Int): File =
-        File(File(appContext.cacheDir, "pages/$cid").apply { mkdirs() }, "$page.bin")
-
-    private fun readPageCache(cid: Long, page: Int): ByteArray? = runCatching {
-        val file = pageCacheFile(cid, page)
-        if (file.exists() && file.length() > 0) file.readBytes() else null
-    }.getOrNull()
-
-    private fun writePageCache(cid: Long, page: Int, bytes: ByteArray) {
-        runCatching { pageCacheFile(cid, page).writeBytes(bytes) }
     }
 
     /** 下载并还原一页。优先读本地下载文件，其次读页面缓存，最后走网络。 */
@@ -449,8 +458,8 @@ class JmRepository(context: Context) {
     ): Bitmap = withContext(Dispatchers.IO) {
             val local = DownloadRepository.of(appContext).pageFile(cid, page)
             val bytes = local?.readBytes()
-                ?: readPageCache(cid, page)
-                ?: fetchBytes(url).also { writePageCache(cid, page, it) }
+                ?: pageCache.read(cid, page)
+                ?: fetchBytes(url).also { pageCache.write(cid, page, it) }
 
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -513,74 +522,38 @@ class JmRepository(context: Context) {
         }
     }
 
-    @Synchronized
-    private fun ensureReady() {
+    private suspend fun ensureReady() {
         if (apiBase != null) return
 
-        // 有缓存线路就直接用，把「拉线路清单 + 探测 setting」留给真正的失败路径
-        prefs.getString(KEY_API_BASE, null)?.let { cached ->
-            apiBase = cached
-            runCatching {
-                val raw = prefs.getString(KEY_SETTING_JSON, null) ?: return@runCatching
-                val setting = json.decodeFromString(AppSetting.serializer(), raw)
-                if (setting.imgHost.isNotBlank()) imgBase = setting.imgHost
-            }
-            return
-        }
+        initMutex.withLock {
+            if (apiBase != null) return
 
-        rediscover()
+            // 有缓存线路就直接用，把「拉线路清单 + 探测 setting」留给真正的失败路径
+            prefs.getString(KEY_API_BASE, null)?.let { cached ->
+                apiBase = cached
+                runCatching {
+                    val raw = prefs.getString(KEY_SETTING_JSON, null) ?: return@runCatching
+                    val setting = json.decodeFromString(AppSetting.serializer(), raw)
+                    if (setting.imgHost.isNotBlank()) imgBase = setting.imgHost
+                }
+                return
+            }
+
+            rediscover()
+        }
     }
 
-    /** 并发/顺序探测可用线路，成功后写入缓存。 */
-    @Synchronized
-    private fun rediscover() {
+    /** 并发探测可用线路，成功后写入缓存。 */
+    private suspend fun rediscover() {
         val candidates = LinkedHashSet<String>()
         collectNetworkHosts(candidates)
         JmConfig.BUILTIN_HOSTS.forEach { candidates.add("https://$it/") }
 
-        val best = benchmarkHosts(candidates) ?: throw JmException.Network("没有可用线路")
+        val best = hostBenchmark.best(candidates) ?: throw JmException.Network("没有可用线路")
         adopt(best)
     }
 
-    private data class HostProbe(val base: String, val setting: AppSetting?, val ms: Long)
-
-    /** 并发请求每个线路的 /setting，取耗时最短的。 */
-    private fun benchmarkHosts(candidates: Collection<String>): HostProbe? = runBlocking {
-        candidates.map { base ->
-            async(Dispatchers.IO) { probeHost(base) }
-        }.awaitAll()
-            .filter { it.setting != null }
-            .minByOrNull { it.ms }
-    }
-
-    private fun probeHost(base: String): HostProbe {
-        val started = System.currentTimeMillis()
-        val setting = runCatching {
-            val ts = System.currentTimeMillis() / 1000
-            val request = Request.Builder()
-                .url(base + "setting?lang=" + JmConfig.DEFAULT_LANG)
-                .header("Token", JmCrypto.token(ts))
-                .header("Tokenparam", JmCrypto.tokenParam(ts))
-                .header("Accept", "application/json")
-                .header("Referer", JmConfig.WEB_REFERER)
-                .header("User-Agent", JmConfig.USER_AGENT)
-                .build()
-            val call = http.newCall(request)
-            call.timeout().timeout(PROBE_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-            call.execute().use { response ->
-                if (!response.isSuccessful) return@use null
-                val body = response.body?.string().orEmpty()
-                val envelope = json.parseToJsonElement(body).jsonObject
-                val code = envelope["code"]?.jsonPrimitive?.intOrNull ?: -1
-                if (code != 200) return@use null
-                val data = envelope["data"]?.jsonPrimitive?.contentOrNull ?: return@use null
-                json.decodeFromString(AppSetting.serializer(), JmCrypto.decryptPayload(data, ts))
-            }
-        }.getOrNull()
-        return HostProbe(base, setting, System.currentTimeMillis() - started)
-    }
-
-    private fun adopt(probe: HostProbe) {
+    private fun adopt(probe: HostBenchmark.Probe) {
         apiBase = probe.base
         val setting = probe.setting ?: return
         imgBase = setting.imgHost.ifBlank { JmConfig.IMG_HOST_FALLBACK }
@@ -605,22 +578,19 @@ class JmRepository(context: Context) {
             add(current)
             JmConfig.BUILTIN_HOSTS.forEach { add("https://$it/") }
         }
-        val best = benchmarkHosts(candidates) ?: return@withContext
+        val best = hostBenchmark.best(candidates) ?: return@withContext
         prefs.edit().putLong(KEY_BENCH_AT, now).apply()
         if (best.base != current) adopt(best)
     }
 
     /** 请求失败时重新发现线路；返回新的 base 或 null。 */
-    private fun recoverBase(): String? = synchronized(this) {
+    private suspend fun recoverBase(): String? = initMutex.withLock {
         apiBase = null
         runCatching { rediscover() }
         apiBase
     }
 
-    private fun requestSetting(base: String): AppSetting =
-        json.decodeFromString(AppSetting.serializer(), request(base, "setting", emptyMap()))
-
-    private fun request(base: String, path: String, params: Map<String, String>): String {
+    private suspend fun request(base: String, path: String, params: Map<String, String>): String {
         val ts = System.currentTimeMillis() / 1000
         val query = (params + ("lang" to JmConfig.DEFAULT_LANG)).entries.joinToString("&") { (key, value) ->
             "$key=${URLEncoder.encode(value, "UTF-8")}"
@@ -633,7 +603,7 @@ class JmRepository(context: Context) {
         return execute(request, ts)
     }
 
-    private fun formPost(base: String, path: String, form: Map<String, String>): String {
+    private suspend fun formPost(base: String, path: String, form: Map<String, String>): String {
         val ts = System.currentTimeMillis() / 1000
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
@@ -648,7 +618,7 @@ class JmRepository(context: Context) {
     }
 
     /** 有些接口返回空 body（例如 comment_vote），只判断 HTTP 状态。 */
-    private fun formPostRaw(base: String, path: String, form: Map<String, String>): Boolean {
+    private suspend fun formPostRaw(base: String, path: String, form: Map<String, String>): Boolean {
         val ts = System.currentTimeMillis() / 1000
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
@@ -659,7 +629,7 @@ class JmRepository(context: Context) {
             .post(body)
             .withCommonHeaders(ts)
             .build()
-        http.newCall(request).execute().use { response ->
+        http.newCall(request).awaitResponse().use { response ->
             if (response.code == 401) throw JmException.Auth()
             if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")
             return true
@@ -689,8 +659,8 @@ class JmRepository(context: Context) {
         return this
     }
 
-    private fun execute(request: Request, ts: Long): String {
-        http.newCall(request).execute().use { response ->
+    private suspend fun execute(request: Request, ts: Long): String {
+        http.newCall(request).awaitResponse().use { response ->
             if (response.code == 401) throw JmException.Auth()
             if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")
 
@@ -712,13 +682,13 @@ class JmRepository(context: Context) {
         }
     }
 
-    private fun fetchBytes(url: String): ByteArray {
+    private suspend fun fetchBytes(url: String): ByteArray {
         val request = Request.Builder()
             .url(rewriteImageHost(url))
             .header("Referer", JmConfig.WEB_REFERER)
             .header("User-Agent", JmConfig.USER_AGENT)
             .build()
-        http.newCall(request).execute().use { response ->
+        http.newCall(request).awaitResponse().use { response ->
             if (response.code == 401) throw JmException.Auth()
             if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")
             return response.body?.bytes() ?: throw JmException.Network("响应为空")
@@ -726,11 +696,11 @@ class JmRepository(context: Context) {
     }
 
     /** 拉取并解密线路清单。失败不影响后续兜底逻辑。 */
-    private fun collectNetworkHosts(target: MutableSet<String>) {
+    private suspend fun collectNetworkHosts(target: MutableSet<String>) {
         for (url in JmConfig.SERVER_LIST_URLS) {
             try {
                 val request = Request.Builder().url(url).build()
-                val raw = http.newCall(request).execute().use { it.body?.string().orEmpty() }
+                val raw = http.newCall(request).awaitResponse().use { it.body?.string().orEmpty() }
                 if (raw.isBlank()) continue
 
                 val root = json.parseToJsonElement(JmCrypto.decryptHostList(raw)).jsonObject
@@ -752,22 +722,31 @@ class JmRepository(context: Context) {
         }
     }
 
-    private companion object {
-        const val KEY_API_BASE = "api_base"
-        const val KEY_IMG_SHARD = "img_shard"
-        const val KEY_AUTO_HOST = "auto_host"
-        const val KEY_SETTING_JSON = "setting_json"
-        const val KEY_SETTING_AT = "setting_at"
-        const val KEY_BENCH_AT = "bench_at"
-        const val KEY_AUTO_BENCH_AT = "auto_bench_at"
-        const val HOME_CACHE = "home_cache.json"
-        const val HTTP_CACHE_BYTES = 256L * 1024 * 1024
-        const val SETTING_TTL_MS = 10L * 60L * 1000L
-        const val BENCH_TTL_MS = 30L * 60L * 1000L
-        const val AUTO_BENCH_TTL_MS = 24L * 60L * 60L * 1000L
-        const val PROBE_TIMEOUT_MS = 2500L
-        const val ALBUM_TTL_MS = 60L * 1000L
-        const val READ_TTL_MS = 5L * 60L * 1000L
-        const val MAX_DECODE_PIXELS = 6_000_000L
+    companion object {
+        @Volatile
+        private var instance: JmRepository? = null
+
+        /** 全局单例：OkHttp 的 Cache 要求同一目录只有一个实例，不能到处 new。 */
+        fun of(context: Context): JmRepository =
+            instance ?: synchronized(this) {
+                instance ?: JmRepository(context.applicationContext).also { instance = it }
+            }
+
+        private const val KEY_API_BASE = "api_base"
+        private const val KEY_IMG_SHARD = "img_shard"
+        private const val KEY_AUTO_HOST = "auto_host"
+        private const val KEY_SETTING_JSON = "setting_json"
+        private const val KEY_SETTING_AT = "setting_at"
+        private const val KEY_BENCH_AT = "bench_at"
+        private const val KEY_AUTO_BENCH_AT = "auto_bench_at"
+        private const val HOME_CACHE = "home_cache.json"
+        private const val HTTP_CACHE_BYTES = 256L * 1024 * 1024
+        private const val SETTING_TTL_MS = 10L * 60L * 1000L
+        private const val BENCH_TTL_MS = 30L * 60L * 1000L
+        private const val AUTO_BENCH_TTL_MS = 24L * 60L * 60L * 1000L
+        private const val PROBE_TIMEOUT_MS = 2500L
+        private const val ALBUM_TTL_MS = 60L * 1000L
+        private const val READ_TTL_MS = 5L * 60L * 1000L
+        private const val MAX_DECODE_PIXELS = 6_000_000L
     }
 }

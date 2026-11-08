@@ -201,3 +201,30 @@
 - 现在拆成两组独立状态（`favorites*` / `history*`），各自分页、各自缓存；历史也支持「載入更多」。
 - 收藏按 `folderId` 变化重载；历史只在首次进入时拉取，切回不重复请求。
 - 网格 key 带 tab 前缀（`"${tab}_${id}"`），避免同作品在两份列表间复用导致内容错位。
+
+## D29 性能与架构整改
+
+### 磁盘
+- `PageCache`：阅读页字节缓存有了 200MB 上限，读到某页会更新 lastModified 当 LRU，超限按最久未访问删到 90%；写入先落 `.tmp` 再改名（避免半截文件被当成缓存命中）；一分钟内最多扫一次目录。
+- 「我的」页面底部新增「圖片快取 X MB / 清除」，同时清阅读页缓存、HTTP 缓存和 Coil 内存/磁盘缓存。
+
+### 单例与缓存所有权
+- `JmRepository.of(context)` 单例。`DownloadRepository` 之前自己 `new JmRepository()`，导致**两个 OkHttp Cache 指向同一目录**（有损坏风险）且选线状态两份，现在复用同一个实例。
+
+### 下载
+- `DownloadRepository.save()` 不再每页 `refresh()` 重扫所有 meta.json（原来一话 30–100 次 O(n²) IO），改为只更新内存列表并写当前任务的 meta。
+
+### 阅读器
+- `PageStore` 预取并发上限 2，并且只保留当前窗口内的预取（快速翻页会取消翻过去的任务）。
+- 图片还原后立刻 `recycle()` 源位图，避免长条图同时占两张 ARGB_8888。
+- 位图解码策略（1080 宽、6M 像素上限）保持不变：调低会明显变糊，收益不值。
+
+### 网络
+- `Call.awaitResponse()`：OkHttp 改用 enqueue + invokeOnCancellation，协程取消会真正中断请求（之前阻塞 `execute()` 会继续跑完）。
+- 线路探测抽成 `HostBenchmark`（suspend、可取消），`JmRepository` 只负责持有状态和缓存。
+- `ensureReady/recoverBase` 从 `@Synchronized` 换成 `Mutex`（内部会挂起）。
+
+### 其他
+- `BlockRules.matcher`：作品 id 走 HashSet，关键词只在存在时拼一次小写串；避免每个列表项扫 1000+ 条收藏 id / 376 位作者。
+- 收藏同步改为每批 4 页并发（原来 60 次串行请求约 1 分钟）。
+- 首页冷启动不再等线路测速，测速放后台与首屏请求并行（首启最多省 2.5s）。

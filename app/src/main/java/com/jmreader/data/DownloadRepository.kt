@@ -35,7 +35,7 @@ class DownloadRepository private constructor(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val jobs = ConcurrentHashMap<Long, Job>()
 
-    private val api by lazy { JmRepository(context) }
+    private val api by lazy { JmRepository.of(context) }
 
     private val _tasks = MutableStateFlow<List<DownloadTask>>(emptyList())
     val tasks: StateFlow<List<DownloadTask>> = _tasks.asStateFlow()
@@ -58,12 +58,17 @@ class DownloadRepository private constructor(private val context: Context) {
         _tasks.value.firstOrNull { it.cid == cid } ?: runCatching { readMeta(File(dir(cid), META)) }.getOrNull()
 
     fun save(task: DownloadTask) {
+        val updated = task.copy(updatedAt = System.currentTimeMillis())
         runCatching {
-            dir(task.cid).mkdirs()
-            val updated = task.copy(updatedAt = System.currentTimeMillis())
-            File(dir(task.cid), META).writeText(json.encodeToString(DownloadTask.serializer(), updated))
+            dir(updated.cid).mkdirs()
+            File(dir(updated.cid), META).writeText(json.encodeToString(DownloadTask.serializer(), updated))
         }
-        refresh()
+        // 只更新内存里的列表，避免每下载一页都重扫所有任务的 meta.json（O(n²) IO）
+        val next = _tasks.value.toMutableList()
+        val index = next.indexOfFirst { it.cid == updated.cid }
+        if (index >= 0) next[index] = updated else next.add(updated)
+        next.sortByDescending { it.updatedAt }
+        _tasks.value = next
     }
 
     fun dir(cid: Long): File = File(root, cid.toString())

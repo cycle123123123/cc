@@ -10,7 +10,7 @@ class JmApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
-        repository = JmRepository(this)
+        repository = JmRepository.of(this)
     }
 
     /**

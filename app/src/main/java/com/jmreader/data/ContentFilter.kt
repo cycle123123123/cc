@@ -1,6 +1,9 @@
 package com.jmreader.data
 
 import android.content.Context
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +22,80 @@ data class BlockRules(
     val syncedAt: Long = 0L,
 ) {
     val isEmpty: Boolean get() = keywords.isEmpty() && authors.isEmpty() && albums.isEmpty()
+
+    /** 预编译匹配器：避免每个列表项都线性扫 1000+ 条收藏 id / 作者。 */
+    val matcher: Matcher by lazy(LazyThreadSafetyMode.PUBLICATION) { Matcher(this) }
+}
+
+/**
+ * [BlockRules] 的匹配加速版本：
+ * - 作品 id 走 HashSet，O(1)；
+ * - 标题/作者/分类/标签只在有关键词时才拼一次小写串；
+ * - 作者规则和收藏作者仍是子串匹配，但提前小写化、去空。
+ */
+class Matcher(rules: BlockRules) {
+
+    private val albums: Set<String> = rules.albums.toHashSet()
+
+    private val keywords: List<String> = rules.keywords
+        .mapNotNull { it.trim().lowercase().takeIf(String::isNotEmpty) }
+
+    private val authors: List<String> = rules.authors
+        .mapNotNull { it.trim().lowercase().takeIf(String::isNotEmpty) }
+
+    private val favoriteAlbums: Set<String> =
+        if (rules.hideFavoritedAlbums) rules.favoritedAlbums.toHashSet() else emptySet()
+
+    private val favoriteAuthors: List<String> = if (rules.hideFavoritedAuthors) {
+        rules.favoritedAuthors.mapNotNull { it.trim().lowercase().takeIf(String::isNotEmpty) }
+    } else {
+        emptyList()
+    }
+
+    fun matches(
+        id: String?,
+        name: String,
+        author: String,
+        category: String?,
+        tags: List<String>,
+    ): Boolean {
+        if (!id.isNullOrBlank()) {
+            if (albums.contains(id)) return true
+            if (favoriteAlbums.contains(id)) return true
+        }
+
+        val lowerAuthor = author.lowercase()
+        if (favoriteAuthors.isNotEmpty() && lowerAuthor.isNotEmpty()) {
+            for (favorite in favoriteAuthors) {
+                if (lowerAuthor.contains(favorite) || favorite.contains(lowerAuthor)) return true
+            }
+        }
+        if (authors.isNotEmpty()) {
+            for (blocked in authors) {
+                if (lowerAuthor.contains(blocked)) return true
+            }
+        }
+        if (keywords.isNotEmpty()) {
+            val haystack = buildString {
+                append(name.lowercase())
+                append('\n')
+                append(lowerAuthor)
+                append('\n')
+                if (!category.isNullOrBlank()) {
+                    append(category.lowercase())
+                    append('\n')
+                }
+                for (tag in tags) {
+                    append(tag.lowercase())
+                    append('\n')
+                }
+            }
+            for (keyword in keywords) {
+                if (haystack.contains(keyword)) return true
+            }
+        }
+        return false
+    }
 }
 
 /**
@@ -85,28 +162,45 @@ class ContentFilter private constructor(context: Context) {
 
     /**
      * 翻页拉取收藏，生成「已收藏作品 / 作者」去重集合。
-     * 最多 60 页（约 1200 部），避免收藏特别多时同步过久。
+     * 最多 60 页（约 1200 部）；每批并发 4 页，避免串行几十次请求耗上一分钟。
      */
     suspend fun syncFromFavorites(
         repo: JmRepository,
         onProgress: (loaded: Int, total: Int) -> Unit = { _, _ -> },
-    ): Int {
+    ): Int = coroutineScope {
         val albums = mutableSetOf<String>()
         val authors = mutableSetOf<String>()
-        var page = 1
-        var total = 0
 
-        while (page <= 60) {
-            val result = repo.favorites(page, "")
-            if (page == 1) total = result.total.toIntOrNull() ?: result.list.size
-            if (result.list.isEmpty()) break
-            result.list.forEach { album ->
+        fun collect(list: List<AlbumBrief>) {
+            list.forEach { album ->
                 albums.add(album.id)
                 if (album.author.isNotBlank()) authors.add(album.author.trim())
             }
+        }
+
+        val first = repo.favorites(1, "")
+        val total = first.total.toIntOrNull() ?: first.list.size
+        collect(first.list)
+        onProgress(albums.size, total)
+
+        var page = 2
+        var emptyPages = 0
+        while (page <= MAX_PAGES && albums.size < total && emptyPages < BATCH) {
+            val batch = (page until minOf(page + BATCH, MAX_PAGES + 1)).toList()
+            val results = batch
+                .map { p -> async { runCatching { repo.favorites(p, "") }.getOrNull() } }
+                .awaitAll()
+            for (result in results) {
+                val list = result?.list ?: continue
+                if (list.isEmpty()) {
+                    emptyPages++
+                } else {
+                    emptyPages = 0
+                    collect(list)
+                }
+            }
             onProgress(albums.size, total)
-            page++
-            if (albums.size >= total) break
+            page += BATCH
         }
 
         save(
@@ -116,10 +210,13 @@ class ContentFilter private constructor(context: Context) {
                 syncedAt = System.currentTimeMillis(),
             ),
         )
-        return albums.size
+        albums.size
     }
 
     companion object {
+        private const val MAX_PAGES = 60
+        private const val BATCH = 4
+
         @Volatile
         private var instance: ContentFilter? = null
 
@@ -144,31 +241,6 @@ class ContentFilter private constructor(context: Context) {
             category: String?,
             tags: List<String>,
             rules: BlockRules,
-        ): Boolean {
-            if (!id.isNullOrBlank() && rules.albums.contains(id)) return true
-
-            // 已经收藏过的作品不再出现在浏览列表里
-            if (rules.hideFavoritedAlbums && !id.isNullOrBlank() && rules.favoritedAlbums.contains(id)) {
-                return true
-            }
-            if (rules.hideFavoritedAuthors && author.isNotBlank()) {
-                val hit = rules.favoritedAuthors.any { favoriteAuthor ->
-                    favoriteAuthor.isNotBlank() &&
-                        (author.contains(favoriteAuthor, true) || favoriteAuthor.contains(author, true))
-                }
-                if (hit) return true
-            }
-
-            val haystacks = buildList {
-                if (name.isNotBlank()) add(name)
-                if (author.isNotBlank()) add(author)
-                if (!category.isNullOrBlank()) add(category)
-                addAll(tags)
-            }
-            if (rules.keywords.any { keyword -> keyword.isNotBlank() && haystacks.any { it.contains(keyword, true) } }) {
-                return true
-            }
-            return rules.authors.any { blocked -> blocked.isNotBlank() && author.contains(blocked, true) }
-        }
+        ): Boolean = rules.matcher.matches(id, name, author, category, tags)
     }
 }

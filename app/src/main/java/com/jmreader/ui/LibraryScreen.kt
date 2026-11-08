@@ -1,6 +1,7 @@
 package com.jmreader.ui
 
 import android.widget.Toast
+import coil.imageLoader
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,6 +62,13 @@ import com.jmreader.data.Member
 import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
 
+private fun formatCacheSize(bytes: Long): String = when {
+    bytes >= 1024L * 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f GB", bytes / 1024.0 / 1024 / 1024)
+    bytes >= 1024L * 1024 -> String.format(java.util.Locale.US, "%.0f MB", bytes / 1024.0 / 1024)
+    bytes >= 1024L -> String.format(java.util.Locale.US, "%.0f KB", bytes / 1024.0)
+    else -> "$bytes B"
+}
+
 /**
  * 「我的」：账号 + 收藏 / 历史。收藏与历史各自独立分页，避免切 tab 时互相串数据。
  */
@@ -89,12 +97,58 @@ fun LibraryScreen(
             )
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            if (member == null) {
-                LoginForm(repo)
-            } else {
-                LibraryContent(repo, member!!, onOpen)
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            Box(Modifier.weight(1f)) {
+                if (member == null) {
+                    LoginForm(repo)
+                } else {
+                    LibraryContent(repo, member!!, onOpen)
+                }
             }
+            CacheRow(repo)
+        }
+    }
+}
+
+/** 图片缓存占用 / 清理。未登录时也能用（封面和阅读页缓存和账号无关）。 */
+@Composable
+private fun CacheRow(repo: JmRepository) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var bytes by remember { mutableStateOf(0L) }
+    var clearing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        bytes = repo.cacheSizeBytes()
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "圖片快取 ${formatCacheSize(bytes)}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            enabled = !clearing,
+            onClick = {
+                clearing = true
+                scope.launch {
+                    repo.clearCaches()
+                    runCatching {
+                        context.imageLoader.memoryCache?.clear()
+                        context.imageLoader.diskCache?.clear()
+                    }
+                    bytes = repo.cacheSizeBytes()
+                    Toast.makeText(context, "已清除快取", Toast.LENGTH_SHORT).show()
+                    clearing = false
+                }
+            },
+        ) {
+            Text(if (clearing) "清除中…" else "清除")
         }
     }
 }
