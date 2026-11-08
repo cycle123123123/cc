@@ -31,6 +31,15 @@ class SeriesParserTest {
     }
 
     @Test
+    fun `duplicate sort values are numbered by position`() {
+        // 实测服务端前两话的 sort 都是 1
+        val raw = """[{"id":"1","sort":"1"},{"id":"2","sort":"1"},{"id":"3","sort":"2"}]"""
+        val entries = SeriesParser.parse(Json.parseToJsonElement(raw))
+        assertEquals(listOf("第 1 話", "第 2 話", "第 3 話"), entries.map { it.title })
+        assertEquals(listOf(1L, 2L, 3L), entries.map { it.id })
+    }
+
+    @Test
     fun `returns empty for non array series`() {
         assertEquals(0, SeriesParser.parse(Json.parseToJsonElement("0")).size)
         assertEquals(0, SeriesParser.parse(Json.parseToJsonElement("[]")).size)

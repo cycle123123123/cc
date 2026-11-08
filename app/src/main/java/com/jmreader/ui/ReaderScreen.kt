@@ -38,6 +38,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
@@ -114,6 +115,8 @@ fun ReaderScreen(
     var showSettings by remember { mutableStateOf(false) }
     var brightness by remember { mutableStateOf(prefs.getFloat("brightness", -1f)) }
     var animate by remember { mutableStateOf(prefs.getBoolean("animate", true)) }
+    var rtl by remember { mutableStateOf(prefs.getBoolean("rtl", false)) }
+    var tapWhenZoomed by remember { mutableStateOf(prefs.getBoolean("tap_when_zoomed", false)) }
     var bookmarks by remember(cid) {
         mutableStateOf(
             prefs.getString("bookmarks_$cid", "").orEmpty()
@@ -300,6 +303,7 @@ fun ReaderScreen(
                         state = pagerState,
                         modifier = Modifier.fillMaxSize(),
                         userScrollEnabled = !zoomed,
+                        reverseLayout = rtl,
                     ) { index ->
                         val page = images.getOrNull(index)
                         if (page != null) {
@@ -307,7 +311,28 @@ fun ReaderScreen(
                                 store = pageStore,
                                 url = page.image,
                                 page = page.page,
-                                onTap = { uiVisible = !uiVisible },
+                                onTap = { offset ->
+                                    if (zoomed && !tapWhenZoomed) {
+                                        uiVisible = !uiVisible
+                                    } else {
+                                        val third = context.resources.displayMetrics.widthPixels / 3f
+                                        when {
+                                            offset.x < third -> {
+                                                val delta = if (rtl) 1 else -1
+                                                val target = (pagerState.currentPage + delta)
+                                                    .coerceIn(0, images.lastIndex.coerceAtLeast(0))
+                                                scope.launch { pagerState.animateScrollToPage(target) }
+                                            }
+                                            offset.x > third * 2 -> {
+                                                val delta = if (rtl) -1 else 1
+                                                val target = (pagerState.currentPage + delta)
+                                                    .coerceIn(0, images.lastIndex.coerceAtLeast(0))
+                                                scope.launch { pagerState.animateScrollToPage(target) }
+                                            }
+                                            else -> uiVisible = !uiVisible
+                                        }
+                                    }
+                                },
                                 onZoomChanged = { zoomed = it },
                                 animate = animate,
                                 pageOffset = (pagerState.currentPage - index) + pagerState.currentPageOffsetFraction,
@@ -404,11 +429,12 @@ fun ReaderScreen(
         }
 
         AnimatedVisibility(visible = uiVisible, modifier = Modifier.align(Alignment.BottomCenter)) {
+            val seriesIndex = chapters.indexOfFirst { it.id == cid }
             ReaderBottomBar(
                 index = currentIndex,
                 total = images.size,
-                previous = if (chapters.isNotEmpty()) chapters.getOrNull(chapters.indexOfFirst { it.id == cid } - 1) else null,
-                next = if (chapters.isNotEmpty()) chapters.getOrNull(chapters.indexOfFirst { it.id == cid } + 1) else null,
+                previous = if (seriesIndex > 0) chapters[seriesIndex - 1] else null,
+                next = if (seriesIndex >= 0) chapters.getOrNull(seriesIndex + 1) else null,
                 hasChapters = chapters.size > 1,
                 onPrevious = { chapter -> chapter?.let { onOpenChapter(it.id, it.title) } },
                 onNext = { chapter -> chapter?.let { onOpenChapter(it.id, it.title) } },
@@ -433,6 +459,16 @@ fun ReaderScreen(
                 onAnimate = {
                     animate = it
                     prefs.edit().putBoolean("animate", it).apply()
+                },
+                rtl = rtl,
+                onRtl = {
+                    rtl = it
+                    prefs.edit().putBoolean("rtl", it).apply()
+                },
+                tapWhenZoomed = tapWhenZoomed,
+                onTapWhenZoomed = {
+                    tapWhenZoomed = it
+                    prefs.edit().putBoolean("tap_when_zoomed", it).apply()
                 },
                 index = currentIndex,
                 total = images.size,
@@ -534,7 +570,7 @@ private fun HorizontalPage(
     store: PageStore,
     url: String,
     page: Int,
-    onTap: () -> Unit,
+    onTap: (androidx.compose.ui.geometry.Offset) -> Unit,
     onZoomChanged: (Boolean) -> Unit,
     animate: Boolean,
     pageOffset: Float,
@@ -580,7 +616,7 @@ private fun HorizontalPage(
 private fun ZoomablePage(
     bitmap: Bitmap,
     description: String,
-    onTap: () -> Unit,
+    onTap: (androidx.compose.ui.geometry.Offset) -> Unit,
     onZoomChanged: (Boolean) -> Unit,
 ) {
     var scale by remember(bitmap) { mutableFloatStateOf(1f) }
@@ -614,7 +650,7 @@ private fun ZoomablePage(
             }
             .pointerInput(bitmap) {
                 detectTapGestures(
-                    onTap = { onTap() },
+                    onTap = { offset -> onTap(offset) },
                     onDoubleTap = {
                         if (scale > 1f) {
                             scale = 1f
@@ -659,6 +695,10 @@ private fun ReaderSettingsDialog(
     onBrightness: (Float) -> Unit,
     animate: Boolean,
     onAnimate: (Boolean) -> Unit,
+    rtl: Boolean,
+    onRtl: (Boolean) -> Unit,
+    tapWhenZoomed: Boolean,
+    onTapWhenZoomed: (Boolean) -> Unit,
     index: Int,
     total: Int,
     onJump: (Int) -> Unit,
@@ -693,6 +733,35 @@ private fun ReaderSettingsDialog(
                 ) {
                     Text("翻頁動畫", style = MaterialTheme.typography.bodyMedium)
                     Switch(checked = animate, onCheckedChange = onAnimate)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("閱讀方向", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(
+                            selected = !rtl,
+                            onClick = { onRtl(false) },
+                            label = { Text("左→右") },
+                        )
+                        FilterChip(
+                            selected = rtl,
+                            onClick = { onRtl(true) },
+                            label = { Text("右→左") },
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("放大時允許點擊翻頁", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = tapWhenZoomed, onCheckedChange = onTapWhenZoomed)
                 }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))

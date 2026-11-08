@@ -19,13 +19,18 @@ object SeriesParser {
 
     fun parse(series: JsonElement): List<ChapterEntry> {
         val array = series as? JsonArray ?: return emptyList()
-        return array.mapNotNull { element ->
+
+        val entries = array.mapNotNull { element ->
             val obj = element as? JsonObject ?: return@mapNotNull null
             val id = obj["id"]?.jsonPrimitive?.longOrNull ?: return@mapNotNull null
             val sort = obj["sort"]?.jsonPrimitive?.intOrNull
             val name = obj["name"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
-            val title = name ?: sort?.let { "第 $it 話" } ?: "ID $id"
-            ChapterEntry(id = id, title = title, sort = sort)
+            ChapterEntry(id = id, title = name.orEmpty(), sort = sort)
         }.sortedBy { it.sort ?: Int.MAX_VALUE }
+
+        // 服务端 sort 可能重复（实测前两话都是 1），标题按顺序编号更可靠
+        return entries.mapIndexed { index, entry ->
+            if (entry.title.isNotBlank()) entry else entry.copy(title = "第 ${index + 1} 話")
+        }
     }
 }
