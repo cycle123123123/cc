@@ -1,14 +1,17 @@
 ﻿package com.jmreader.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -29,15 +32,22 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.jmreader.core.JmConfig
 import com.jmreader.data.JmRepository
+import com.jmreader.data.LastRead
+import com.jmreader.data.ReadingHistory
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,6 +56,7 @@ fun HomeScreen(
     repo: JmRepository,
     state: HomeState,
     onOpen: (Long) -> Unit,
+    onContinue: (com.jmreader.data.LastRead) -> Unit,
     onSearch: () -> Unit,
     onMe: () -> Unit,
     onDiscover: () -> Unit,
@@ -53,6 +64,8 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("jmreader", android.content.Context.MODE_PRIVATE) }
+    val history = remember { ReadingHistory.of(context) }
+    val lastRead by history.last.collectAsState()
 
     val albums = state.albums
     val loading = state.loading
@@ -140,6 +153,12 @@ fun HomeScreen(
                         }
                     }
 
+                    lastRead?.let { item ->
+                        Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                            ContinueCard(repo = repo, item = item, onClick = { onContinue(item) })
+                        }
+                    }
+
                     LazyVerticalGrid(
                         state = state.gridState,
                         columns = GridCells.Fixed(2),
@@ -165,6 +184,53 @@ fun HomeScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ContinueCard(repo: JmRepository, item: LastRead, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onClick)
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AsyncImage(
+            model = repo.coverUrl(item.cid.toString(), tall = true),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .width(48.dp)
+                .aspectRatio(3f / 4f)
+                .clip(RoundedCornerShape(6.dp))
+                .background(MaterialTheme.colorScheme.surface),
+        )
+        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+            Text(
+                text = "繼續閱讀",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = item.title,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "第 ${item.page + 1} 頁",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = "›",
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

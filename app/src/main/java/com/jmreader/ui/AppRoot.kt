@@ -36,6 +36,7 @@ fun AppRoot(repo: JmRepository) {
             repo = repo,
             state = homeState,
             onOpen = { push(Screen.Detail(it)) },
+            onContinue = { item -> push(Screen.Reader(item.albumId, item.cid, item.title)) },
             onSearch = { push(Screen.Search()) },
             onMe = { push(Screen.Me) },
             onDiscover = { push(Screen.Discover) },

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -91,6 +92,7 @@ fun MeScreen(
 private fun LoginForm(repo: JmRepository) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var remember by remember { mutableStateOf(true) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -104,7 +106,7 @@ private fun LoginForm(repo: JmRepository) {
         loading = true
         error = null
         scope.launch {
-            runCatching { repo.login(username.trim(), password) }
+            runCatching { repo.login(username.trim(), password, remember) }
                 .onFailure { error = it.message ?: "登入失敗" }
             loading = false
         }
@@ -136,6 +138,13 @@ private fun LoginForm(repo: JmRepository) {
             keyboardActions = KeyboardActions(onDone = { submit() }),
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
         )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = remember, onCheckedChange = { remember = it })
+            Text("記住密碼（自動登入）", style = MaterialTheme.typography.bodySmall)
+        }
         if (error != null) {
             Text(
                 text = error!!,
@@ -151,7 +160,7 @@ private fun LoginForm(repo: JmRepository) {
             if (loading) CircularProgressIndicator(Modifier.padding(4.dp)) else Text("登入")
         }
         Text(
-            text = "只保存登入憑證，不保存密碼",
+            text = "密碼用 Android Keystore 加密保存，只用於自動登入",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 12.dp),
@@ -175,7 +184,7 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
         }.onSuccess {
             items = it
         }.onFailure {
-            if (it is JmException.Auth) repo.auth.clear()
+            if (it is JmException.Auth) repo.auth.clearMember()
             error = it.message ?: "載入失敗"
         }
         loading = false

@@ -73,6 +73,7 @@ import com.jmreader.data.ComicRead
 import com.jmreader.data.DownloadRepository
 import com.jmreader.data.JmRepository
 import com.jmreader.data.PageStore
+import com.jmreader.data.ReadingHistory
 import com.jmreader.data.SeriesParser
 import kotlinx.coroutines.launch
 
@@ -157,6 +158,7 @@ fun ReaderScreen(
             if (mode == ReaderMode.VERTICAL) listState.firstVisibleItemIndex else pagerState.currentPage
         }.collect { index ->
             prefs.edit().putInt("progress_$cid", index).apply()
+            ReadingHistory.of(context).save(albumId, cid, title, index)
         }
     }
 

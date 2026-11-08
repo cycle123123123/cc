@@ -125,29 +125,57 @@ class JmRepository(context: Context) {
 
     // ------------------------------------------------------------ 账号
 
-    suspend fun login(username: String, password: String): Member = withContext(Dispatchers.IO) {
-        ensureReady()
-        val base = apiBase ?: throw JmException.Network("线路未就绪")
-        val body = formPost(
-            base,
-            "login",
-            mapOf("username" to username, "password" to password),
-        )
-        val member = try {
-            json.decodeFromString(Member.serializer(), body)
-        } catch (t: Throwable) {
-            throw JmException.Parse(t)
+    suspend fun login(username: String, password: String, remember: Boolean = true): Member =
+        withContext(Dispatchers.IO) {
+            ensureReady()
+            val base = apiBase ?: throw JmException.Network("线路未就绪")
+            val member = performLoginRequest(base, username, password)
+            if (remember) auth.saveCredentials(username, password) else auth.clearCredentials()
+            member
         }
-        auth.save(member)
-        member
-    }
 
     suspend fun logout() = withContext(Dispatchers.IO) {
         runCatching {
             ensureReady()
             apiBase?.let { formPost(it, "logout", emptyMap()) }
         }
-        auth.clear()
+        auth.clearAll()
+    }
+
+    @Volatile
+    private var loggingIn = false
+
+    private fun performLoginRequest(base: String, username: String, password: String): Member {
+        val body = formPost(base, "login", mapOf("username" to username, "password" to password))
+        val member = try {
+            json.decodeFromString(Member.serializer(), body)
+        } catch (t: Throwable) {
+            throw JmException.Parse(t)
+        }
+        auth.save(member)
+        return member
+    }
+
+    /** token 过期但有记住的密码时，静默重新登录。 */
+    private fun ensureSession() {
+        if (auth.isValid) return
+        if (auth.hasCredentials) silentLogin()
+    }
+
+    private fun silentLogin(): Boolean {
+        if (loggingIn) return false
+        val credentials = auth.credentials() ?: return false
+        loggingIn = true
+        return try {
+            ensureReady()
+            val base = apiBase ?: return false
+            performLoginRequest(base, credentials.first, credentials.second)
+            true
+        } catch (_: Throwable) {
+            false
+        } finally {
+            loggingIn = false
+        }
     }
 
     suspend fun favorites(page: Int): FavoritePage =
@@ -159,6 +187,7 @@ class JmRepository(context: Context) {
     /** 收藏 / 取消收藏。接口为 POST favorite，form 里带 aid。 */
     suspend fun addFavorite(aid: Long): Boolean = withContext(Dispatchers.IO) {
         ensureReady()
+        ensureSession()
         val base = apiBase ?: throw JmException.Network("线路未就绪")
         formPost(base, "favorite", mapOf("aid" to aid.toString()))
         true
@@ -167,6 +196,7 @@ class JmRepository(context: Context) {
     /** 点赞（切换）。接口为 POST like，form 里带 id。 */
     suspend fun toggleLike(aid: Long): Boolean = withContext(Dispatchers.IO) {
         ensureReady()
+        ensureSession()
         val base = apiBase ?: throw JmException.Network("线路未就绪")
         formPost(base, "like", mapOf("id" to aid.toString()))
         true
@@ -175,6 +205,7 @@ class JmRepository(context: Context) {
     /** 发表评论（需要登录）。接口为 POST comment。 */
     suspend fun postComment(aid: Long, content: String): Boolean = withContext(Dispatchers.IO) {
         ensureReady()
+        ensureSession()
         val base = apiBase ?: throw JmException.Network("线路未就绪")
         formPost(base, "comment", mapOf("aid" to aid.toString(), "content" to content))
         true
@@ -183,6 +214,7 @@ class JmRepository(context: Context) {
     /** 评论点赞（需要登录），返回体可能为空，只看 HTTP 是否成功。 */
     suspend fun voteComment(cid: String): Boolean = withContext(Dispatchers.IO) {
         ensureReady()
+        ensureSession()
         val base = apiBase ?: throw JmException.Network("线路未就绪")
         formPostRaw(base, "comment_vote", mapOf("id" to cid))
     }
@@ -282,8 +314,14 @@ class JmRepository(context: Context) {
         deserializer: DeserializationStrategy<T>,
     ): T = withContext(Dispatchers.IO) {
         ensureReady()
+        ensureSession()
         val base = apiBase ?: throw JmException.Network("线路未就绪")
-        val body = request(base, path, params)
+        val body = try {
+            request(base, path, params)
+        } catch (e: JmException.Auth) {
+            // token 失效：用记住的密码重登一次再重试
+            if (silentLogin()) request(base, path, params) else throw e
+        }
         try {
             json.decodeFromString(deserializer, body)
         } catch (t: Throwable) {
