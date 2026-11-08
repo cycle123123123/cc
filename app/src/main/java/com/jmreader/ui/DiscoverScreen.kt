@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.jmreader.data.userMessage
 import com.jmreader.core.runCatchingCancellable
@@ -111,6 +112,7 @@ private fun CategoryTab(repo: JmRepository, onOpen: (Long) -> Unit) {
     var page by remember { mutableIntStateOf(1) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var filtersOpen by remember { mutableStateOf(true) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val blockRules by ContentFilter.of(context).rules.collectAsState()
@@ -152,54 +154,79 @@ private fun CategoryTab(repo: JmRepository, onOpen: (Long) -> Unit) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        if (categories.isNotEmpty()) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(items = categories, key = { it.slug }) { item ->
-                    FilterChip(
-                        selected = slug == item.slug,
-                        onClick = { slug = item.slug },
-                        label = { Text(item.name) },
-                    )
-                }
+        val subCategories = categories.firstOrNull { it.slug == slug }?.subCategories.orEmpty()
+        val summary = listOfNotNull(
+            categories.firstOrNull { it.slug == slug }?.name,
+            subCategories.firstOrNull { it.slug == subSlug }?.name,
+            SORTS.firstOrNull { it.first == order }?.second,
+        ).joinToString(" · ")
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = { filtersOpen = !filtersOpen }) {
+                Text(if (filtersOpen) "收起" else "篩選")
             }
         }
 
-        val subCategories = categories.firstOrNull { it.slug == slug }?.subCategories.orEmpty()
-        if (subCategories.isNotEmpty()) {
+        if (filtersOpen) {
+            if (categories.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(items = categories, key = { it.slug }) { item ->
+                        FilterChip(
+                            selected = slug == item.slug,
+                            onClick = { slug = item.slug },
+                            label = { Text(item.name) },
+                        )
+                    }
+                }
+            }
+
+            if (subCategories.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = subSlug.isBlank(),
+                            onClick = { subSlug = "" },
+                            label = { Text("全部") },
+                        )
+                    }
+                    items(items = subCategories, key = { it.cid }) { sub ->
+                        FilterChip(
+                            selected = subSlug == sub.slug,
+                            onClick = { subSlug = sub.slug },
+                            label = { Text(sub.name) },
+                        )
+                    }
+                }
+            }
+
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                item {
+                items(items = SORTS, key = { it.first }) { sort ->
                     FilterChip(
-                        selected = subSlug.isBlank(),
-                        onClick = { subSlug = "" },
-                        label = { Text("全部") },
+                        selected = order == sort.first,
+                        onClick = { order = sort.first },
+                        label = { Text(sort.second) },
                     )
                 }
-                items(items = subCategories, key = { it.cid }) { sub ->
-                    FilterChip(
-                        selected = subSlug == sub.slug,
-                        onClick = { subSlug = sub.slug },
-                        label = { Text(sub.name) },
-                    )
-                }
-            }
-        }
-
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(items = SORTS, key = { it.first }) { sort ->
-                FilterChip(
-                    selected = order == sort.first,
-                    onClick = { order = sort.first },
-                    label = { Text(sort.second) },
-                )
             }
         }
 

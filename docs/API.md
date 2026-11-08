@@ -351,6 +351,17 @@ GET /search?search_query=test&page=1
 
 结果在 `content` 里，不是 `list`。`total` 是数字。
 
+分类筛选用 **`c=<category slug>`**（不是 `category`）：
+
+```
+GET /search?search_query=test&c=doujin&page=1
+```
+
+实测 `test`：全部 48、`doujin` 24、`another` 24、`meiman` 69、`single`/`short`/`hanman` 0。
+`category` / `cat` / `type` / `category_id` 等写法都会被忽略（返回和全部一样）。
+
+用 `c=<slug>_<subslug>` 可以带子分类（和 `categories/filter` 一致）。
+
 ### 5.9 周榜
 
 筛选选项：

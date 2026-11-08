@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -51,6 +54,7 @@ import com.jmreader.data.userMessage
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
 import com.jmreader.data.CategoryBlock
+import com.jmreader.data.CategoryNode
 import com.jmreader.data.ContentFilter
 import com.jmreader.data.JmRepository
 import com.jmreader.data.SearchHistory
@@ -73,6 +77,8 @@ fun SearchScreen(
     var loading by remember { mutableStateOf(false) }
     var searched by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var categories by remember { mutableStateOf<List<CategoryNode>>(emptyList()) }
+    var category by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val searchHistory = remember { SearchHistory.of(context) }
@@ -94,7 +100,7 @@ fun SearchScreen(
         if (keyword.isEmpty() || loading) return
         loading = true
         error = null
-        runCatchingCancellable { repo.search(keyword, if (reset) 1 else page) }
+        runCatchingCancellable { repo.search(keyword, if (reset) 1 else page, category) }
             .onSuccess { result ->
                 results = if (reset) {
                     result.content
@@ -115,7 +121,16 @@ fun SearchScreen(
     }
 
     LaunchedEffect(Unit) {
-        runCatchingCancellable { repo.categories() }.onSuccess { hotBlocks = it.blocks }
+        runCatchingCancellable { repo.categories() }.onSuccess {
+            hotBlocks = it.blocks
+            // type = slug 的是「同人 / 單本 / 短篇 / 韓漫…」这类分类，和官网筛选一致
+            categories = it.categories.filter { node -> node.type == "slug" && node.slug.isNotBlank() }
+        }
+    }
+
+    // 切分类时重新搜（分页重置）
+    LaunchedEffect(category) {
+        if (searched && query.isNotBlank()) runSearch(true)
     }
 
     Scaffold(
@@ -145,7 +160,29 @@ fun SearchScreen(
             )
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            if (searched && categories.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = category.isBlank(),
+                            onClick = { category = "" },
+                            label = { Text("全部") },
+                        )
+                    }
+                    items(items = categories, key = { it.slug }) { node ->
+                        FilterChip(
+                            selected = category == node.slug,
+                            onClick = { category = node.slug },
+                            label = { Text(node.name) },
+                        )
+                    }
+                }
+            }
+            Box(Modifier.fillMaxSize()) {
             when {
                 loading && results.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
 
@@ -270,6 +307,7 @@ fun SearchScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

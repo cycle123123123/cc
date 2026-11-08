@@ -123,12 +123,12 @@ class JmRepository(context: Context) {
         return comic
     }
 
-    suspend fun search(query: String, page: Int): SearchPage =
-        get(
-            "search",
-            mapOf("search_query" to query, "page" to page.toString()),
-            SearchPage.serializer(),
-        )
+    /** @param category 分类 slug（同人 doujin / 單本 single / 短篇 short / 韓漫 hanman…），空串表示全部 */
+    suspend fun search(query: String, page: Int, category: String = ""): SearchPage {
+        val params = mutableMapOf("search_query" to query, "page" to page.toString())
+        if (category.isNotBlank()) params["c"] = category
+        return get("search", params, SearchPage.serializer())
+    }
 
     suspend fun week(): WeekOptions = get("week", emptyMap(), WeekOptions.serializer())
 
