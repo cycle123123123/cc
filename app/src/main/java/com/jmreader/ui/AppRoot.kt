@@ -25,7 +25,7 @@ import androidx.compose.ui.Modifier
 import com.jmreader.data.JmRepository
 
 sealed interface Screen {
-    data class Search(val query: String = "") : Screen
+    data class Search(val query: String = "", val state: SearchState = SearchState()) : Screen
     data class Detail(val id: Long) : Screen
     data class Reader(val aid: Long, val cid: Long, val title: String) : Screen
     data object Downloads : Screen
@@ -109,6 +109,7 @@ fun AppRoot(repo: JmRepository) {
             when (current) {
                 is Screen.Search -> SearchScreen(
                     repo = repo,
+                    state = current.state,
                     onBack = { pop() },
                     onOpen = { push(Screen.Detail(it)) },
                     initialQuery = current.query,
