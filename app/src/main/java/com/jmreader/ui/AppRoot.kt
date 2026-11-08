@@ -4,25 +4,39 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.jmreader.data.JmRepository
+import com.jmreader.data.UpdateChecker
+import com.jmreader.data.UpdateInfo
+import kotlinx.coroutines.launch
 
 sealed interface Screen {
     data class Search(val query: String = "", val state: SearchState = SearchState()) : Screen
@@ -40,6 +54,18 @@ fun AppRoot(repo: JmRepository) {
     var tab by remember { mutableStateOf(RootTab.HOME) }
     val overlays = remember { mutableStateListOf<Screen>() }
     val homeState = remember { HomeState() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // 应用内更新：启动时查一次（6 小时内不重复查）
+    val updateChecker = remember { UpdateChecker.of(context) }
+    var update by remember { mutableStateOf<UpdateInfo?>(null) }
+    var updating by remember { mutableStateOf(false) }
+    var updateProgress by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        update = updateChecker.checkIfDue()
+    }
 
     fun push(screen: Screen) {
         overlays.add(screen)
@@ -149,5 +175,68 @@ fun AppRoot(repo: JmRepository) {
                 Screen.Blocks -> BlocksScreen(repo = repo, onBack = { pop() })
             }
         }
+    }
+
+    update?.let { info ->
+        AlertDialog(
+            onDismissRequest = { if (!updating) update = null },
+            title = { Text("發現新版本 v${info.version}") },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    Text(
+                        text = info.notes.ifBlank { "本次更新沒有寫說明。" },
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 8,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "目前版本 ${updateChecker.currentVersion}"
+                        + if (info.sizeBytes > 0) " · 安裝包 ${info.sizeBytes / 1024 / 1024} MB" else "",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    if (updating) {
+                        LinearProgressIndicator(
+                            progress = { updateProgress / 100f },
+                            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                        )
+                        Text(
+                            text = "下載中 $updateProgress%",
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !updating,
+                    onClick = {
+                        updating = true
+                        updateProgress = 0
+                        scope.launch {
+                            runCatching {
+                                val file = updateChecker.download(info.downloadUrl) { updateProgress = it }
+                                updateChecker.install(file)
+                            }.onFailure {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "更新失敗：${it.message ?: "請稍後再試"}",
+                                    android.widget.Toast.LENGTH_LONG,
+                                ).show()
+                            }
+                            updating = false
+                            update = null
+                        }
+                    },
+                ) {
+                    Text(if (updating) "更新中…" else "更新")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !updating, onClick = { update = null }) { Text("稍後") }
+            },
+        )
     }
 }

@@ -365,11 +365,11 @@ private fun LibraryContent(repo: JmRepository, member: Member, onOpen: (Long) ->
             Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("歷史") })
         }
 
-        if (tab == 0) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (tab == 0) {
                 item {
                     FilterChip(
                         selected = folderId.isBlank(),
@@ -388,43 +388,39 @@ private fun LibraryContent(repo: JmRepository, member: Member, onOpen: (Long) ->
                     TextButton(onClick = { showFolders = true }) { Text("管理") }
                 }
             }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (searchOpen) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = {
-                        Text(
-                            if (tab == 0) "搜尋收藏（已載入 ${favorites.size} 筆）"
-                            else "搜尋歷史（已載入 ${historyItems.size} 筆）",
-                        )
-                    },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
+            item {
                 TextButton(
                     onClick = {
-                        searchOpen = false
-                        query = ""
+                        searchOpen = !searchOpen
+                        if (!searchOpen) query = ""
                     },
-                ) { Text("收起") }
-            } else {
-                TextButton(
-                    onClick = { searchOpen = true },
-                    modifier = Modifier.weight(1f, fill = false),
                 ) {
                     Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.width(18.dp))
-                    Text(" 搜尋")
+                    Text(if (searchOpen) " 收起" else " 搜尋")
                 }
             }
-            TextButton(onClick = { sortByName = !sortByName }) {
-                Text(if (sortByName) "名稱↓" else "默認")
+            item {
+                TextButton(onClick = { sortByName = !sortByName }) {
+                    Text(if (sortByName) "名稱↓" else "默認")
+                }
             }
+        }
+
+        if (searchOpen) {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = {
+                    Text(
+                        if (tab == 0) "搜尋收藏（已載入 ${favorites.size} 筆）"
+                        else "搜尋歷史（已載入 ${historyItems.size} 筆）",
+                    )
+                },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+            )
         }
 
         Box(Modifier.fillMaxSize()) {
