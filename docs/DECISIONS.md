@@ -114,3 +114,12 @@
 - **决定**：阅读器每次翻页把 `(albumId, cid, title, page)` 写入 `ReadingHistory`
   单例（SharedPreferences + StateFlow），首页顶部显示卡片，点击直接进阅读器。
 - **理由**：原来只按话记页码，用户必须先找到那本作品；首页入口省掉这一步。
+
+## D19 runCatching 必须放过 CancellationException
+
+- **问题**：切换收藏/歷史标签时，旧的 `LaunchedEffect` 被取消，`runCatching` 把
+  Compose 的 `CancellationException` 当成业务错误，界面显示
+  "The coroutine scope left the composition"。
+- **决定**：UI 层的挂起调用统一用 `runCatchingCancellable`，取消异常原样抛出；
+  错误文案统一走 `Throwable.userMessage()`，不把异常原文甩到界面上。
+- **教训**：任何包住 suspend 调用的 `runCatching` 都有这个风险，不只是这一处。

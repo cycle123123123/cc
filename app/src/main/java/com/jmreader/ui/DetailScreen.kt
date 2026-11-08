@@ -48,6 +48,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.jmreader.data.userMessage
+import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumDetail
 import com.jmreader.data.ChapterEntry
 import com.jmreader.data.CommentItem
@@ -78,21 +80,21 @@ fun DetailScreen(
 
     LaunchedEffect(albumId) {
         loading = true
-        runCatching { repo.album(albumId) }
+        runCatchingCancellable { repo.album(albumId) }
             .onSuccess { album ->
                 detail = album
                 chapters = repo.seriesChapters(album)
                     .ifEmpty { listOf(ChapterEntry(album.id, album.name.ifBlank { "開始閱讀" })) }
             }
-            .onFailure { error = it.message ?: "載入失敗" }
-        runCatching { repo.forum(albumId, 1) }
+            .onFailure { error = it.userMessage() }
+        runCatchingCancellable { repo.forum(albumId, 1) }
             .onSuccess { forum = it }
         loading = false
     }
 
     fun refreshComments() {
         scope.launch {
-            runCatching { repo.forum(albumId, 1) }.onSuccess { forum = it }
+            runCatchingCancellable { repo.forum(albumId, 1) }.onSuccess { forum = it }
         }
     }
 
@@ -105,12 +107,12 @@ fun DetailScreen(
         }
         posting = true
         scope.launch {
-            runCatching { repo.postComment(albumId, text) }
+            runCatchingCancellable { repo.postComment(albumId, text) }
                 .onSuccess {
                     commentText = ""
                     refreshComments()
                 }
-                .onFailure { Toast.makeText(context, it.message ?: "發送失敗", Toast.LENGTH_SHORT).show() }
+                .onFailure { Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show() }
             posting = false
         }
     }
@@ -149,7 +151,7 @@ fun DetailScreen(
                             album = album,
                             onLike = {
                                 scope.launch {
-                                    runCatching { repo.toggleLike(albumId) }
+                                    runCatchingCancellable { repo.toggleLike(albumId) }
                                         .onSuccess {
                                             detail = album.copy(
                                                 liked = !album.liked,
@@ -157,7 +159,7 @@ fun DetailScreen(
                                             )
                                         }
                                         .onFailure {
-                                            Toast.makeText(context, it.message ?: "操作失敗", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
                                         }
                                 }
                             },
@@ -244,9 +246,9 @@ fun DetailScreen(
                                 comment = comment,
                                 onLike = {
                                     scope.launch {
-                                        runCatching { repo.voteComment(comment.cid) }
+                                        runCatchingCancellable { repo.voteComment(comment.cid) }
                                             .onFailure {
-                                                Toast.makeText(context, it.message ?: "操作失敗", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
                                             }
                                     }
                                 },
@@ -387,6 +389,6 @@ private fun Header(repo: JmRepository, album: AlbumDetail, onLike: () -> Unit) {
 
 /** 评论内容带 HTML（<div>、<br> 等），展示前转成纯文本。 */
 private fun stripHtml(raw: String): String =
-    runCatching {
+    runCatchingCancellable {
         android.text.Html.fromHtml(raw, android.text.Html.FROM_HTML_MODE_LEGACY).toString().trim()
     }.getOrDefault(raw)

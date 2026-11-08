@@ -44,6 +44,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.jmreader.data.userMessage
+import com.jmreader.core.runCatchingCancellable
 import com.jmreader.core.JmConfig
 import com.jmreader.data.JmRepository
 import com.jmreader.data.LastRead
@@ -76,7 +78,7 @@ fun HomeScreen(
         if (state.loading) return
         state.loading = true
         state.error = null
-        runCatching { repo.latest(if (reset) 1 else state.page) }
+        runCatchingCancellable { repo.latest(if (reset) 1 else state.page) }
             .onSuccess { list ->
                 state.albums = if (reset) {
                     list
@@ -87,7 +89,7 @@ fun HomeScreen(
                 state.loaded = true
             }
             .onFailure {
-                state.error = it.message ?: "載入失敗"
+                state.error = it.userMessage()
                 state.loaded = true
             }
         state.loading = false
@@ -96,7 +98,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         if (!state.loaded) load(true)
 
-        runCatching { repo.settingInfo() }
+        runCatchingCancellable { repo.settingInfo() }
             .onSuccess { setting ->
                 val latest = setting.jm3Version
                 val dismissed = prefs.getString("dismissed_protocol", null)

@@ -42,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.jmreader.data.userMessage
+import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
 import com.jmreader.data.CategoryBlock
 import com.jmreader.data.CategoryNode
@@ -100,19 +102,19 @@ private fun CategoryTab(repo: JmRepository, onOpen: (Long) -> Unit) {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
-        runCatching { repo.categories() }
+        runCatchingCancellable { repo.categories() }
             .onSuccess { response ->
                 categories = response.categories.filter { it.slug.isNotBlank() }
                 slug = categories.firstOrNull()?.slug.orEmpty()
             }
-            .onFailure { error = it.message ?: "載入分類失敗" }
+            .onFailure { error = it.userMessage() }
     }
 
     suspend fun load(reset: Boolean) {
         if (slug.isBlank() || loading) return
         loading = true
         error = null
-        runCatching { repo.categoryList(slug, order, if (reset) 1 else page) }
+        runCatchingCancellable { repo.categoryList(slug, order, if (reset) 1 else page) }
             .onSuccess { result ->
                 albums = if (reset) {
                     result.content
@@ -122,7 +124,7 @@ private fun CategoryTab(repo: JmRepository, onOpen: (Long) -> Unit) {
                 total = result.total
                 page = if (reset) 2 else page + 1
             }
-            .onFailure { error = it.message ?: "載入失敗" }
+            .onFailure { error = it.userMessage() }
         loading = false
     }
 
@@ -217,7 +219,7 @@ private fun TagTab(repo: JmRepository, onSearchTag: (String) -> Unit) {
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        runCatching { repo.categories() }
+        runCatchingCancellable { repo.categories() }
             .onSuccess { blocks = it.blocks }
         loading = false
     }
@@ -267,7 +269,7 @@ private fun WeekTab(repo: JmRepository, onOpen: (Long) -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        runCatching { repo.week() }
+        runCatchingCancellable { repo.week() }
             .onSuccess { week ->
                 options = week
                 type = week.type.firstOrNull()?.id.orEmpty()
@@ -280,7 +282,7 @@ private fun WeekTab(repo: JmRepository, onOpen: (Long) -> Unit) {
         if (category.isBlank()) return@LaunchedEffect
         loading = true
         error = null
-        runCatching { repo.weekList(type, category, 1) }
+        runCatchingCancellable { repo.weekList(type, category, 1) }
             .onSuccess { albums = it.list }
             .onFailure { error = it.message }
         loading = false

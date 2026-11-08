@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import com.jmreader.core.runCatchingCancellable
 import com.jmreader.core.JmConfig
 import com.jmreader.data.ChapterEntry
 import com.jmreader.data.ComicRead
@@ -110,7 +111,7 @@ fun ReaderScreen(
     val savedPage = remember(cid) { prefs.getInt("progress_$cid", 0).coerceAtLeast(0) }
 
     LaunchedEffect(cid) {
-        runCatching { repo.comicRead(cid) }
+        runCatchingCancellable { repo.comicRead(cid) }
             .onSuccess { read = it }
             .onFailure { throwable ->
                 // 断网时用本地下载元数据打开已下载章节
@@ -120,7 +121,7 @@ fun ReaderScreen(
     }
 
     LaunchedEffect(albumId) {
-        runCatching { repo.chapter(albumId) }
+        runCatchingCancellable { repo.chapter(albumId) }
             .onSuccess { chapters = SeriesParser.parse(it.series) }
     }
 

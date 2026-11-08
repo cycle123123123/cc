@@ -18,3 +18,13 @@ sealed class JmException(message: String, cause: Throwable? = null) : Exception(
     /** JSON 结构不符合预期。 */
     class Parse(cause: Throwable? = null) : JmException("数据解析失败", cause)
 }
+
+/** 给用户看的错误文案，避免把异常原文直接甩到界面上。 */
+fun Throwable.userMessage(): String = when (this) {
+    is JmException.Auth -> "登入已過期，請重新登入"
+    is JmException.Network -> "網路連線失敗，請檢查網路"
+    is JmException.Api -> "介面錯誤（$code）"
+    is JmException.Decrypt -> "資料解析失敗"
+    is JmException.Parse -> "資料格式異常"
+    else -> message?.takeIf { it.isNotBlank() } ?: "未知錯誤"
+}

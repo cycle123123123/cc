@@ -45,6 +45,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.jmreader.data.userMessage
+import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
 import com.jmreader.data.JmException
 import com.jmreader.data.JmRepository
@@ -106,8 +108,8 @@ private fun LoginForm(repo: JmRepository) {
         loading = true
         error = null
         scope.launch {
-            runCatching { repo.login(username.trim(), password, remember) }
-                .onFailure { error = it.message ?: "登入失敗" }
+            runCatchingCancellable { repo.login(username.trim(), password, remember) }
+                .onFailure { error = if (it is JmException.Auth) "帳號或密碼錯誤" else it.userMessage() }
             loading = false
         }
     }
@@ -179,13 +181,13 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
     LaunchedEffect(member.uid, tab) {
         loading = true
         error = null
-        runCatching {
+        runCatchingCancellable {
             if (tab == 0) repo.favorites(1).list else repo.history(1).list
         }.onSuccess {
             items = it
         }.onFailure {
             if (it is JmException.Auth) repo.auth.clearMember()
-            error = it.message ?: "載入失敗"
+            error = it.userMessage()
         }
         loading = false
     }

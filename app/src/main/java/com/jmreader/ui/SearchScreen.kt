@@ -38,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.jmreader.data.userMessage
+import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
 import com.jmreader.data.JmRepository
 import kotlinx.coroutines.launch
@@ -64,7 +66,7 @@ fun SearchScreen(
         if (keyword.isEmpty() || loading) return
         loading = true
         error = null
-        runCatching { repo.search(keyword, if (reset) 1 else page) }
+        runCatchingCancellable { repo.search(keyword, if (reset) 1 else page) }
             .onSuccess { result ->
                 results = if (reset) {
                     result.content
@@ -75,7 +77,7 @@ fun SearchScreen(
                 page = if (reset) 2 else page + 1
                 searched = true
             }
-            .onFailure { error = it.message ?: "搜尋失敗" }
+            .onFailure { error = it.userMessage() }
         loading = false
     }
 
