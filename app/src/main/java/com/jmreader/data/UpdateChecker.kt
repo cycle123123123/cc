@@ -152,6 +152,32 @@ class UpdateChecker private constructor(
         appContext.startActivity(intent)
     }
 
+    /**
+     * 有 root 时静默安装（su + pm install）。
+     * 首次会弹 Magisk/SuperSU 授权框；失败返回 false，由调用方回退到系统安装器。
+     */
+    fun tryRootInstall(file: File): Boolean {
+        val tmp = "/data/local/tmp/jmreader-update.apk"
+        val copy = runSu("cp \"${file.absolutePath}\" $tmp && chmod 644 $tmp") ?: return false
+        if (copy.first != 0) return false
+        val install = runSu("pm install -r $tmp", timeoutSeconds = 120) ?: return false
+        runSu("rm -f $tmp")
+        return install.second.contains("Success", ignoreCase = true)
+    }
+
+    /** @return (退出码, 输出)；su 不可用/超时返回 null */
+    private fun runSu(command: String, timeoutSeconds: Long = 60): Pair<Int, String>? = runCatching {
+        val process = ProcessBuilder("su", "-c", command)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().readText()
+        if (!process.waitFor(timeoutSeconds, java.util.concurrent.TimeUnit.SECONDS)) {
+            process.destroy()
+            return null
+        }
+        process.exitValue() to output
+    }.getOrNull()
+
     companion object {
         private const val API_URL = "https://api.github.com/repos/cycle123123123/cc/releases/latest"
         private const val APK_NAME = "jmreader.apk"

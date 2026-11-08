@@ -69,7 +69,8 @@ try {
     } catch { }
 
     $release = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/$owner/$repo/releases" `
-        -Headers $headers -Body $body -ContentType 'application/json'
+        -Headers $headers -Body ([System.Text.Encoding]::UTF8.GetBytes($body)) `
+        -ContentType 'application/json; charset=utf-8'
 
     Write-Host '==> 上传 APK'
     $upload = "https://uploads.github.com/repos/$owner/$repo/releases/$($release.id)/assets?name=$assetName"

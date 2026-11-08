@@ -218,7 +218,10 @@ fun AppRoot(repo: JmRepository) {
                         scope.launch {
                             runCatching {
                                 val file = updateChecker.download(info.downloadUrl) { updateProgress = it }
-                                updateChecker.install(file)
+                                // 有 root 就静默安装，失败再走系统安装器
+                                if (!updateChecker.tryRootInstall(file)) {
+                                    updateChecker.install(file)
+                                }
                             }.onFailure {
                                 android.widget.Toast.makeText(
                                     context,
