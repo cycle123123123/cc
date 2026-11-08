@@ -1,4 +1,4 @@
-package com.jmreader.ui
+﻿package com.jmreader.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -183,6 +184,10 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
     var items by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
     var folders by remember { mutableStateOf<List<FolderItem>>(emptyList()) }
     var folderId by remember { mutableStateOf("") }
+    var page by remember { mutableIntStateOf(1) }
+    var total by remember { mutableIntStateOf(0) }
+    var query by remember { mutableStateOf("") }
+    var sortByName by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var showFolders by remember { mutableStateOf(false) }
@@ -193,13 +198,20 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    suspend fun loadFavorites(selected: String) {
+    suspend fun loadFavorites(selected: String, reset: Boolean) {
         loading = true
         error = null
-        runCatchingCancellable { repo.favorites(1, selected) }
-            .onSuccess { page ->
-                items = page.list
-                folders = page.folderList
+        val target = if (reset) 1 else page
+        runCatchingCancellable { repo.favorites(target, selected) }
+            .onSuccess { result ->
+                items = if (reset) {
+                    result.list
+                } else {
+                    items + result.list.filter { item -> items.none { it.id == item.id } }
+                }
+                folders = result.folderList
+                total = result.total.toIntOrNull() ?: result.list.size
+                page = if (reset) 2 else page + 1
             }
             .onFailure {
                 if (it is JmException.Auth) repo.auth.clearMember()
@@ -210,7 +222,8 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
 
     LaunchedEffect(member.uid, tab, folderId) {
         if (tab == 0) {
-            loadFavorites(folderId)
+            page = 1
+            loadFavorites(folderId, true)
         } else {
             loading = true
             error = null
@@ -269,18 +282,40 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
                     TextButton(onClick = { showFolders = true }) { Text("管理") }
                 }
             }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("搜尋收藏（已載入 ${items.size} 筆）") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { sortByName = !sortByName }) {
+                    Text(if (sortByName) "名稱↓" else "默認")
+                }
+            }
+        }
+
+        val shown = remember(items, query, sortByName) {
+            items
+                .filter { query.isBlank() || it.name.contains(query, true) || it.author.contains(query, true) }
+                .let { if (sortByName) it.sortedBy { album -> album.name } else it }
         }
 
         Box(Modifier.fillMaxSize()) {
             when {
-                loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                error != null -> Text(
+                loading && items.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                error != null && items.isEmpty() -> Text(
                     text = error!!,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.align(Alignment.Center),
                 )
-                items.isEmpty() -> Text(
-                    text = "沒有資料",
+                shown.isEmpty() -> Text(
+                    text = if (query.isBlank()) "沒有資料" else "沒有符合的收藏",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -291,13 +326,26 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(items = items, key = { it.id }) { album ->
+                    items(items = shown, key = { it.id }) { album ->
                         AlbumCard(
                             repo = repo,
                             album = album,
                             onClick = { album.id.toLongOrNull()?.let(onOpen) },
                             onLongClick = { moveTarget = album },
                         )
+                    }
+                    if (tab == 0 && items.size < total) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                if (loading) {
+                                    CircularProgressIndicator()
+                                } else {
+                                    Button(onClick = { scope.launch { loadFavorites(folderId, false) } }) {
+                                        Text("載入更多（${items.size}/$total）")
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -326,7 +374,7 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
                                     runCatchingCancellable { repo.addFavoriteFolder(name) }
                                         .onSuccess {
                                             newFolderName = ""
-                                            loadFavorites(folderId)
+                                            loadFavorites(folderId, true)
                                         }
                                         .onFailure {
                                             Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
@@ -353,7 +401,7 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
                                         runCatchingCancellable { repo.deleteFavoriteFolder(folder.fid) }
                                             .onSuccess {
                                                 if (folderId == folder.fid) folderId = ""
-                                                loadFavorites(folderId)
+                                                loadFavorites(folderId, true)
                                             }
                                             .onFailure {
                                                 Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
@@ -391,7 +439,7 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
                             runCatchingCancellable { repo.renameFavoriteFolder(folder.fid, name) }
                                 .onSuccess {
                                     renameTarget = null
-                                    loadFavorites(folderId)
+                                    loadFavorites(folderId, true)
                                 }
                                 .onFailure {
                                     Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
@@ -425,7 +473,7 @@ private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) 
                                         runCatchingCancellable { repo.moveFavorite(folder.fid, aid) }
                                             .onSuccess {
                                                 Toast.makeText(context, "已移動到 ${folder.name}", Toast.LENGTH_SHORT).show()
-                                                loadFavorites(folderId)
+                                                loadFavorites(folderId, true)
                                             }
                                             .onFailure {
                                                 Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()

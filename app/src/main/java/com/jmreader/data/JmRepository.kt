@@ -416,7 +416,29 @@ class JmRepository(context: Context) {
     /** 下载原始字节（不做任何处理），供离线下载使用。 */
     suspend fun downloadBytes(url: String): ByteArray = withContext(Dispatchers.IO) { fetchBytes(url) }
 
-    /** 下载并还原一页。优先读本地下载文件，缺失时回退网络。 */
+    /** 预取下一话的前 3 页到磁盘缓存，切话时首屏不用等。 */
+    suspend fun prefetchChapter(cid: Long) = withContext(Dispatchers.IO) {
+        val comic = runCatching { comicRead(cid) }.getOrNull() ?: return@withContext
+        comic.images.take(3).forEach { page ->
+            if (readPageCache(cid, page.page) == null) {
+                runCatching { writePageCache(cid, page.page, fetchBytes(page.image)) }
+            }
+        }
+    }
+
+    private fun pageCacheFile(cid: Long, page: Int): File =
+        File(File(appContext.cacheDir, "pages/$cid").apply { mkdirs() }, "$page.bin")
+
+    private fun readPageCache(cid: Long, page: Int): ByteArray? = runCatching {
+        val file = pageCacheFile(cid, page)
+        if (file.exists() && file.length() > 0) file.readBytes() else null
+    }.getOrNull()
+
+    private fun writePageCache(cid: Long, page: Int, bytes: ByteArray) {
+        runCatching { pageCacheFile(cid, page).writeBytes(bytes) }
+    }
+
+    /** 下载并还原一页。优先读本地下载文件，其次读页面缓存，最后走网络。 */
     suspend fun loadPage(
         cid: Long,
         page: Int,
@@ -426,7 +448,9 @@ class JmRepository(context: Context) {
         targetWidth: Int,
     ): Bitmap = withContext(Dispatchers.IO) {
             val local = DownloadRepository.of(appContext).pageFile(cid, page)
-            val bytes = local?.readBytes() ?: fetchBytes(url)
+            val bytes = local?.readBytes()
+                ?: readPageCache(cid, page)
+                ?: fetchBytes(url).also { writePageCache(cid, page, it) }
 
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)

@@ -11,6 +11,9 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,10 +30,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -102,6 +111,17 @@ fun ReaderScreen(
     var zoomed by remember { mutableStateOf(false) }
     var shard by remember { mutableStateOf(repo.imageShard) }
     var sourceMenuOpen by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var brightness by remember { mutableStateOf(prefs.getFloat("brightness", -1f)) }
+    var animate by remember { mutableStateOf(prefs.getBoolean("animate", true)) }
+    var bookmarks by remember(cid) {
+        mutableStateOf(
+            prefs.getString("bookmarks_$cid", "").orEmpty()
+                .split(",")
+                .mapNotNull { it.toIntOrNull() }
+                .toSet(),
+        )
+    }
     var mode by remember {
         mutableStateOf(
             if (prefs.getString("mode", "vertical") == "horizontal") ReaderMode.HORIZONTAL else ReaderMode.VERTICAL,
@@ -109,6 +129,27 @@ fun ReaderScreen(
     }
 
     val savedPage = remember(cid) { prefs.getInt("progress_$cid", 0).coerceAtLeast(0) }
+
+    // 亮度：-1 表示跟随系统
+    val activity = context as? android.app.Activity
+    DisposableEffect(brightness) {
+        val window = activity?.window
+        if (window != null) {
+            val params = window.attributes
+            params.screenBrightness =
+                if (brightness < 0f) android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE else brightness
+            window.attributes = params
+        }
+        onDispose { }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val window = activity?.window ?: return@onDispose
+            val params = window.attributes
+            params.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            window.attributes = params
+        }
+    }
 
     LaunchedEffect(cid) {
         runCatchingCancellable { repo.comicRead(cid) }
@@ -174,6 +215,18 @@ fun ReaderScreen(
     LaunchedEffect(data?.id) {
         val sample = data?.images?.firstOrNull()?.image ?: return@LaunchedEffect
         runCatchingCancellable { repo.maybeAutoBenchmarkImageHost(sample) }
+    }
+
+    // 快看到末尾时预取下一话的前 3 页
+    val prefetchedChapters = remember { mutableSetOf<Long>() }
+    LaunchedEffect(currentIndex, data?.id) {
+        val comic = data ?: return@LaunchedEffect
+        if (comic.images.size - currentIndex > 3) return@LaunchedEffect
+        val index = chapters.indexOfFirst { it.id == cid }
+        val next = chapters.getOrNull(index + 1) ?: return@LaunchedEffect
+        if (prefetchedChapters.add(next.id)) {
+            runCatchingCancellable { repo.prefetchChapter(next.id) }
+        }
     }
 
     // 音量键翻页
@@ -256,6 +309,8 @@ fun ReaderScreen(
                                 page = page.page,
                                 onTap = { uiVisible = !uiVisible },
                                 onZoomChanged = { zoomed = it },
+                                animate = animate,
+                                pageOffset = (pagerState.currentPage - index) + pagerState.currentPageOffsetFraction,
                             )
                         }
                     }
@@ -272,6 +327,9 @@ fun ReaderScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(Icons.Filled.Settings, contentDescription = "閱讀設定")
+                    }
                     Box {
                         IconButton(onClick = { sourceMenuOpen = true }) {
                             Icon(Icons.Filled.Tune, contentDescription = "圖源")
@@ -354,6 +412,40 @@ fun ReaderScreen(
                 hasChapters = chapters.size > 1,
                 onPrevious = { chapter -> chapter?.let { onOpenChapter(it.id, it.title) } },
                 onNext = { chapter -> chapter?.let { onOpenChapter(it.id, it.title) } },
+            )
+        }
+
+        if (showSettings) {
+            fun jumpTo(target: Int) {
+                scope.launch {
+                    if (mode == ReaderMode.VERTICAL) listState.scrollToItem(target)
+                    else pagerState.scrollToPage(target)
+                }
+            }
+
+            ReaderSettingsDialog(
+                brightness = brightness,
+                onBrightness = {
+                    brightness = it
+                    prefs.edit().putFloat("brightness", it).apply()
+                },
+                animate = animate,
+                onAnimate = {
+                    animate = it
+                    prefs.edit().putBoolean("animate", it).apply()
+                },
+                index = currentIndex,
+                total = images.size,
+                onJump = { jumpTo(it) },
+                bookmarks = bookmarks,
+                onToggleBookmark = {
+                    val page = currentIndex
+                    val updated = if (bookmarks.contains(page)) bookmarks - page else bookmarks + page
+                    bookmarks = updated
+                    prefs.edit().putString("bookmarks_$cid", updated.sorted().joinToString(",")).apply()
+                },
+                onJumpBookmark = { jumpTo(it) },
+                onDismiss = { showSettings = false },
             )
         }
     }
@@ -444,6 +536,8 @@ private fun HorizontalPage(
     page: Int,
     onTap: () -> Unit,
     onZoomChanged: (Boolean) -> Unit,
+    animate: Boolean,
+    pageOffset: Float,
 ) {
     val bitmap by produceState<Bitmap?>(initialValue = store.cached(url), url) {
         if (value == null) value = store.load(url, page)
@@ -465,7 +559,21 @@ private fun HorizontalPage(
         return
     }
 
-    ZoomablePage(image, "第 $page 頁", onTap, onZoomChanged)
+    Box(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                if (animate) {
+                    val offset = kotlin.math.abs(pageOffset).coerceIn(0f, 1f)
+                    alpha = 1f - offset * 0.35f
+                    val scale = 1f - offset * 0.05f
+                    scaleX = scale
+                    scaleY = scale
+                }
+            },
+    ) {
+        ZoomablePage(image, "第 $page 頁", onTap, onZoomChanged)
+    }
 }
 
 @Composable
@@ -541,5 +649,84 @@ private fun clampOffset(offset: Offset, size: IntSize, scale: Float): Offset {
     return Offset(
         offset.x.coerceIn(-maxX, maxX),
         offset.y.coerceIn(-maxY, maxY),
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun ReaderSettingsDialog(
+    brightness: Float,
+    onBrightness: (Float) -> Unit,
+    animate: Boolean,
+    onAnimate: (Boolean) -> Unit,
+    index: Int,
+    total: Int,
+    onJump: (Int) -> Unit,
+    bookmarks: Set<Int>,
+    onToggleBookmark: () -> Unit,
+    onJumpBookmark: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var jump by remember(index, total) { mutableFloatStateOf(index.toFloat()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("閱讀設定") },
+        text = {
+            Column {
+                Text("亮度", style = MaterialTheme.typography.labelMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("暗", style = MaterialTheme.typography.labelSmall)
+                    Slider(
+                        value = if (brightness < 0f) 0.5f else brightness,
+                        onValueChange = onBrightness,
+                        valueRange = 0.1f..1f,
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                    )
+                    Text("亮", style = MaterialTheme.typography.labelSmall)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("翻頁動畫", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = animate, onCheckedChange = onAnimate)
+                }
+
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+                Text(
+                    text = if (total > 0) "第 ${index + 1} / $total 頁" else "第 0 頁",
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                Slider(
+                    value = jump.coerceIn(0f, (total - 1).coerceAtLeast(1).toFloat()),
+                    onValueChange = { jump = it },
+                    onValueChangeFinished = { onJump(jump.toInt()) },
+                    valueRange = 0f..(total - 1).coerceAtLeast(1).toFloat(),
+                )
+
+                TextButton(onClick = onToggleBookmark) {
+                    Text(if (bookmarks.contains(index)) "移除目前頁書籤" else "加入目前頁書籤")
+                }
+
+                if (bookmarks.isNotEmpty()) {
+                    Text("書籤", style = MaterialTheme.typography.labelMedium)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        bookmarks.sorted().forEach { page ->
+                            AssistChip(
+                                onClick = { onJumpBookmark(page) },
+                                label = { Text("第 ${page + 1} 頁") },
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("關閉") }
+        },
     )
 }
