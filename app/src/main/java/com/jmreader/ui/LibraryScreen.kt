@@ -20,6 +20,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -81,12 +82,25 @@ fun LibraryScreen(
     onBlocks: () -> Unit,
 ) {
     val member by repo.auth.member.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var showCacheDialog by remember { mutableStateOf(false) }
+    var cacheBytes by remember { mutableStateOf(0L) }
+    var clearing by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("我的") },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            showCacheDialog = true
+                            scope.launch { cacheBytes = repo.cacheSizeBytes() }
+                        },
+                    ) {
+                        Icon(Icons.Filled.DeleteSweep, contentDescription = "清除快取")
+                    }
                     IconButton(onClick = onBlocks) {
                         Icon(Icons.Filled.Block, contentDescription = "屏蔽管理")
                     }
@@ -97,59 +111,45 @@ fun LibraryScreen(
             )
         },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            Box(Modifier.weight(1f)) {
-                if (member == null) {
-                    LoginForm(repo)
-                } else {
-                    LibraryContent(repo, member!!, onOpen)
-                }
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            if (member == null) {
+                LoginForm(repo)
+            } else {
+                LibraryContent(repo, member!!, onOpen)
             }
-            CacheRow(repo)
         }
     }
-}
 
-/** 图片缓存占用 / 清理。未登录时也能用（封面和阅读页缓存和账号无关）。 */
-@Composable
-private fun CacheRow(repo: JmRepository) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var bytes by remember { mutableStateOf(0L) }
-    var clearing by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        bytes = repo.cacheSizeBytes()
-    }
-
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "圖片快取 ${formatCacheSize(bytes)}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
-        TextButton(
-            enabled = !clearing,
-            onClick = {
-                clearing = true
-                scope.launch {
-                    repo.clearCaches()
-                    runCatching {
-                        context.imageLoader.memoryCache?.clear()
-                        context.imageLoader.diskCache?.clear()
-                    }
-                    bytes = repo.cacheSizeBytes()
-                    Toast.makeText(context, "已清除快取", Toast.LENGTH_SHORT).show()
-                    clearing = false
-                }
+    if (showCacheDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!clearing) showCacheDialog = false },
+            title = { Text("清除快取") },
+            text = {
+                Text("目前占用 ${formatCacheSize(cacheBytes)}。包含封面、閱讀頁和介面快取，清除後再打開會重新下載。")
             },
-        ) {
-            Text(if (clearing) "清除中…" else "清除")
-        }
+            confirmButton = {
+                TextButton(
+                    enabled = !clearing,
+                    onClick = {
+                        clearing = true
+                        scope.launch {
+                            repo.clearCaches()
+                            runCatching {
+                                context.imageLoader.memoryCache?.clear()
+                                context.imageLoader.diskCache?.clear()
+                            }
+                            cacheBytes = repo.cacheSizeBytes()
+                            clearing = false
+                            showCacheDialog = false
+                            Toast.makeText(context, "已清除快取", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                ) { Text(if (clearing) "清除中…" else "清除") }
+            },
+            dismissButton = {
+                TextButton(enabled = !clearing, onClick = { showCacheDialog = false }) { Text("取消") }
+            },
+        )
     }
 }
 

@@ -167,6 +167,8 @@ Base = `https://{host}/`，全部为 GET，自动追加 `lang=TW`（或其他语
   "name": "...",
   "description": "...",
   "total_photos": 39,
+  "total_views": "6128",
+  "addtime": "1793602446",
   "likes": 0,
   "series": [],
   "series_id": "0",
@@ -181,6 +183,10 @@ Base = `https://{host}/`，全部为 GET，自动追加 `lang=TW`（或其他语
   "purchased": false
 }
 ```
+
+- `total_views` 是**字符串**，点击量只在详情接口里出现；`latest` / `search` / `week/filter` / `categories/filter` 等列表接口都不返回它。
+- `addtime` 是秒级时间戳字符串。
+- `description` 经常是空串（尤其同人本），详情页需要自己补其它信息（页数/观看/点赞/标签）。
 
 `series` 非空时表示是多话作品，元素含章节 id / 标题，可据此做目录。
 单本作品的章节 id 等于 album id。
@@ -363,14 +369,17 @@ GET /week
 榜单：
 
 ```
-GET /week/filter?type=manga&category=265&page=1
+GET /week/filter?type=manga&id=265&page=1
 ```
 
 ```json
 { "total": 20, "list": [ { "id": "...", "name": "...", "author": "..." } ] }
 ```
 
-`type` / `category` 可省略，省略时接口有默认值。
+- 期数参数是 **`id`**（`/week` 返回的 `categories[].id`）。传 `category` 会被忽略，导致「每期内容都一样」。
+- `type`：`manga`（日漫）/ `another`（其他）。`hanman` 返回的内容和 `manga` 完全相同且 `title` 为空，客户端可以隐藏。
+- `type` / `id` 可省略，省略时接口返回最新一期。
+- 只有`週`榜，没有日榜/月榜：`/month`、`/rank` 等路径返回 `{"code":200,"data":[],"errorMsg":"Not legal.month"}`。
 
 ### 5.10 评论
 

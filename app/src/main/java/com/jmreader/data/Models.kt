@@ -26,6 +26,8 @@ data class AlbumDetail(
     val name: String = "",
     val description: String = "",
     @SerialName("total_photos") val totalPhotos: Int = 0,
+    @SerialName("total_views") val totalViews: String = "",
+    @SerialName("addtime") val addTime: String = "",
     val author: List<String> = emptyList(),
     val tags: List<String> = emptyList(),
     @SerialName("series_id") val seriesId: String = "0",
@@ -34,7 +36,9 @@ data class AlbumDetail(
     val liked: Boolean = false,
     @SerialName("is_favorite") val isFavorite: Boolean = false,
     @SerialName("comment_total") val commentTotal: Int = 0,
-)
+) {
+    val viewCount: Int get() = totalViews.toIntOrNull() ?: 0
+}
 
 @Serializable
 data class ChapterInfo(

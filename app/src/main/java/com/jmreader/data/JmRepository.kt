@@ -132,10 +132,11 @@ class JmRepository(context: Context) {
 
     suspend fun week(): WeekOptions = get("week", emptyMap(), WeekOptions.serializer())
 
-    suspend fun weekList(type: String, category: String, page: Int): WeekPage {
+    /** 周榜：type = manga/another，period = 期数 id（`/week` 的 categories[].id）。 */
+    suspend fun weekList(type: String, period: String, page: Int): WeekPage {
         val params = mutableMapOf("page" to page.toString())
         if (type.isNotBlank()) params["type"] = type
-        if (category.isNotBlank()) params["category"] = category
+        if (period.isNotBlank()) params["id"] = period
         return get("week/filter", params, WeekPage.serializer())
     }
 

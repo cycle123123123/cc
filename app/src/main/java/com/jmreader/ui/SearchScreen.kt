@@ -37,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,6 +55,8 @@ import com.jmreader.data.ContentFilter
 import com.jmreader.data.JmRepository
 import com.jmreader.data.SearchHistory
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -75,6 +78,10 @@ fun SearchScreen(
     val searchHistory = remember { SearchHistory.of(context) }
     val recent by searchHistory.keywords.collectAsState()
     var hotBlocks by remember { mutableStateOf<List<CategoryBlock>>(emptyList()) }
+    // 搜索结果接口不返回点击量，只有 /album 有；卡片可见时再逐个补，最多 2 个并发
+    val views = remember { mutableStateMapOf<String, Int>() }
+    val viewRequests = remember { mutableSetOf<String>() }
+    val viewGate = remember { Semaphore(2) }
     val blockFilter = remember { ContentFilter.of(context) }
     val blockRules by blockFilter.rules.collectAsState()
     val shown = remember(results, blockRules) {
@@ -228,7 +235,27 @@ fun SearchScreen(
                         )
                     }
                     items(items = shown, key = { it.id }) { album ->
-                        AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
+                        val id = album.id
+                        val known = views[id]
+                        AlbumCard(
+                            repo = repo,
+                            album = album,
+                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                            badge = known?.takeIf { it > 0 }?.let { "觀看 ${formatCount(it)}" },
+                            onVisible = {
+                                if (known == null && viewRequests.add(id)) {
+                                    scope.launch {
+                                        val aid = id.toLongOrNull() ?: return@launch
+                                        viewGate.withPermit {
+                                            runCatchingCancellable { repo.album(aid) }
+                                                .onSuccess { detail ->
+                                                    if (detail.viewCount > 0) views[id] = detail.viewCount
+                                                }
+                                        }
+                                    }
+                                }
+                            },
+                        )
                     }
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                         Row(

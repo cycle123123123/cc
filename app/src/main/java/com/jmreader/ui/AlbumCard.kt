@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -27,7 +28,12 @@ fun AlbumCard(
     album: AlbumBrief,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
+    badge: String? = null,
+    onVisible: (() -> Unit)? = null,
 ) {
+    if (onVisible != null) {
+        LaunchedEffect(album.id) { onVisible() }
+    }
     val base = Modifier.clip(RoundedCornerShape(12.dp))
     val clickModifier = if (onLongClick != null) {
         base.combinedClickable(onClick = onClick, onLongClick = onLongClick)
@@ -51,5 +57,14 @@ fun AlbumCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp),
         )
+        if (!badge.isNullOrBlank()) {
+            Text(
+                text = badge,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                modifier = Modifier.padding(top = 2.dp, start = 2.dp, end = 2.dp),
+            )
+        }
     }
 }

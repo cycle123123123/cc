@@ -235,15 +235,52 @@ fun DetailScreen(
                         }
                     }
 
-                    if (detailTab == 0 && album.description.isNotBlank()) {
+                    if (detailTab == 0) {
                         item {
-                            Text(
-                                text = album.description,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 6,
-                                overflow = TextOverflow.Ellipsis,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    DetailStat("頁數", album.totalPhotos.toString(), Modifier.weight(1f))
+                                    DetailStat("觀看", formatCount(album.viewCount), Modifier.weight(1f))
+                                    DetailStat("點讚", formatCount(album.likes), Modifier.weight(1f))
+                                    DetailStat(
+                                        "評論",
+                                        formatCount(forum?.total ?: album.commentTotal),
+                                        Modifier.weight(1f),
+                                    )
+                                }
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    if (album.addTime.isNotBlank()) {
+                                        Text(
+                                            text = "上架 ${formatEpochSeconds(album.addTime)}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    if (album.author.isNotEmpty()) {
+                                        Text(
+                                            text = "作者 ${album.author.joinToString(" / ")}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    if (album.tags.isNotEmpty()) {
+                                        Text(
+                                            text = "標籤 ${album.tags.joinToString(" · ")}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        if (album.description.isNotBlank()) {
+                            item {
+                                Text(
+                                    text = album.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
 
@@ -405,6 +442,24 @@ fun DetailScreen(
         }
     }
 }
+}
+
+@Composable
+private fun DetailStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(value, style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable
