@@ -19,6 +19,7 @@ sealed interface Screen {
 @Composable
 fun AppRoot(repo: JmRepository) {
     val stack = remember { mutableStateListOf<Screen>(Screen.Home) }
+    val homeState = remember { HomeState() }
 
     fun push(screen: Screen) {
         stack.add(screen)
@@ -33,6 +34,7 @@ fun AppRoot(repo: JmRepository) {
     when (val current = stack.last()) {
         Screen.Home -> HomeScreen(
             repo = repo,
+            state = homeState,
             onOpen = { push(Screen.Detail(it)) },
             onSearch = { push(Screen.Search()) },
             onMe = { push(Screen.Me) },

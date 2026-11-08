@@ -11,6 +11,8 @@ import java.io.IOException
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.ListSerializer
@@ -86,6 +88,33 @@ class JmRepository(context: Context) {
 
     suspend fun categories(): CategoryResponse = get("categories", emptyMap(), CategoryResponse.serializer())
 
+    /** 分类浏览：c = 分类 slug，o = 排序（""/mv/mp/tf/old），page 从 1 开始。 */
+    suspend fun categoryList(slug: String, order: String, page: Int): SearchPage {
+        val params = mutableMapOf("c" to slug, "page" to page.toString())
+        if (order.isNotBlank()) params["o"] = order
+        return get("categories/filter", params, SearchPage.serializer())
+    }
+
+    /** /setting 里的版本信息，用于协议更新提示。缓存 10 分钟。 */
+    @Volatile
+    private var cachedSetting: AppSetting? = null
+
+    @Volatile
+    private var cachedSettingAt: Long = 0L
+
+    suspend fun settingInfo(force: Boolean = false): AppSetting = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val cached = cachedSetting
+        if (!force && cached != null && now - cachedSettingAt < SETTING_TTL_MS) return@withContext cached
+
+        ensureReady()
+        val base = apiBase ?: throw JmException.Network("线路未就绪")
+        val setting = json.decodeFromString(AppSetting.serializer(), request(base, "setting", emptyMap()))
+        cachedSetting = setting
+        cachedSettingAt = now
+        setting
+    }
+
     suspend fun forum(aid: Long, page: Int): ForumPage =
         get("forum", mapOf("aid" to aid.toString(), "page" to page.toString()), ForumPage.serializer())
 
@@ -158,10 +187,49 @@ class JmRepository(context: Context) {
         formPostRaw(base, "comment_vote", mapOf("id" to cid))
     }
 
-    /** 图源：0 = 跟随接口返回，1..4 = 指定 CDN host。 */
+    /** 图源：0 = 跟随接口返回，1..4 = 指定 CDN host，5 = 测速最优。 */
     var imageShard: Int
         get() = prefs.getInt(KEY_IMG_SHARD, 0)
-        set(value) = prefs.edit().putInt(KEY_IMG_SHARD, value.coerceIn(0, JmConfig.IMAGE_SHARDS.size)).apply()
+        set(value) = prefs.edit().putInt(KEY_IMG_SHARD, value.coerceIn(0, 5)).apply()
+
+    val autoImageHost: String
+        get() = prefs.getString(KEY_AUTO_HOST, JmConfig.IMAGE_SHARDS.first())
+            ?: JmConfig.IMAGE_SHARDS.first()
+
+    /**
+     * 对 4 个 CDN host 并发 HEAD 测速，选最快的并切到「测速最优」。
+     * @return (图源序号 1..4, 耗时毫秒)，全部失败返回 null
+     */
+    suspend fun benchmarkImageHosts(sampleUrl: String): Pair<Int, Long>? = withContext(Dispatchers.IO) {
+        if (sampleUrl.isBlank()) return@withContext null
+
+        val results = coroutineScope {
+            JmConfig.IMAGE_SHARDS.mapIndexed { index, host ->
+                index + 1 to async {
+                    val url = replaceHost(sampleUrl, host)
+                    val started = System.currentTimeMillis()
+                    val ok = runCatching {
+                        val request = Request.Builder()
+                            .url(url)
+                            .header("Referer", JmConfig.WEB_REFERER)
+                            .header("User-Agent", JmConfig.USER_AGENT)
+                            .head()
+                            .build()
+                        http.newCall(request).execute().use { it.isSuccessful }
+                    }.getOrDefault(false)
+                    if (ok) System.currentTimeMillis() - started else Long.MAX_VALUE
+                }
+            }.map { (index, deferred) -> index to deferred.await() }
+        }
+
+        val best = results.filter { it.second != Long.MAX_VALUE }.minByOrNull { it.second }
+            ?: return@withContext null
+        prefs.edit()
+            .putString(KEY_AUTO_HOST, JmConfig.IMAGE_SHARDS[best.first - 1])
+            .putInt(KEY_IMG_SHARD, 5)
+            .apply()
+        best
+    }
 
     // ------------------------------------------------------------ 图片
 
@@ -292,15 +360,16 @@ class JmRepository(context: Context) {
     }
 
     /** 图源切换：只替换 host，路径和参数保持接口返回的原样。 */
-    private fun rewriteImageHost(url: String): String {
-        val index = imageShard
-        if (index <= 0) return url
-        val host = JmConfig.IMAGE_SHARDS.getOrNull(index - 1) ?: return url
-        return runCatching {
-            val uri = java.net.URI(url)
-            java.net.URI(uri.scheme, uri.userInfo, host, uri.port, uri.path, uri.query, uri.fragment).toString()
-        }.getOrDefault(url)
+    private fun rewriteImageHost(url: String): String = when (val index = imageShard) {
+        0 -> url
+        5 -> replaceHost(url, autoImageHost)
+        else -> JmConfig.IMAGE_SHARDS.getOrNull(index - 1)?.let { replaceHost(url, it) } ?: url
     }
+
+    private fun replaceHost(url: String, host: String): String = runCatching {
+        val uri = java.net.URI(url)
+        java.net.URI(uri.scheme, uri.userInfo, host, uri.port, uri.path, uri.query, uri.fragment).toString()
+    }.getOrDefault(url)
 
     private fun Request.Builder.withCommonHeaders(ts: Long): Request.Builder {
         header("Token", JmCrypto.token(ts))
@@ -379,6 +448,8 @@ class JmRepository(context: Context) {
     private companion object {
         const val KEY_API_BASE = "api_base"
         const val KEY_IMG_SHARD = "img_shard"
+        const val KEY_AUTO_HOST = "auto_host"
         const val HTTP_CACHE_BYTES = 256L * 1024 * 1024
+        const val SETTING_TTL_MS = 10L * 60L * 1000L
     }
 }

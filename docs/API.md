@@ -423,10 +423,19 @@ GET /categories
 { "title": "主題A漫", "content": ["劇情向", "校園", "純愛", "..."] }
 ```
 
-`blocks` 里的标签可以直接作为 `search_query` 搜索，这是目前验证可用的分类浏览方式。
+分类浏览（参数从官方前端 `cateFilterList` 的 dispatch 里挖出来的）：
 
-`/categories/filter` 的参数名没确认下来：传 `id` / `category` / `cid` / `slug` 都返回同一批默认数据，
-暂不使用。
+```
+GET /categories/filter?c={slug}&o={order}&page=1
+```
+
+- `c` 必须是**顶级分类的 slug**：`doujin` / `single` / `short` / `another` / `hanman` / `meiman` …
+  传数字 id、子分类 slug 都会被忽略（返回随机默认列表）。
+- `o`：`""` 最新 / `mv` 最多點閱 / `mp` 最多圖片 / `tf` 最多愛心 / `old` 最舊。
+- 返回 `{ "search_query": "", "total": 2259, "content": [...] }`。
+- 实测：`c=hanman` 结果全部是韓漫，`total=2259`；`c=doujin` 全部同人。
+
+`blocks` 里的标签可以直接作为 `search_query` 搜索。
 
 ### 5.13 图源切换
 

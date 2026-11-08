@@ -63,6 +63,9 @@ data class AppSetting(
     @SerialName("img_host") val imgHost: String = "",
     @SerialName("base_url") val baseUrl: String = "",
     @SerialName("main_web_host") val mainWebHost: String = "",
+    @SerialName("jm3_version") val jm3Version: String = "",
+    @SerialName("jm3_download_url") val jm3DownloadUrl: String = "",
+    @SerialName("jm3_version_info") val jm3VersionInfo: String = "",
 )
 
 /** 阅读器里的一话。单本作品只有一条。 */
@@ -134,8 +137,23 @@ data class CategoryBlock(
 )
 
 @Serializable
+data class SubCategory(
+    @SerialName("CID") val cid: String = "",
+    val name: String = "",
+    val slug: String = "",
+)
+
+@Serializable
+data class CategoryNode(
+    val name: String = "",
+    val slug: String = "",
+    val type: String = "",
+    @SerialName("sub_categories") val subCategories: List<SubCategory> = emptyList(),
+)
+
+@Serializable
 data class CategoryResponse(
-    val categories: JsonElement = JsonNull,
+    val categories: List<CategoryNode> = emptyList(),
     val blocks: List<CategoryBlock> = emptyList(),
 )
 

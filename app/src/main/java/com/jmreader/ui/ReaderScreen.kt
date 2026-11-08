@@ -279,6 +279,30 @@ fun ReaderScreen(
                                     sourceMenuOpen = false
                                 },
                             )
+                            DropdownMenuItem(
+                                text = { Text(if (shard == 5) "✓ 測速最優" else "測速最優") },
+                                onClick = {
+                                    sourceMenuOpen = false
+                                    val sample = images.firstOrNull()?.image.orEmpty()
+                                    scope.launch {
+                                        val best = repo.benchmarkImageHosts(sample)
+                                        if (best != null) {
+                                            shard = 5
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "已選 圖源 ${best.first}（${best.second}ms）",
+                                                android.widget.Toast.LENGTH_SHORT,
+                                            ).show()
+                                        } else {
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "測速失敗，請稍後再試",
+                                                android.widget.Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                    }
+                                },
+                            )
                             JmConfig.IMAGE_SHARDS.forEachIndexed { index, host ->
                                 DropdownMenuItem(
                                     text = {

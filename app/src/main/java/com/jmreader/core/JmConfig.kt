@@ -1,4 +1,4 @@
-package com.jmreader.core
+﻿package com.jmreader.core
 
 /**
  * 协议相关的全部常量集中在这里。
@@ -9,6 +9,9 @@ object JmConfig {
 
     /** 参与 Token 签名与请求头，官方升级后需要同步。 */
     const val APP_VERSION = "2.1.12"
+
+    /** 客户端声明适配的协议版本，用于更新提示。 */
+    const val PROTOCOL_VERSION = APP_VERSION
 
     const val TOKEN_SECRET = "185Hcomic3PAPP7R"
     const val CONTENT_SECRET = "18comicAPPContent"
