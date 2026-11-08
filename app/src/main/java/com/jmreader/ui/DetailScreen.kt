@@ -1,6 +1,8 @@
 package com.jmreader.ui
 
 import android.widget.Toast
+import android.graphics.Bitmap
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -50,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -163,55 +167,65 @@ fun DetailScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    item {
-                        Header(
-                            repo = repo,
-                            album = album,
-                            isFavorite = isFavorite,
-                            onFavorite = {
-                                scope.launch {
-                                    runCatchingCancellable { repo.toggleFavorite(albumId) }
-                                        .onSuccess { result ->
-                                            isFavorite = when (result.type) {
-                                                "add" -> true
-                                                "remove" -> false
-                                                else -> !isFavorite
+                    item(key = "header") {
+                        Column {
+                            Header(
+                                repo = repo,
+                                album = album,
+                                isFavorite = isFavorite,
+                                onFavorite = {
+                                    scope.launch {
+                                        runCatchingCancellable { repo.toggleFavorite(albumId) }
+                                            .onSuccess { result ->
+                                                isFavorite = when (result.type) {
+                                                    "add" -> true
+                                                    "remove" -> false
+                                                    else -> !isFavorite
+                                                }
+                                                ContentFilter.of(context).recordFavorite(
+                                                    albumId.toString(),
+                                                    album.author.joinToString(" "),
+                                                    isFavorite,
+                                                )
+                                                Toast.makeText(
+                                                    context,
+                                                    if (isFavorite) "已加入收藏" else "已取消收藏",
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
                                             }
-                                            ContentFilter.of(context).recordFavorite(
-                                                albumId.toString(),
-                                                album.author.joinToString(" "),
-                                                isFavorite,
-                                            )
-                                            Toast.makeText(
-                                                context,
-                                                if (isFavorite) "已加入收藏" else "已取消收藏",
-                                                Toast.LENGTH_SHORT,
-                                            ).show()
-                                        }
-                                        .onFailure {
-                                            Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
-                                        }
-                                }
-                            },
-                            onLike = {
-                                scope.launch {
-                                    runCatchingCancellable { repo.toggleLike(albumId) }
-                                        .onSuccess {
-                                            detail = album.copy(
-                                                liked = !album.liked,
-                                                likes = (album.likes + if (album.liked) -1 else 1).coerceAtLeast(0),
-                                            )
-                                        }
-                                        .onFailure {
-                                            Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
-                                        }
-                                }
-                            },
-                            onBlockTags = {
-                                tagsToBlock = emptySet()
-                                showTagBlock = true
-                            },
-                        )
+                                            .onFailure {
+                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                            }
+                                    }
+                                },
+                                onLike = {
+                                    scope.launch {
+                                        runCatchingCancellable { repo.toggleLike(albumId) }
+                                            .onSuccess {
+                                                detail = album.copy(
+                                                    liked = !album.liked,
+                                                    likes = (album.likes + if (album.liked) -1 else 1).coerceAtLeast(0),
+                                                )
+                                            }
+                                            .onFailure {
+                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                            }
+                                    }
+                                },
+                                onBlockTags = {
+                                    tagsToBlock = emptySet()
+                                    showTagBlock = true
+                                },
+                            )
+                            chapters.firstOrNull()?.let { first ->
+                                PreviewStrip(
+                                    repo = repo,
+                                    albumId = album.id,
+                                    chapterId = first.id,
+                                    onOpen = { onRead(first.id, first.title) },
+                                )
+                            }
+                        }
                     }
 
                     item(key = "tabs") {
@@ -579,20 +593,6 @@ private fun Header(
                 maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (album.author.isNotEmpty()) {
-                Text(
-                    text = album.author.joinToString(" / "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Text(
-                text = "${album.totalPhotos} 頁",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             TextButton(onClick = onFavorite) {
                 Icon(
                     Icons.Filled.Star,
@@ -613,17 +613,8 @@ private fun Header(
                     tint = if (album.liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = " ${album.likes}",
+                    text = " 讚",
                     color = if (album.liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (album.tags.isNotEmpty()) {
-                Text(
-                    text = album.tags.joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Row {
@@ -642,6 +633,73 @@ private fun Header(
         }
     }
 }
+
+/** 详情页顶部预览：取第一话的前几页，还原后等比裁切展示。 */
+@Composable
+private fun PreviewStrip(
+    repo: JmRepository,
+    albumId: Long,
+    chapterId: Long,
+    onOpen: () -> Unit,
+) {
+    var previews by remember(chapterId) { mutableStateOf<List<Bitmap>>(emptyList()) }
+    var loading by remember(chapterId) { mutableStateOf(true) }
+
+    LaunchedEffect(chapterId) {
+        loading = true
+        val comic = runCatchingCancellable { repo.comicRead(chapterId) }.getOrNull()
+        if (comic != null) {
+            previews = comic.images.take(PREVIEW_COUNT).mapNotNull { page ->
+                runCatchingCancellable {
+                    repo.loadPage(
+                        cid = chapterId,
+                        page = page.page,
+                        url = page.image,
+                        aid = albumId,
+                        scrambleId = comic.scrambleId,
+                        targetWidth = PREVIEW_WIDTH_PX,
+                    )
+                }.getOrNull()
+            }
+        }
+        loading = false
+    }
+
+    if (previews.isEmpty() && !loading) return
+
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (previews.isEmpty()) {
+            repeat(PREVIEW_COUNT) {
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                )
+            }
+        } else {
+            previews.forEach { bitmap ->
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "預覽",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onOpen),
+                )
+            }
+        }
+    }
+}
+
+private const val PREVIEW_COUNT = 4
+private const val PREVIEW_WIDTH_PX = 220
 
 /** 评论内容带 HTML（<div>、<br> 等），展示前转成纯文本。 */
 private fun stripHtml(raw: String): String =
