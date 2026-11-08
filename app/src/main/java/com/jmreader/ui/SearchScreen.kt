@@ -10,11 +10,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -26,7 +24,6 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,7 +50,6 @@ import com.jmreader.data.SearchHistory
 import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -112,11 +108,10 @@ fun SearchScreen(
 
     LaunchedEffect(Unit) {
         if (state.categories.isEmpty()) {
-            runCatchingCancellable { repo.categories() }.onSuccess {
-                state.hotBlocks = it.blocks
-                // type = slug 的是「同人 / 單本 / 短篇 / 韓漫…」这类分类，和官网筛选一致
-                state.categories = it.categories.filter { node -> node.type == "slug" && node.slug.isNotBlank() }
-            }
+            state.categories = loadWorkCategories(repo)
+        }
+        if (state.hotBlocks.isEmpty()) {
+            runCatchingCancellable { repo.categories() }.onSuccess { state.hotBlocks = it.blocks }
         }
     }
 
@@ -148,36 +143,17 @@ fun SearchScreen(
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            if (state.searched && state.categories.isNotEmpty()) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    item {
-                        FilterChip(
-                            selected = state.category.isBlank(),
-                            onClick = {
-                                if (state.category.isNotBlank()) {
-                                    state.category = ""
-                                    scope.launch { runSearch(true) }
-                                }
-                            },
-                            label = { Text("全部") },
-                        )
-                    }
-                    items(items = state.categories, key = { it.slug }) { node ->
-                        FilterChip(
-                            selected = state.category == node.slug,
-                            onClick = {
-                                if (state.category != node.slug) {
-                                    state.category = node.slug
-                                    scope.launch { runSearch(true) }
-                                }
-                            },
-                            label = { Text(node.name) },
-                        )
-                    }
-                }
+            if (state.searched) {
+                CategoryChips(
+                    categories = state.categories,
+                    selected = state.category,
+                    onSelect = { slug ->
+                        if (slug != state.category) {
+                            state.category = slug
+                            scope.launch { runSearch(true) }
+                        }
+                    },
+                )
             }
             Box(Modifier.fillMaxSize()) {
                 when {
@@ -277,24 +253,13 @@ fun SearchScreen(
                         }
                         items(items = shown, key = { it.id }) { album ->
                             val id = album.id
-                            val known = state.views[id]
                             AlbumCard(
                                 repo = repo,
                                 album = album,
                                 onClick = { album.id.toLongOrNull()?.let(onOpen) },
-                                badge = known?.takeIf { it > 0 }?.let { "觀看 ${formatCount(it)}" },
+                                badge = viewBadge(state.views, id),
                                 onVisible = {
-                                    if (known == null && state.viewRequests.add(id)) {
-                                        scope.launch {
-                                            val aid = id.toLongOrNull() ?: return@launch
-                                            viewGate.withPermit {
-                                                runCatchingCancellable { repo.album(aid) }
-                                                    .onSuccess { detail ->
-                                                        if (detail.viewCount > 0) state.views[id] = detail.viewCount
-                                                    }
-                                            }
-                                        }
-                                    }
+                                    ensureViewCount(repo, scope, viewGate, state.views, state.viewRequests, id)
                                 },
                             )
                         }

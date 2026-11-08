@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,10 +41,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
+import com.jmreader.data.CategoryNode
 import com.jmreader.data.ContentFilter
 import com.jmreader.data.JmRepository
 import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 
 /**
  * 作者页状态。和 [SearchState] 一样挂在 overlay 栈上，
@@ -56,6 +59,14 @@ class AuthorWorksState {
     var loading by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
     var started by mutableStateOf(false)
+
+    /** 分类筛选：同人 / 單本 / 短篇 / 韓漫…，空串表示全部。 */
+    var category by mutableStateOf("")
+    var categories by mutableStateOf<List<CategoryNode>>(emptyList())
+
+    /** 点击量缓存（列表接口没有，按卡片可见时补）。 */
+    val views = mutableStateMapOf<String, Int>()
+    val viewRequests = mutableSetOf<String>()
 
     /** 是否还有下一页。用「已加载条数」判断，不能用屏蔽后的数量，否则会一直显示「載入更多」却加不出东西。 */
     var hasMore by mutableStateOf(true)
@@ -90,7 +101,7 @@ fun AuthorWorksScreen(
         if (state.loading) return
         state.loading = true
         state.error = null
-        runCatchingCancellable { repo.search(authorName, if (reset) 1 else state.page) }
+        runCatchingCancellable { repo.search(authorName, if (reset) 1 else state.page, state.category) }
             .onSuccess { result ->
                 val fresh = result.content.filter { new -> state.albums.none { it.id == new.id } }
                 state.albums = if (reset) result.content else state.albums + fresh
@@ -112,7 +123,12 @@ fun AuthorWorksScreen(
             state.started = true
             load(true)
         }
+        if (state.categories.isEmpty()) {
+            state.categories = loadWorkCategories(repo)
+        }
     }
+
+    val viewGate = remember { Semaphore(2) }
 
     Scaffold(
         topBar = {
@@ -132,7 +148,21 @@ fun AuthorWorksScreen(
             )
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            if (state.albums.isNotEmpty() || state.category.isNotBlank()) {
+                CategoryChips(
+                    categories = state.categories,
+                    selected = state.category,
+                    onSelect = { slug ->
+                        if (slug != state.category) {
+                            state.category = slug
+                            state.hasMore = true
+                            scope.launch { load(true) }
+                        }
+                    },
+                )
+            }
+            Box(Modifier.fillMaxSize()) {
             when {
                 state.loading && state.albums.isEmpty() ->
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -174,10 +204,15 @@ fun AuthorWorksScreen(
                         )
                     }
                     items(items = shown, key = { it.id }) { album ->
+                        val id = album.id
                         AlbumCard(
                             repo = repo,
                             album = album,
                             onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                            badge = viewBadge(state.views, id),
+                            onVisible = {
+                                ensureViewCount(repo, scope, viewGate, state.views, state.viewRequests, id)
+                            },
                         )
                     }
                     if (state.hasMore) {
@@ -199,6 +234,7 @@ fun AuthorWorksScreen(
                         }
                     }
                 }
+            }
             }
         }
     }
