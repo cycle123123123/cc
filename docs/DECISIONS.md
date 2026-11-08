@@ -242,6 +242,8 @@
 - **搜索分类筛选**：搜索结果上方加「全部 / 同人 / 單本 / 短篇 / 其他類 / 韓漫 / English Manga」，参数是 `c=<slug>`（官网同款），切换时重置分页。
 - **搜索/作者页排序**：加「默認 / 最多點閱 / 最多愛心」，接口参数 `o`（`mv` / `tf`）。`o=mp`（最多圖片）服务端直接 500，不做。搜索页和作者页共用 `SortChips`。
 - **收藏/历史搜索框**：默认收起成一个「搜尋」按钮，点开才占一行，右侧另有默认/名称排序。
+  - 0.2.2 起「搜尋」「默認」两个按钮并入收藏夹那一行（管理右边），展开后的输入框单独放下面一行；历史 tab 也显示这两个按钮。
+- **应用内更新**：`UpdateChecker` 查 GitHub `releases/latest`，和 `BuildConfig.VERSION_NAME` 做数字版本比较，缓存 6 小时。有新版本弹窗显示说明和大小，点「更新」下载到 `cache/update/jmreader.apk` 后走 `FileProvider` 拉起系统安装器（需要 `REQUEST_INSTALL_PACKAGES` + 用户允许安装未知来源）。发版仓库：`cycle123123123/cc`。
 - **详情页**：`詳情` tab 增加「頁數 / 觀看 / 點讚 / 評論」四格 + 上架日期 / 作者 / 標籤；简介为空时不再是一片空白。作者和标签改成 chips：点作者进「作者作品页」，点标签直接搜索。
 - **作者作品页**：`/creator_work` 需要 author_id，但详情接口只给作者名；`/creator_author` 不支持按名字过滤（翻 1000+ 页不现实），所以用 `/search?search_query=<作者名>` 兜底，页面标题就是作者名，可加载更多；状态同样挂在 overlay 栈上，进作品返回不丢位置。
 - **作者页筛选与点击量**：和搜索页共用 `CategoryChips`（全部 / 同人 / 單本 / 短篇 / 其他類 / 韓漫 / English Manga）与 `ensureAlbumMeta`（卡片可见时补 `/album` 的 `total_views` / `likes` / `tags`，并发 2、缓存）。切分类会重置分页。
