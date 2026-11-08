@@ -71,6 +71,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
@@ -117,6 +118,8 @@ fun ReaderScreen(
     var animate by remember { mutableStateOf(prefs.getBoolean("animate", true)) }
     var rtl by remember { mutableStateOf(prefs.getBoolean("rtl", false)) }
     var tapWhenZoomed by remember { mutableStateOf(prefs.getBoolean("tap_when_zoomed", false)) }
+    var lockOrientation by remember { mutableStateOf(prefs.getBoolean("lock_orientation", true)) }
+    val configuration = LocalConfiguration.current
     var bookmarks by remember(cid) {
         mutableStateOf(
             prefs.getString("bookmarks_$cid", "").orEmpty()
@@ -151,6 +154,26 @@ fun ReaderScreen(
             val params = window.attributes
             params.screenBrightness = android.view.WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
             window.attributes = params
+        }
+    }
+
+    // 方向锁定：进入阅读器时锁在当前方向，退出恢复
+    DisposableEffect(lockOrientation, configuration.orientation) {
+        if (lockOrientation) {
+            activity?.requestedOrientation =
+                if (configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+                    android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                } else {
+                    android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                }
+        } else {
+            activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
+        onDispose { }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            activity?.requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
         }
     }
 
@@ -470,6 +493,11 @@ fun ReaderScreen(
                     tapWhenZoomed = it
                     prefs.edit().putBoolean("tap_when_zoomed", it).apply()
                 },
+                lockOrientation = lockOrientation,
+                onLockOrientation = {
+                    lockOrientation = it
+                    prefs.edit().putBoolean("lock_orientation", it).apply()
+                },
                 index = currentIndex,
                 total = images.size,
                 onJump = { jumpTo(it) },
@@ -699,6 +727,8 @@ private fun ReaderSettingsDialog(
     onRtl: (Boolean) -> Unit,
     tapWhenZoomed: Boolean,
     onTapWhenZoomed: (Boolean) -> Unit,
+    lockOrientation: Boolean,
+    onLockOrientation: (Boolean) -> Unit,
     index: Int,
     total: Int,
     onJump: (Int) -> Unit,
@@ -762,6 +792,15 @@ private fun ReaderSettingsDialog(
                 ) {
                     Text("放大時允許點擊翻頁", style = MaterialTheme.typography.bodyMedium)
                     Switch(checked = tapWhenZoomed, onCheckedChange = onTapWhenZoomed)
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("方向鎖定", style = MaterialTheme.typography.bodyMedium)
+                    Switch(checked = lockOrientation, onCheckedChange = onLockOrientation)
                 }
 
                 HorizontalDivider(Modifier.padding(vertical = 8.dp))

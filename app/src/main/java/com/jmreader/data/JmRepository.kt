@@ -456,8 +456,16 @@ class JmRepository(context: Context) {
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
 
             var sample = 1
-            var width = bounds.outWidth.coerceAtLeast(1)
-            while (width / (sample * 2) >= targetWidth) sample *= 2
+            val srcWidth = bounds.outWidth.coerceAtLeast(1)
+            val srcHeight = bounds.outHeight.coerceAtLeast(1)
+            while (true) {
+                val width = srcWidth / sample
+                val height = srcHeight / sample
+                val withinWidth = width / 2 < targetWidth
+                val withinPixels = width.toLong() * height <= MAX_DECODE_PIXELS
+                if (withinWidth && withinPixels) break
+                sample *= 2
+            }
 
             val options = BitmapFactory.Options().apply {
                 inSampleSize = sample
@@ -760,5 +768,6 @@ class JmRepository(context: Context) {
         const val PROBE_TIMEOUT_MS = 2500L
         const val ALBUM_TTL_MS = 60L * 1000L
         const val READ_TTL_MS = 5L * 60L * 1000L
+        const val MAX_DECODE_PIXELS = 6_000_000L
     }
 }
