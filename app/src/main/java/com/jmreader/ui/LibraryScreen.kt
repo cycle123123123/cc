@@ -84,6 +84,7 @@ fun LibraryScreen(
     onOpen: (Long) -> Unit,
     onDownloads: () -> Unit,
     onBlocks: () -> Unit,
+    onCheckUpdate: () -> Unit,
 ) {
     val member by repo.auth.member.collectAsState()
     val context = LocalContext.current
@@ -126,7 +127,7 @@ fun LibraryScreen(
             if (member == null) {
                 LoginForm(repo)
             } else {
-                LibraryContent(repo, member!!, onOpen, accountVisible)
+                LibraryContent(repo, member!!, onOpen, accountVisible, onCheckUpdate)
             }
         }
     }
@@ -250,6 +251,7 @@ private fun LibraryContent(
     member: Member,
     onOpen: (Long) -> Unit,
     accountVisible: Boolean,
+    onCheckUpdate: () -> Unit,
 ) {
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
@@ -373,6 +375,15 @@ private fun LibraryContent(
                     )
                 }
                 TextButton(onClick = { scope.launch { repo.logout() } }) { Text("退出") }
+            }
+            TextButton(
+                onClick = onCheckUpdate,
+                modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
+            ) {
+                Text(
+                    text = "v${com.jmreader.BuildConfig.VERSION_NAME} · 檢查更新",
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
         }
 

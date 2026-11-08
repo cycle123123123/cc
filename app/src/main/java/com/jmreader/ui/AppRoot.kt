@@ -67,6 +67,20 @@ fun AppRoot(repo: JmRepository) {
         update = updateChecker.checkIfDue()
     }
 
+    fun checkUpdate(manual: Boolean) {
+        scope.launch {
+            val info = updateChecker.checkIfDue(force = manual)
+            update = info
+            if (info == null && manual) {
+                android.widget.Toast.makeText(
+                    context,
+                    "已是最新版本 v${updateChecker.currentVersion}",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
+
     fun push(screen: Screen) {
         overlays.add(screen)
     }
@@ -126,6 +140,7 @@ fun AppRoot(repo: JmRepository) {
                     onOpen = { push(Screen.Detail(it)) },
                     onDownloads = { push(Screen.Downloads) },
                     onBlocks = { push(Screen.Blocks) },
+                    onCheckUpdate = { checkUpdate(true) },
                 )
             }
         }

@@ -186,7 +186,7 @@ class UpdateChecker private constructor(
         private const val KEY_NOTES = "notes"
         private const val KEY_URL = "url"
         private const val KEY_SIZE = "size"
-        private const val CHECK_TTL_MS = 6L * 60L * 60L * 1000L
+        private const val CHECK_TTL_MS = 15L * 60L * 1000L
 
         @Volatile
         private var instance: UpdateChecker? = null
