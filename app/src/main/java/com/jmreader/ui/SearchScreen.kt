@@ -28,6 +28,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -36,11 +37,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.jmreader.data.userMessage
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
+import com.jmreader.data.ContentFilter
 import com.jmreader.data.JmRepository
 import kotlinx.coroutines.launch
 
@@ -60,6 +63,13 @@ fun SearchScreen(
     var searched by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val blockFilter = remember { ContentFilter.of(context) }
+    val blockRules by blockFilter.rules.collectAsState()
+    val shown = remember(results, blockRules) {
+        results.filterNot { ContentFilter.matches(it, blockRules) }
+    }
+    val hiddenCount = results.size - shown.size
 
     suspend fun runSearch(reset: Boolean) {
         val keyword = query.trim()
@@ -143,12 +153,12 @@ fun SearchScreen(
                 ) {
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                         Text(
-                            text = "共 $total 個結果",
+                            text = if (hiddenCount > 0) "共 $total 個結果 · 已屏蔽 $hiddenCount 项" else "共 $total 個結果",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    items(items = results, key = { it.id }) { album ->
+                    items(items = shown, key = { it.id }) { album ->
                         AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
                     }
                     item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {

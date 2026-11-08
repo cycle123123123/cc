@@ -49,6 +49,7 @@ import coil.request.ImageRequest
 import com.jmreader.data.userMessage
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.core.JmConfig
+import com.jmreader.data.ContentFilter
 import com.jmreader.data.JmRepository
 import com.jmreader.data.LastRead
 import com.jmreader.data.ReadingHistory
@@ -76,6 +77,13 @@ fun HomeScreen(
     val error = state.error
     val update = state.update
 
+    val blockFilter = remember { ContentFilter.of(context) }
+    val blockRules by blockFilter.rules.collectAsState()
+    val shown = remember(albums, blockRules) {
+        albums.filterNot { ContentFilter.matches(it, blockRules) }
+    }
+    val hiddenCount = albums.size - shown.size
+
     suspend fun load(reset: Boolean) {
         if (state.loading) return
         state.loading = true
@@ -97,9 +105,9 @@ fun HomeScreen(
         state.loading = false
     }
 
-    LaunchedEffect(albums) {
+    LaunchedEffect(shown) {
         // 首屏封面预加载（Coil 会写进内存 + 磁盘缓存）
-        albums.take(8).forEach { album ->
+        shown.take(8).forEach { album ->
             context.imageLoader.enqueue(
                 ImageRequest.Builder(context)
                     .data(repo.coverUrl(album.id, tall = true))
@@ -183,6 +191,15 @@ fun HomeScreen(
                         }
                     }
 
+                    if (hiddenCount > 0) {
+                        Text(
+                            text = "已屏蔽 $hiddenCount 项",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                    }
+
                     LazyVerticalGrid(
                         state = state.gridState,
                         columns = GridCells.Fixed(2),
@@ -191,7 +208,7 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier.weight(1f),
                     ) {
-                        items(items = albums, key = { it.id }) { album ->
+                        items(items = shown, key = { it.id }) { album ->
                             AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
                         }
 

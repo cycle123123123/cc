@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -68,6 +69,7 @@ fun MeScreen(
     onBack: () -> Unit,
     onOpen: (Long) -> Unit,
     onDownloads: () -> Unit,
+    onBlocks: () -> Unit,
 ) {
     val member by repo.auth.member.collectAsState()
 
@@ -81,6 +83,9 @@ fun MeScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onBlocks) {
+                        Icon(Icons.Filled.Block, contentDescription = "屏蔽管理")
+                    }
                     IconButton(onClick = onDownloads) {
                         Icon(Icons.Filled.Download, contentDescription = "下載管理")
                     }

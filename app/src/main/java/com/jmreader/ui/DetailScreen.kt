@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -56,6 +57,7 @@ import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumDetail
 import com.jmreader.data.ChapterEntry
 import com.jmreader.data.CommentItem
+import com.jmreader.data.ContentFilter
 import com.jmreader.data.DownloadRepository
 import com.jmreader.data.ForumPage
 import com.jmreader.data.JmRepository
@@ -69,6 +71,8 @@ fun DetailScreen(
     onBack: () -> Unit,
     onRead: (Long, String) -> Unit,
 ) {
+    var showTagBlock by remember { mutableStateOf(false) }
+    var tagsToBlock by remember { mutableStateOf<Set<String>>(emptySet()) }
     var detail by remember { mutableStateOf<AlbumDetail?>(null) }
     var chapters by remember { mutableStateOf<List<ChapterEntry>>(emptyList()) }
     var forum by remember { mutableStateOf<ForumPage?>(null) }
@@ -169,6 +173,11 @@ fun DetailScreen(
                                                 "remove" -> false
                                                 else -> !isFavorite
                                             }
+                                            ContentFilter.of(context).recordFavorite(
+                                                albumId.toString(),
+                                                album.author.joinToString(" "),
+                                                isFavorite,
+                                            )
                                             Toast.makeText(
                                                 context,
                                                 if (isFavorite) "已加入收藏" else "已取消收藏",
@@ -193,6 +202,10 @@ fun DetailScreen(
                                             Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
                                         }
                                 }
+                            },
+                            onBlockTags = {
+                                tagsToBlock = emptySet()
+                                showTagBlock = true
                             },
                         )
                     }
@@ -326,7 +339,43 @@ fun DetailScreen(
                 }
             }
         }
+    if (showTagBlock) {
+        detail?.let { album ->
+            AlertDialog(
+                onDismissRequest = { showTagBlock = false },
+                title = { Text("屏蔽标签") },
+                text = {
+                    Column {
+                        album.tags.forEach { tag ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                androidx.compose.material3.Checkbox(
+                                    checked = tagsToBlock.contains(tag),
+                                    onCheckedChange = { checked ->
+                                        tagsToBlock = if (checked) tagsToBlock + tag else tagsToBlock - tag
+                                    },
+                                )
+                                Text(tag)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val filter = ContentFilter.of(context)
+                            tagsToBlock.forEach { filter.addKeyword(it) }
+                            Toast.makeText(context, "已屏蔽 ${tagsToBlock.size} 个标签", Toast.LENGTH_SHORT).show()
+                            showTagBlock = false
+                        },
+                    ) { Text("确定") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showTagBlock = false }) { Text("取消") }
+                },
+            )
+        }
     }
+}
 }
 
 @Composable
@@ -423,6 +472,7 @@ private fun Header(
     isFavorite: Boolean,
     onFavorite: () -> Unit,
     onLike: () -> Unit,
+    onBlockTags: () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         AsyncImage(
@@ -491,6 +541,19 @@ private fun Header(
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
+            }
+            Row {
+                val filter = ContentFilter.of(androidx.compose.ui.platform.LocalContext.current)
+                TextButton(
+                    onClick = {
+                        album.author.firstOrNull()?.let { filter.addAuthor(it) }
+                    },
+                ) {
+                    Text("屏蔽作者", style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(onClick = onBlockTags) {
+                    Text("屏蔽标签", style = MaterialTheme.typography.labelSmall)
+                }
             }
         }
     }

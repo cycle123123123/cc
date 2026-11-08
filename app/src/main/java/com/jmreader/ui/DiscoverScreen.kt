@@ -40,6 +40,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.jmreader.data.userMessage
@@ -57,6 +59,7 @@ import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
 import com.jmreader.data.CategoryBlock
 import com.jmreader.data.CategoryNode
+import com.jmreader.data.ContentFilter
 import com.jmreader.data.CreatorAuthor
 import com.jmreader.data.JmRepository
 import com.jmreader.data.PromoteSection
@@ -118,6 +121,8 @@ private fun CategoryTab(repo: JmRepository, onOpen: (Long) -> Unit) {
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val blockRules by ContentFilter.of(context).rules.collectAsState()
 
     LaunchedEffect(Unit) {
         runCatchingCancellable { repo.categories() }
@@ -233,7 +238,7 @@ private fun CategoryTab(repo: JmRepository, onOpen: (Long) -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(items = albums, key = { it.id }) { album ->
+                    items(items = albums.filterNot { ContentFilter.matches(it, blockRules) }, key = { it.id }) { album ->
                         AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
                     }
                     item(span = { GridItemSpan(maxLineSpan) }) {
@@ -313,6 +318,8 @@ private fun WeekTab(repo: JmRepository, onOpen: (Long) -> Unit) {
     var albums by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val blockRules by ContentFilter.of(context).rules.collectAsState()
 
     LaunchedEffect(Unit) {
         runCatchingCancellable { repo.week() }
@@ -380,7 +387,7 @@ private fun WeekTab(repo: JmRepository, onOpen: (Long) -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(items = albums, key = { it.id }) { album ->
+                    items(items = albums.filterNot { ContentFilter.matches(it, blockRules) }, key = { it.id }) { album ->
                         AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
                     }
                 }
@@ -397,6 +404,8 @@ private fun RecommendTab(repo: JmRepository, onOpen: (Long) -> Unit) {
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val blockRules by ContentFilter.of(context).rules.collectAsState()
 
     LaunchedEffect(Unit) {
         runCatchingCancellable { repo.promote() }
@@ -444,7 +453,7 @@ private fun RecommendTab(repo: JmRepository, onOpen: (Long) -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(items = random, key = { it.id }) { album ->
+                    items(items = random.filterNot { ContentFilter.matches(it, blockRules) }, key = { it.id }) { album ->
                         AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
                     }
                 }
@@ -461,7 +470,7 @@ private fun RecommendTab(repo: JmRepository, onOpen: (Long) -> Unit) {
                                 contentPadding = PaddingValues(horizontal = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
-                                items(items = section.content, key = { it.id }) { album ->
+                                items(items = section.content.filterNot { ContentFilter.matches(it, blockRules) }, key = { it.id }) { album ->
                                     Box(Modifier.width(120.dp)) {
                                         AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
                                     }
@@ -480,6 +489,20 @@ private fun AuthorTab(repo: JmRepository, onOpenAuthor: (String, String) -> Unit
     var authors by remember { mutableStateOf<List<CreatorAuthor>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val blockRules by ContentFilter.of(context).rules.collectAsState()
+    val shownAuthors = remember(authors, blockRules) {
+        authors.filterNot { author ->
+            ContentFilter.matches(
+                id = author.id,
+                name = author.name,
+                author = author.name,
+                category = null,
+                tags = emptyList(),
+                rules = blockRules,
+            )
+        }
+    }
 
     LaunchedEffect(Unit) {
         runCatchingCancellable { repo.creatorAuthors(1) }
@@ -496,7 +519,7 @@ private fun AuthorTab(repo: JmRepository, onOpenAuthor: (String, String) -> Unit
             modifier = Modifier.fillMaxSize().padding(16.dp),
         )
         else -> LazyColumn(Modifier.fillMaxSize()) {
-            items(items = authors, key = { it.id }) { author ->
+            items(items = shownAuthors, key = { it.id }) { author ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

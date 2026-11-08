@@ -10,6 +10,7 @@ sealed interface Screen {
     data object Home : Screen
     data object Me : Screen
     data object Downloads : Screen
+    data object Blocks : Screen
     data object Discover : Screen
     data class Search(val query: String = "") : Screen
     data class Author(val id: String, val name: String) : Screen
@@ -71,7 +72,10 @@ fun AppRoot(repo: JmRepository) {
             onBack = { pop() },
             onOpen = { push(Screen.Detail(it)) },
             onDownloads = { push(Screen.Downloads) },
+            onBlocks = { push(Screen.Blocks) },
         )
+
+        Screen.Blocks -> BlocksScreen(repo = repo, onBack = { pop() })
 
         Screen.Downloads -> DownloadsScreen(onBack = { pop() })
 
