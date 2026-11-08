@@ -23,6 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -89,12 +91,19 @@ fun LibraryScreen(
     var showCacheDialog by remember { mutableStateOf(false) }
     var cacheBytes by remember { mutableStateOf(0L) }
     var clearing by remember { mutableStateOf(false) }
+    var accountVisible by remember { mutableStateOf(true) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("我的") },
                 actions = {
+                    IconButton(onClick = { accountVisible = !accountVisible }) {
+                        Icon(
+                            if (accountVisible) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                            contentDescription = if (accountVisible) "隱藏帳號資訊" else "顯示帳號資訊",
+                        )
+                    }
                     IconButton(
                         onClick = {
                             showCacheDialog = true
@@ -117,7 +126,7 @@ fun LibraryScreen(
             if (member == null) {
                 LoginForm(repo)
             } else {
-                LibraryContent(repo, member!!, onOpen)
+                LibraryContent(repo, member!!, onOpen, accountVisible)
             }
         }
     }
@@ -236,7 +245,12 @@ private fun LoginForm(repo: JmRepository) {
 }
 
 @Composable
-private fun LibraryContent(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) {
+private fun LibraryContent(
+    repo: JmRepository,
+    member: Member,
+    onOpen: (Long) -> Unit,
+    accountVisible: Boolean,
+) {
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var sortByName by remember { mutableStateOf(false) }
@@ -344,20 +358,22 @@ private fun LibraryContent(repo: JmRepository, member: Member, onOpen: (Long) ->
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column {
-                Text(member.username.ifBlank { "已登入" }, style = MaterialTheme.typography.titleLarge)
-                Text(
-                    text = "UID ${member.uid} · 收藏 ${member.totalFavorites} · Lv.${member.level}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        if (accountVisible) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column {
+                    Text(member.username.ifBlank { "已登入" }, style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        text = "UID ${member.uid} · 收藏 ${member.totalFavorites} · Lv.${member.level}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = { scope.launch { repo.logout() } }) { Text("退出") }
             }
-            TextButton(onClick = { scope.launch { repo.logout() } }) { Text("退出") }
         }
 
         TabRow(selectedTabIndex = tab) {
