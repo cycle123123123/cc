@@ -355,6 +355,18 @@ class JmRepository(context: Context) {
         formPostRaw(base, "comment_vote", mapOf("id" to cid))
     }
 
+    /**
+     * 首次进阅读器时后台自动测一次图源，之后 24 小时内不再测。
+     * 不改变界面状态，后续翻页会直接走更快的 CDN。
+     */
+    suspend fun maybeAutoBenchmarkImageHost(sampleUrl: String) = withContext(Dispatchers.IO) {
+        if (imageShard != 0) return@withContext
+        val now = System.currentTimeMillis()
+        if (now - prefs.getLong(KEY_AUTO_BENCH_AT, 0) < AUTO_BENCH_TTL_MS) return@withContext
+        benchmarkImageHosts(sampleUrl)
+        prefs.edit().putLong(KEY_AUTO_BENCH_AT, now).apply()
+    }
+
     /** 图源：0 = 跟随接口返回，1..4 = 指定 CDN host，5 = 测速最优。 */
     var imageShard: Int
         get() = prefs.getInt(KEY_IMG_SHARD, 0)
@@ -715,10 +727,12 @@ class JmRepository(context: Context) {
         const val KEY_SETTING_JSON = "setting_json"
         const val KEY_SETTING_AT = "setting_at"
         const val KEY_BENCH_AT = "bench_at"
+        const val KEY_AUTO_BENCH_AT = "auto_bench_at"
         const val HOME_CACHE = "home_cache.json"
         const val HTTP_CACHE_BYTES = 256L * 1024 * 1024
         const val SETTING_TTL_MS = 10L * 60L * 1000L
         const val BENCH_TTL_MS = 30L * 60L * 1000L
+        const val AUTO_BENCH_TTL_MS = 24L * 60L * 60L * 1000L
         const val PROBE_TIMEOUT_MS = 2500L
         const val ALBUM_TTL_MS = 60L * 1000L
         const val READ_TTL_MS = 5L * 60L * 1000L

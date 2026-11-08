@@ -44,6 +44,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.imageLoader
+import coil.request.ImageRequest
 import com.jmreader.data.userMessage
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.core.JmConfig
@@ -93,6 +95,17 @@ fun HomeScreen(
                 state.loaded = true
             }
         state.loading = false
+    }
+
+    LaunchedEffect(albums) {
+        // 首屏封面预加载（Coil 会写进内存 + 磁盘缓存）
+        albums.take(8).forEach { album ->
+            context.imageLoader.enqueue(
+                ImageRequest.Builder(context)
+                    .data(repo.coverUrl(album.id, tall = true))
+                    .build(),
+            )
+        }
     }
 
     LaunchedEffect(Unit) {

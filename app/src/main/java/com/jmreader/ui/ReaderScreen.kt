@@ -163,11 +163,17 @@ fun ReaderScreen(
         }
     }
 
-    // 预取后 3 页
+    // 预取当前页和后 3 页（首次打开时就是 1-4 页）
     LaunchedEffect(currentIndex, data?.id, mode) {
         val comic = data ?: return@LaunchedEffect
-        val next = comic.images.drop(currentIndex + 1).take(3).map { it.image to it.page }
+        val next = comic.images.drop(currentIndex).take(4).map { it.image to it.page }
         store?.prefetch(next)
+    }
+
+    // 首次进入阅读器时后台测一次图源，之后 24 小时内不再测
+    LaunchedEffect(data?.id) {
+        val sample = data?.images?.firstOrNull()?.image ?: return@LaunchedEffect
+        runCatchingCancellable { repo.maybeAutoBenchmarkImageHost(sample) }
     }
 
     // 音量键翻页
