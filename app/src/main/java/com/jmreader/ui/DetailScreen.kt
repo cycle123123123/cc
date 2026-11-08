@@ -33,6 +33,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -40,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -82,6 +85,7 @@ fun DetailScreen(
     var posting by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
+    var detailTab by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val member by repo.auth.member.collectAsState()
@@ -210,7 +214,28 @@ fun DetailScreen(
                         )
                     }
 
-                    if (album.description.isNotBlank()) {
+                    item(key = "tabs") {
+                        val tabs = listOf(
+                            "詳情",
+                            "目錄（${chapters.size}）",
+                            "評論（${forum?.total ?: album.commentTotal}）",
+                        )
+                        TabRow(
+                            selectedTabIndex = detailTab,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.padding(top = 4.dp),
+                        ) {
+                            tabs.forEachIndexed { index, title ->
+                                Tab(
+                                    selected = detailTab == index,
+                                    onClick = { detailTab = index },
+                                    text = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                )
+                            }
+                        }
+                    }
+
+                    if (detailTab == 0 && album.description.isNotBlank()) {
                         item {
                             Text(
                                 text = album.description,
@@ -222,25 +247,28 @@ fun DetailScreen(
                         }
                     }
 
-                    item {
-                        Text(
-                            text = "目錄（${chapters.size}）",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
+                    if (detailTab == 1) {
+                        item {
+                            Text(
+                                text = "目錄（${chapters.size}）",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+
+                        items(items = chapters, key = { it.id }) { chapter ->
+                            ChapterRow(
+                                chapter = chapter,
+                                onRead = { onRead(chapter.id, chapter.title) },
+                                onDownload = {
+                                    DownloadRepository.of(context).enqueue(chapter.id, album.id, chapter.title)
+                                    Toast.makeText(context, "已加入下載", Toast.LENGTH_SHORT).show()
+                                },
+                            )
+                        }
                     }
 
-                    items(items = chapters, key = { it.id }) { chapter ->
-                        ChapterRow(
-                            chapter = chapter,
-                            onRead = { onRead(chapter.id, chapter.title) },
-                            onDownload = {
-                                DownloadRepository.of(context).enqueue(chapter.id, album.id, chapter.title)
-                                Toast.makeText(context, "已加入下載", Toast.LENGTH_SHORT).show()
-                            },
-                        )
-                    }
-
+                    if (detailTab == 2) {
                     item {
                         HorizontalDivider(
                             modifier = Modifier.padding(top = 12.dp),
@@ -335,6 +363,7 @@ fun DetailScreen(
                                 },
                             )
                         }
+                    }
                     }
                 }
             }

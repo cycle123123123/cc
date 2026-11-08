@@ -70,10 +70,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun DiscoverScreen(
     repo: JmRepository,
-    onBack: () -> Unit,
     onOpen: (Long) -> Unit,
     onSearchTag: (String) -> Unit,
     onOpenAuthor: (String, String) -> Unit,
+    onBack: (() -> Unit)? = null,
 ) {
     var tab by remember { mutableIntStateOf(0) }
 
@@ -82,8 +82,10 @@ fun DiscoverScreen(
             TopAppBar(
                 title = { Text("發現") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        }
                     }
                 },
             )

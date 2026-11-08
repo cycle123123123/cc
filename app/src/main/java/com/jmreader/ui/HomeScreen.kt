@@ -2,6 +2,11 @@
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +17,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,12 +38,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +63,7 @@ import com.jmreader.core.JmConfig
 import com.jmreader.data.ContentFilter
 import com.jmreader.data.JmRepository
 import com.jmreader.data.LastRead
+import com.jmreader.data.PromoteSection
 import com.jmreader.data.ReadingHistory
 import kotlinx.coroutines.launch
 
@@ -63,8 +75,6 @@ fun HomeScreen(
     onOpen: (Long) -> Unit,
     onContinue: (com.jmreader.data.LastRead) -> Unit,
     onSearch: () -> Unit,
-    onMe: () -> Unit,
-    onDiscover: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -76,6 +86,8 @@ fun HomeScreen(
     val loading = state.loading
     val error = state.error
     val update = state.update
+    var sections by remember { mutableStateOf<List<PromoteSection>>(emptyList()) }
+    var refreshing by remember { mutableStateOf(false) }
 
     val blockFilter = remember { ContentFilter.of(context) }
     val blockRules by blockFilter.rules.collectAsState()
@@ -138,32 +150,39 @@ fun HomeScreen(
                 }
             }
             .onFailure { }
+        runCatchingCancellable { repo.promote() }.onSuccess { sections = it }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("JMReader") },
+                title = { Text("首頁") },
                 actions = {
-                    IconButton(onClick = onDiscover) {
-                        Icon(Icons.Filled.Explore, contentDescription = "發現")
-                    }
                     IconButton(onClick = onSearch) {
                         Icon(Icons.Filled.Search, contentDescription = "搜索")
-                    }
-                    IconButton(onClick = onMe) {
-                        Icon(Icons.Filled.Person, contentDescription = "我的")
                     }
                 },
             )
         },
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = {
+                scope.launch {
+                    refreshing = true
+                    runCatchingCancellable { repo.promote() }.onSuccess { sections = it }
+                    load(true)
+                    refreshing = false
+                }
+            },
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) {
             when {
-                albums.isEmpty() && loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                albums.isEmpty() && loading -> SkeletonGrid()
 
                 albums.isEmpty() && error != null -> Column(
-                    modifier = Modifier.align(Alignment.Center),
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(error!!, color = MaterialTheme.colorScheme.error)
@@ -172,9 +191,16 @@ fun HomeScreen(
                     }
                 }
 
-                else -> Column(Modifier.fillMaxSize()) {
+                else -> LazyVerticalGrid(
+                    state = state.gridState,
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
                     update?.let { setting ->
-                        Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "update") {
                             UpdateBanner(
                                 version = setting.jm3Version,
                                 onDismiss = {
@@ -186,44 +212,104 @@ fun HomeScreen(
                     }
 
                     lastRead?.let { item ->
-                        Box(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "continue") {
                             ContinueCard(repo = repo, item = item, onClick = { onContinue(item) })
                         }
                     }
 
                     if (hiddenCount > 0) {
+                        item(span = { GridItemSpan(maxLineSpan) }, key = "hidden") {
+                            Text(
+                                text = "已屏蔽 $hiddenCount 项",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    sections.forEach { section ->
+                        val visible = section.content.filterNot { ContentFilter.matches(it, blockRules) }
+                        if (visible.isNotEmpty()) {
+                            item(span = { GridItemSpan(maxLineSpan) }, key = "sec_${section.id}") {
+                                Column {
+                                    Text(
+                                        text = section.title,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(vertical = 6.dp),
+                                    )
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        items(items = visible, key = { it.id }) { album ->
+                                            Box(Modifier.width(120.dp)) {
+                                                AlbumCard(
+                                                    repo = repo,
+                                                    album = album,
+                                                    onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "latest_header") {
                         Text(
-                            text = "已屏蔽 $hiddenCount 项",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp),
+                            text = "最新",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
                         )
                     }
 
-                    LazyVerticalGrid(
-                        state = state.gridState,
-                        columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        items(items = shown, key = { it.id }) { album ->
-                            AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
-                        }
+                    items(items = shown, key = { it.id }) { album ->
+                        AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
+                    }
 
-                        item {
-                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                if (loading) {
-                                    CircularProgressIndicator()
-                                } else {
-                                    Button(onClick = { scope.launch { load(false) } }) { Text("載入更多") }
-                                }
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "more") {
+                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            if (loading) {
+                                CircularProgressIndicator()
+                            } else {
+                                Button(onClick = { scope.launch { load(false) } }) { Text("載入更多") }
                             }
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SkeletonGrid() {
+    val transition = rememberInfiniteTransition(label = "skeleton")
+    val alpha by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.6f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(700),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        ),
+        label = "alpha",
+    )
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        contentPadding = PaddingValues(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        items(6) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(3f / 4f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)),
+            )
         }
     }
 }

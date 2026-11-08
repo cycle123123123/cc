@@ -3,6 +3,8 @@ package com.jmreader.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,11 +13,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -24,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
@@ -43,11 +49,13 @@ import androidx.compose.ui.unit.dp
 import com.jmreader.data.userMessage
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
+import com.jmreader.data.CategoryBlock
 import com.jmreader.data.ContentFilter
 import com.jmreader.data.JmRepository
+import com.jmreader.data.SearchHistory
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     repo: JmRepository,
@@ -64,6 +72,9 @@ fun SearchScreen(
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val searchHistory = remember { SearchHistory.of(context) }
+    val recent by searchHistory.keywords.collectAsState()
+    var hotBlocks by remember { mutableStateOf<List<CategoryBlock>>(emptyList()) }
     val blockFilter = remember { ContentFilter.of(context) }
     val blockRules by blockFilter.rules.collectAsState()
     val shown = remember(results, blockRules) {
@@ -86,6 +97,7 @@ fun SearchScreen(
                 total = result.total
                 page = if (reset) 2 else page + 1
                 searched = true
+                searchHistory.add(keyword)
             }
             .onFailure { error = it.userMessage() }
         loading = false
@@ -93,6 +105,10 @@ fun SearchScreen(
 
     LaunchedEffect(initialQuery) {
         if (initialQuery.isNotBlank()) runSearch(true)
+    }
+
+    LaunchedEffect(Unit) {
+        runCatchingCancellable { repo.categories() }.onSuccess { hotBlocks = it.blocks }
     }
 
     Scaffold(
@@ -132,11 +148,64 @@ fun SearchScreen(
                     modifier = Modifier.align(Alignment.Center),
                 )
 
-                !searched -> Text(
-                    text = "輸入關鍵字開始搜尋",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.Center),
-                )
+                !searched -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    if (recent.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "最近搜尋",
+                                style = MaterialTheme.typography.titleSmall,
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = { searchHistory.clear() }) { Text("清空") }
+                        }
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            recent.forEach { keyword ->
+                                AssistChip(
+                                    onClick = {
+                                        query = keyword
+                                        scope.launch { runSearch(true) }
+                                    },
+                                    label = { Text(keyword) },
+                                )
+                            }
+                        }
+                    }
+
+                    hotBlocks.forEach { block ->
+                        if (block.content.isNotEmpty()) {
+                            Text(
+                                text = block.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 16.dp),
+                            )
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                block.content.take(12).forEach { tag ->
+                                    AssistChip(
+                                        onClick = {
+                                            query = tag
+                                            scope.launch { runSearch(true) }
+                                        },
+                                        label = { Text(tag) },
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (recent.isEmpty() && hotBlocks.isEmpty()) {
+                        Text(
+                            text = "輸入關鍵字開始搜尋",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
+                        )
+                    }
+                }
 
                 results.isEmpty() -> Text(
                     text = "沒有結果",

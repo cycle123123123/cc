@@ -66,8 +66,6 @@ import android.widget.Toast
 @Composable
 fun MeScreen(
     repo: JmRepository,
-    onBack: () -> Unit,
-    onOpen: (Long) -> Unit,
     onDownloads: () -> Unit,
     onBlocks: () -> Unit,
 ) {
@@ -77,11 +75,6 @@ fun MeScreen(
         topBar = {
             TopAppBar(
                 title = { Text("我的") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
                 actions = {
                     IconButton(onClick = onBlocks) {
                         Icon(Icons.Filled.Block, contentDescription = "屏蔽管理")
@@ -97,7 +90,7 @@ fun MeScreen(
             if (member == null) {
                 LoginForm(repo)
             } else {
-                Profile(repo, member!!, onOpen)
+                AccountCard(repo, member!!)
             }
         }
     }
@@ -184,315 +177,33 @@ private fun LoginForm(repo: JmRepository) {
 }
 
 @Composable
-private fun Profile(repo: JmRepository, member: Member, onOpen: (Long) -> Unit) {
-    var tab by remember { mutableIntStateOf(0) }
-    var items by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
-    var folders by remember { mutableStateOf<List<FolderItem>>(emptyList()) }
-    var folderId by remember { mutableStateOf("") }
-    var page by remember { mutableIntStateOf(1) }
-    var total by remember { mutableIntStateOf(0) }
-    var query by remember { mutableStateOf("") }
-    var sortByName by remember { mutableStateOf(false) }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var showFolders by remember { mutableStateOf(false) }
-    var newFolderName by remember { mutableStateOf("") }
-    var renameTarget by remember { mutableStateOf<FolderItem?>(null) }
-    var renameText by remember { mutableStateOf("") }
-    var moveTarget by remember { mutableStateOf<AlbumBrief?>(null) }
+private fun AccountCard(repo: JmRepository, member: Member) {
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
 
-    suspend fun loadFavorites(selected: String, reset: Boolean) {
-        loading = true
-        error = null
-        val target = if (reset) 1 else page
-        runCatchingCancellable { repo.favorites(target, selected) }
-            .onSuccess { result ->
-                items = if (reset) {
-                    result.list
-                } else {
-                    items + result.list.filter { item -> items.none { it.id == item.id } }
-                }
-                folders = result.folderList
-                total = result.total.toIntOrNull() ?: result.list.size
-                page = if (reset) 2 else page + 1
-            }
-            .onFailure {
-                if (it is JmException.Auth) repo.auth.clearMember()
-                error = it.userMessage()
-            }
-        loading = false
-    }
-
-    LaunchedEffect(member.uid, tab, folderId) {
-        if (tab == 0) {
-            page = 1
-            loadFavorites(folderId, true)
-        } else {
-            loading = true
-            error = null
-            runCatchingCancellable { repo.history(1).list }
-                .onSuccess { items = it }
-                .onFailure {
-                    if (it is JmException.Auth) repo.auth.clearMember()
-                    error = it.userMessage()
-                }
-            loading = false
-        }
-    }
-
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    Column(Modifier.fillMaxSize().padding(24.dp)) {
+        Text(member.username.ifBlank { "已登入" }, style = MaterialTheme.typography.headlineSmall)
+        Text(
+            text = "UID ${member.uid}",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        Text(
+            text = "收藏 ${member.totalFavorites} · Lv.${member.level}",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(
+            onClick = { scope.launch { repo.logout() } },
+            modifier = Modifier.padding(top = 8.dp),
         ) {
-            Column {
-                Text(member.username.ifBlank { "已登入" }, style = MaterialTheme.typography.titleLarge)
-                Text(
-                    text = "UID ${member.uid} · 收藏 ${member.totalFavorites} · Lv.${member.level}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            TextButton(onClick = { scope.launch { repo.logout() } }) { Text("退出") }
+            Text("退出登入")
         }
-
-        TabRow(selectedTabIndex = tab) {
-            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("收藏") })
-            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("歷史") })
-        }
-
-        if (tab == 0) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                item {
-                    FilterChip(
-                        selected = folderId.isBlank(),
-                        onClick = { folderId = "" },
-                        label = { Text("全部") },
-                    )
-                }
-                items(items = folders, key = { it.fid }) { folder ->
-                    FilterChip(
-                        selected = folderId == folder.fid,
-                        onClick = { folderId = folder.fid },
-                        label = { Text(folder.name) },
-                    )
-                }
-                item {
-                    TextButton(onClick = { showFolders = true }) { Text("管理") }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = { Text("搜尋收藏（已載入 ${items.size} 筆）") },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = { sortByName = !sortByName }) {
-                    Text(if (sortByName) "名稱↓" else "默認")
-                }
-            }
-        }
-
-        val shown = remember(items, query, sortByName) {
-            items
-                .filter { query.isBlank() || it.name.contains(query, true) || it.author.contains(query, true) }
-                .let { if (sortByName) it.sortedBy { album -> album.name } else it }
-        }
-
-        Box(Modifier.fillMaxSize()) {
-            when {
-                loading && items.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                error != null && items.isEmpty() -> Text(
-                    text = error!!,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-                shown.isEmpty() -> Text(
-                    text = if (query.isBlank()) "沒有資料" else "沒有符合的收藏",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-                else -> LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    items(items = shown, key = { it.id }) { album ->
-                        AlbumCard(
-                            repo = repo,
-                            album = album,
-                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
-                            onLongClick = { moveTarget = album },
-                        )
-                    }
-                    if (tab == 0 && items.size < total) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                if (loading) {
-                                    CircularProgressIndicator()
-                                } else {
-                                    Button(onClick = { scope.launch { loadFavorites(folderId, false) } }) {
-                                        Text("載入更多（${items.size}/$total）")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (showFolders) {
-        AlertDialog(
-            onDismissRequest = { showFolders = false },
-            title = { Text("收藏夾") },
-            text = {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = newFolderName,
-                            onValueChange = { newFolderName = it },
-                            label = { Text("新收藏夾") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TextButton(
-                            enabled = newFolderName.isNotBlank(),
-                            onClick = {
-                                val name = newFolderName.trim()
-                                scope.launch {
-                                    runCatchingCancellable { repo.addFavoriteFolder(name) }
-                                        .onSuccess {
-                                            newFolderName = ""
-                                            loadFavorites(folderId, true)
-                                        }
-                                        .onFailure {
-                                            Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
-                                        }
-                                }
-                            },
-                        ) { Text("新增") }
-                    }
-                    folders.forEach { folder ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(folder.name, modifier = Modifier.weight(1f))
-                            TextButton(
-                                onClick = {
-                                    renameTarget = folder
-                                    renameText = folder.name
-                                },
-                            ) { Text("改名") }
-                            TextButton(
-                                onClick = {
-                                    scope.launch {
-                                        runCatchingCancellable { repo.deleteFavoriteFolder(folder.fid) }
-                                            .onSuccess {
-                                                if (folderId == folder.fid) folderId = ""
-                                                loadFavorites(folderId, true)
-                                            }
-                                            .onFailure {
-                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
-                                            }
-                                    }
-                                },
-                            ) { Text("刪除") }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showFolders = false }) { Text("關閉") }
-            },
-        )
-    }
-
-    renameTarget?.let { folder ->
-        AlertDialog(
-            onDismissRequest = { renameTarget = null },
-            title = { Text("重新命名") },
-            text = {
-                OutlinedTextField(
-                    value = renameText,
-                    onValueChange = { renameText = it },
-                    singleLine = true,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = renameText.isNotBlank(),
-                    onClick = {
-                        val name = renameText.trim()
-                        scope.launch {
-                            runCatchingCancellable { repo.renameFavoriteFolder(folder.fid, name) }
-                                .onSuccess {
-                                    renameTarget = null
-                                    loadFavorites(folderId, true)
-                                }
-                                .onFailure {
-                                    Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
-                                }
-                        }
-                    },
-                ) { Text("確定") }
-            },
-            dismissButton = {
-                TextButton(onClick = { renameTarget = null }) { Text("取消") }
-            },
-        )
-    }
-
-    moveTarget?.let { album ->
-        AlertDialog(
-            onDismissRequest = { moveTarget = null },
-            title = { Text("移動到收藏夾") },
-            text = {
-                Column {
-                    if (folders.isEmpty()) {
-                        Text("先建立一個收藏夾")
-                    }
-                    folders.forEach { folder ->
-                        TextButton(
-                            onClick = {
-                                val aid = album.id.toLongOrNull()
-                                moveTarget = null
-                                if (aid != null) {
-                                    scope.launch {
-                                        runCatchingCancellable { repo.moveFavorite(folder.fid, aid) }
-                                            .onSuccess {
-                                                Toast.makeText(context, "已移動到 ${folder.name}", Toast.LENGTH_SHORT).show()
-                                                loadFavorites(folderId, true)
-                                            }
-                                            .onFailure {
-                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
-                                            }
-                                    }
-                                }
-                            },
-                        ) { Text(folder.name) }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { moveTarget = null }) { Text("取消") }
-            },
+        Text(
+            text = "收藏與歷史已移到「書架」",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 16.dp),
         )
     }
 }
