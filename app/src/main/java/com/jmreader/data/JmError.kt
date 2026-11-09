@@ -26,5 +26,8 @@ fun Throwable.userMessage(): String = when (this) {
     is JmException.Api -> "介面錯誤（$code）"
     is JmException.Decrypt -> "資料解析失敗"
     is JmException.Parse -> "資料格式異常"
-    else -> message?.takeIf { it.isNotBlank() } ?: "未知錯誤"
+    is java.net.UnknownHostException -> "無法連上伺服器，請檢查網路或線路"
+    is java.net.SocketTimeoutException -> "連線逾時，請稍後重試"
+    is java.io.IOException -> "網路連線失敗，請檢查網路"
+    else -> "發生未知錯誤"
 }

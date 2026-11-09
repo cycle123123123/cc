@@ -55,7 +55,7 @@ internal class JmHttp(
             .post(formBody(form))
             .withCommonHeaders(ts)
             .build()
-        client.newCall(request).awaitResponse().use { response ->
+        client.newCall(request).awaitNetwork().use { response ->
             if (response.code == 401) throw JmException.Auth()
             if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")
             return true
@@ -69,7 +69,7 @@ internal class JmHttp(
             .header("Referer", JmConfig.WEB_REFERER)
             .header("User-Agent", JmConfig.USER_AGENT)
             .build()
-        client.newCall(request).awaitResponse().use { response ->
+        client.newCall(request).awaitNetwork().use { response ->
             if (response.code == 401) throw JmException.Auth()
             if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")
             return response.body?.bytes() ?: throw JmException.Network("响应为空")
@@ -94,7 +94,7 @@ internal class JmHttp(
     }
 
     private suspend fun execute(request: Request, ts: Long): String {
-        client.newCall(request).awaitResponse().use { response ->
+        client.newCall(request).awaitNetwork().use { response ->
             if (response.code == 401) throw JmException.Auth()
             if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")
 
@@ -116,3 +116,14 @@ internal class JmHttp(
         }
     }
 }
+
+/**
+ * 把 IO 异常统一成 [JmException.Network]：
+ * 界面不会再出现 `Unable to resolve host ...` 这种英文原文，失败也能触发换线路重试。
+ */
+private suspend fun okhttp3.Call.awaitNetwork(): okhttp3.Response =
+    try {
+        awaitResponse()
+    } catch (e: java.io.IOException) {
+        throw JmException.Network(e.message ?: "网络不可用", e)
+    }

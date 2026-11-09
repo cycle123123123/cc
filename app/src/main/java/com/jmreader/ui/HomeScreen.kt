@@ -292,6 +292,7 @@ fun HomeScreen(
                                                     repo = repo,
                                                     album = album,
                                                     onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                                                    compact = true,
                                                 )
                                             }
                                         }
@@ -318,7 +319,12 @@ fun HomeScreen(
                     }
 
                     items(items = shown, key = { it.id }) { album ->
-                        AlbumCard(repo = repo, album = album, onClick = { album.id.toLongOrNull()?.let(onOpen) })
+                        AlbumCard(
+                            repo = repo,
+                            album = album,
+                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                            compact = true,
+                        )
                     }
 
                     item(span = { GridItemSpan(maxLineSpan) }, key = "more") {

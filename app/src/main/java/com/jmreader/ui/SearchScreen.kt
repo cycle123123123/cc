@@ -224,10 +224,10 @@ fun SearchScreen(
                 state.loading && state.results.isEmpty() ->
                     CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
 
-                state.error != null -> Text(
-                    text = state.error!!,
-                    color = MaterialTheme.colorScheme.error,
+                state.error != null -> ErrorState(
+                    message = state.error!!,
                     modifier = Modifier.align(Alignment.Center),
+                    onRetry = { scope.launch { runSearch(true) } },
                 )
 
                 !state.searched -> Column(

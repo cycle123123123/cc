@@ -84,13 +84,15 @@ fun DetailScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
     var detailTab by remember { mutableIntStateOf(0) }
+    var reloadKey by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val member by repo.auth.member.collectAsState()
     val loggedIn = member != null
 
-    LaunchedEffect(albumId) {
+    LaunchedEffect(albumId, reloadKey) {
         loading = true
+        error = null
         runCatchingCancellable { repo.album(albumId) }
             .onSuccess { album ->
                 detail = album
@@ -159,10 +161,10 @@ fun DetailScreen(
             when {
                 loading -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
 
-                album == null -> Text(
-                    text = error ?: "載入失敗",
-                    color = MaterialTheme.colorScheme.error,
+                album == null -> ErrorState(
+                    message = error ?: "載入失敗",
                     modifier = Modifier.align(Alignment.Center),
+                    onRetry = { reloadKey++ },
                 )
 
                 else -> LazyColumn(

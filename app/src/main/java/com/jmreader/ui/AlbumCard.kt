@@ -39,6 +39,7 @@ fun AlbumCard(
     onLongClick: (() -> Unit)? = null,
     badge: String? = null,
     onVisible: (() -> Unit)? = null,
+    compact: Boolean = false,
 ) {
     if (onVisible != null) {
         LaunchedEffect(album.id) { onVisible() }
@@ -101,12 +102,18 @@ fun AlbumCard(
             fontWeight = FontWeight.SemiBold,
             color = IosLabelPrimary,
             lineHeight = 16.sp,
-            maxLines = 2,
+            maxLines = if (compact) 1 else 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 6.dp, start = 1.dp, end = 1.dp),
         )
 
-        val sub = album.author.ifBlank { album.category?.title.orEmpty() }
+        // 接口偶尔给 "N/A"，当成没有作者处理
+        val author = album.author.trim()
+        val sub = if (author.isBlank() || author.equals("N/A", ignoreCase = true)) {
+            album.category?.title.orEmpty()
+        } else {
+            author
+        }
         if (sub.isNotBlank()) {
             Text(
                 text = sub,

@@ -235,10 +235,10 @@ internal fun CategoryTab(
             when {
                 loading && albums.isEmpty() -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
 
-                error != null && albums.isEmpty() -> Text(
-                    text = error!!,
-                    color = MaterialTheme.colorScheme.error,
+                error != null && albums.isEmpty() -> ErrorState(
+                    message = error!!,
                     modifier = Modifier.align(Alignment.Center),
+                    onRetry = { scope.launch { load(true) } },
                 )
 
                 else -> LazyVerticalGrid(
@@ -373,6 +373,7 @@ internal fun WeekTab(
     var albums by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var reloadKey by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val blockRules by ContentFilter.of(context).rules.collectAsState()
 
@@ -386,7 +387,7 @@ internal fun WeekTab(
             .onFailure { error = it.userMessage() }
     }
 
-    LaunchedEffect(type, period) {
+    LaunchedEffect(type, period, reloadKey) {
         if (period.isBlank()) return@LaunchedEffect
         loading = true
         error = null
@@ -433,10 +434,10 @@ internal fun WeekTab(
         Box(Modifier.fillMaxSize()) {
             when {
                 loading -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
-                error != null -> Text(
-                    text = error!!,
-                    color = MaterialTheme.colorScheme.error,
+                error != null -> ErrorState(
+                    message = error!!,
                     modifier = Modifier.align(Alignment.Center),
+                    onRetry = { reloadKey++ },
                 )
                 else -> LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
