@@ -63,12 +63,17 @@ try {
 
     Write-Host '==> 推送代码'
     $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$token"))
-    git -c "http.extraheader=AUTHORIZATION: basic $basic" push origin HEAD:main | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw 'push 失败' }
+    $ErrorActionPreference = 'Continue'
+    git -c "http.extraheader=AUTHORIZATION: basic $basic" push origin HEAD:main 2>&1 | Out-Host
+    $pushCode = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($pushCode -ne 0) { throw 'push 失败' }
 
     Write-Host "==> 打 tag $tag"
     git tag -f $tag | Out-Null
-    git -c "http.extraheader=AUTHORIZATION: basic $basic" push -f origin $tag | Out-Host
+    $ErrorActionPreference = 'Continue'
+    git -c "http.extraheader=AUTHORIZATION: basic $basic" push -f origin $tag 2>&1 | Out-Host
+    $ErrorActionPreference = 'Stop'
 
     Write-Host '==> 创建 Release'
     $headers = AuthHeader
