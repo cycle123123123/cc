@@ -3,6 +3,10 @@ package com.jmreader.data
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.jmreader.data.model.FavoritePage
+import com.jmreader.data.model.HistoryPage
+import com.jmreader.data.model.Member
+import com.jmreader.data.model.SearchPage
 
 class ModelsTest {
 

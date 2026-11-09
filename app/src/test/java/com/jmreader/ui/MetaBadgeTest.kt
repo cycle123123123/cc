@@ -3,6 +3,9 @@ package com.jmreader.ui
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.jmreader.data.local.AlbumMeta
+import com.jmreader.data.local.metaBadge
+import com.jmreader.data.local.metaTopBadge
 
 /** 卡片角标的纯文本拼装规则，不依赖 Android 运行时。 */
 class MetaBadgeTest {

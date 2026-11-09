@@ -3,6 +3,7 @@ package com.jmreader.data
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import com.jmreader.data.model.SeriesParser
 
 class SeriesParserTest {
 

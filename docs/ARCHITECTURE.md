@@ -1,46 +1,43 @@
 # 代码结构
 
-最近一次整理：0.3.0（拆 `JmRepository`、拆四个大屏文件）。
+最近一次整理：0.4.3 之后的结构性重构（按职责拆包、拆大文件，无行为改动）。
 
 ## 目录
 
 ```
 app/src/main/java/com/jmreader/
-├── MainActivity.kt        单 Activity，注册音量键转发给阅读器
-├── JmApplication.kt       Coil ImageLoader（复用仓库的 OkHttp / 磁盘缓存）
+├── app/                   单 Activity / Application 入口
+│   ├── MainActivity        注册音量键转发给阅读器
+│   └── JmApplication       Coil ImageLoader（复用仓库的 OkHttp / 磁盘缓存）
 ├── core/                  纯 JVM，可单测
 │   ├── JmConfig            常量：内置线路、图源、UA、分条阈值
 │   ├── JmCrypto            Token / Tokenparam / AES-ECB 解密
 │   ├── ScrambleParams      图片分条数量与顺序
 │   ├── ImageDescrambler    按分条还原位图
 │   ├── HttpAwait           OkHttp Call → 可取消挂起函数
+│   ├── Format              formatCount（万/億）
 │   └── SafeCall            runCatchingCancellable（不吞 CancellationException）
 ├── data/
-│   ├── JmRepository        业务入口：线路选择、会话、缓存、各接口（635 行）
-│   ├── JmHttp              信封层：拼参数、签名头、解密（无状态）
-│   ├── HostBenchmark       并发探测 /setting 选最快线路
-│   ├── PageLoader          阅读页：取字节 → 采样解码 → 分条还原
-│   ├── PageCache           页字节磁盘缓存（200MB LRU）
-│   ├── PageStore           阅读器内存位图 LRU（48MB，预取并发 2）
-│   ├── AuthStore           登录态（JWT/session/Keystore 密码）
-│   ├── SecureStore         Android Keystore AES/GCM
-│   ├── DownloadRepository  离线下载队列（应用内协程，不用 WorkManager）
-│   ├── ContentFilter       屏蔽规则 + 预编译 Matcher
-│   ├── SearchHistory / ReadingHistory / SeriesParser
-│   ├── UpdateChecker       GitHub release 检查、下载、root 静默安装
-│   └── Models              33 个 DTO（kotlinx.serialization）
+│   ├── JmRepository        业务入口：线路选择、会话、缓存、各接口
+│   ├── net/                JmHttp（签名+解密）、HostBenchmark（探测最快线路）
+│   ├── page/               PageLoader、PageCache（200MB）、PageStore（48MB 位图）
+│   ├── local/              AuthStore、SecureStore、ContentFilter、ReadingHistory、
+│   │                       SearchHistory、AlbumMeta（卡片角标 + 按需补齐）
+│   ├── download/           DownloadRepository、DownloadTask
+│   ├── update/             UpdateChecker（GitHub release / 下载 / root 安装）
+│   └── model/              Models（DTO）、JmError、SeriesParser
 └── ui/
-    ├── AppRoot             导航：3 tab + overlay 栈；更新弹窗
-    ├── HomeState/SearchState/AuthorWorksState   跨组合保留的列表状态
-    ├── HomeScreen          首页分区 + 下拉刷新 + 骨架屏
-    ├── DiscoverScreen + DiscoverTabs       分類/標籤/週榜/推薦
-    ├── SearchScreen        搜索（分类筛选/排序/点击量）
-    ├── AuthorWorksScreen   作者作品（搜索兜底 + 分类/排序/点击量）
-    ├── DetailScreen + DetailSections       详情主屏 + 头部/预览/目录/评论
-    ├── ReaderScreen + ReaderSections       阅读器主屏 + 翻页/缩放组件
-    ├── LibraryScreen + LibraryContent + LibraryLogin   「我的」主屏/列表/登录
-    ├── DownloadsScreen / BlocksScreen
-    ├── AlbumCard / CommonFilters / Format / Theme / ReaderKeyBus
+    ├── theme/              Theme（Ios* 颜色与字体）
+    ├── components/         AlbumCard、IosControls（胶囊+分段）、Chips（分类/排序）、ErrorState
+    ├── common/             OnBottomReached、Format（日期/体积）
+    ├── navigation/         AppRoot、Screen、UpdateDialog
+    ├── home/               HomeScreen、HomeState、HomeSections（骨架屏/继续阅读/更新横幅）
+    ├── discover/           DiscoverScreen、CategoryTab、TagTab、WeekTab、RecommendTab
+    ├── search/             SearchScreen、SearchState、AuthorWorksScreen、AuthorWorksState
+    ├── detail/             DetailScreen、DetailHeader、DetailChapters、DetailComments、DetailPreview
+    ├── reader/             ReaderScreen、ReaderBars、ReaderPages、ReaderSettingsDialog、ReaderKeyBus
+    └── library/            LibraryScreen、LibraryContent、LoginForm、SettingsGroup、
+                            LocalHistory、DownloadsScreen、BlocksScreen
 ```
 
 ## 数据流
@@ -54,7 +51,7 @@ JmRepository ──► HostBenchmark（选线路）
    │  ├─ ensureSession / silentLogin（JWT 过期用记住的密码重登）
    │  └─ JmHttp.get/post（签名头 + AES 解密）
    ▼
-DTO（kotlinx.serialization）
+DTO（kotlinx.serialization）∈ data/model
    ▼
 屏幕状态（State / remember）
 
@@ -93,5 +90,5 @@ DownloadRepository（协程队列，写 files/downloads/{cid}/{page}.bin）
 
 ## 测试
 
-`app/src/test` 共 8 个文件 / 39 个用例：crypto、分条算法、解析、屏蔽匹配、页缓存、版本比较。
+`app/src/test` 共 9 个文件 / 49 个用例：crypto、分条算法、解析、屏蔽匹配、页缓存、版本比较、卡片角标。
 仓库层与 UI 暂无自动化测试。
