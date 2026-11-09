@@ -166,10 +166,6 @@ class DetailState(
         container.contentFilter.addKeyword(tag)
     }
 
-    fun blockTags(tags: Collection<String>) {
-        tags.forEach { container.contentFilter.addKeyword(it) }
-    }
-
     fun blockAuthor(name: String) {
         container.contentFilter.addAuthor(name)
     }

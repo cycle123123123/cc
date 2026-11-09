@@ -60,8 +60,6 @@ fun DetailScreen(
 
     var detailTab by remember { mutableIntStateOf(0) }
     var reloadKey by remember { mutableIntStateOf(0) }
-    var showTagBlock by remember { mutableStateOf(false) }
-    var tagsToBlock by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     val detail = state.detail
     val chapters = state.chapters
@@ -178,10 +176,6 @@ fun DetailScreen(
                                     state.toggleLike().onFailure { toast(it.userMessage()) }
                                 }
                             },
-                            onBlockTags = {
-                                tagsToBlock = emptySet()
-                                showTagBlock = true
-                            },
                             onBlockAuthor = { name ->
                                 state.blockAuthor(name)
                                 toast("已屏蔽作者 $name")
@@ -293,21 +287,6 @@ fun DetailScreen(
                         )
                     }
                 }
-            }
-        }
-        if (showTagBlock) {
-            detail?.let { album ->
-                BlockTagsDialog(
-                    tags = album.tags,
-                    selected = tagsToBlock,
-                    onSelectedChange = { tagsToBlock = it },
-                    onConfirm = {
-                        state.blockTags(tagsToBlock)
-                        toast("已屏蔽 ${tagsToBlock.size} 個標籤")
-                        showTagBlock = false
-                    },
-                    onDismiss = { showTagBlock = false },
-                )
             }
         }
     }

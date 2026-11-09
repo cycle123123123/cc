@@ -146,7 +146,6 @@ internal fun Header(
     onOpenAuthor: (String) -> Unit,
     onFavorite: () -> Unit,
     onLike: () -> Unit,
-    onBlockTags: () -> Unit,
     onBlockAuthor: (String) -> Unit,
     resumeChapter: LastRead? = null,
     resumeChapterNumber: Int? = null,
@@ -201,6 +200,15 @@ internal fun Header(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.clickable { onOpenAuthor(firstAuthor) },
                 )
+                // 低频操作，放在作者名下方，不和主操作按钮抢注意力
+                Text(
+                    text = "屏蔽作者",
+                    fontSize = 11.sp,
+                    color = IosLabelSecondary,
+                    modifier = Modifier
+                        .clickable { if (firstAuthor.isNotBlank()) onBlockAuthor(firstAuthor) }
+                        .padding(vertical = 1.dp),
+                )
             }
             if (album.addTime.isNotBlank()) {
                 Text(
@@ -225,7 +233,8 @@ internal fun Header(
                         .clip(CircleShape)
                         .background(IosBlue)
                         .clickable(onClick = onContinue ?: onReadFirst)
-                        .padding(horizontal = if (resuming) 16.dp else 20.dp, vertical = 7.dp),
+                        .height(34.dp)
+                        .padding(horizontal = if (resuming) 16.dp else 20.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -245,7 +254,8 @@ internal fun Header(
                             .clip(CircleShape)
                             .background(IosBlueSoft)
                             .clickable(onClick = onDownloadFirst)
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                            .height(34.dp)
+                            .padding(horizontal = 12.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -271,7 +281,8 @@ internal fun Header(
                         .clip(CircleShape)
                         .background(if (isFavorite) IosBlueSoft else IosFillGray)
                         .clickable(onClick = onFavorite)
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                        .height(34.dp)
+                        .padding(horizontal = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -293,7 +304,7 @@ internal fun Header(
                 // 点赞按钮
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(34.dp)
                         .clip(CircleShape)
                         .background(if (album.liked) Color(0xFFFFE5EA) else IosFillGray)
                         .clickable(onClick = onLike),
@@ -306,42 +317,6 @@ internal fun Header(
                         tint = if (album.liked) IosPink else IosLabelSecondary,
                     )
                 }
-    }
-}
-
-/** 轻量级屏蔽操作：整行放在封面区下方、统计条上方。 */
-@Composable
-internal fun BlockActions(
-    album: AlbumDetail,
-    onBlockAuthor: (String) -> Unit,
-    onBlockTags: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
-    ) {
-        Text(
-            text = "屏蔽作者",
-            fontSize = 11.sp,
-            color = IosLabelSecondary,
-            modifier = Modifier
-                .clickable {
-                    val name = album.author.joinToString(" ").trim()
-                    if (name.isNotBlank()) {
-                        onBlockAuthor(name)
-                    }
-                }
-                .padding(vertical = 2.dp),
-        )
-        Text(
-            text = "屏蔽標籤",
-            fontSize = 11.sp,
-            color = IosLabelSecondary,
-            modifier = Modifier
-                .clickable(onClick = onBlockTags)
-                .padding(vertical = 2.dp),
-        )
     }
 }
 
@@ -361,7 +336,6 @@ internal fun DetailHeaderCard(
     onOpenAuthor: (String) -> Unit,
     onFavorite: () -> Unit,
     onLike: () -> Unit,
-    onBlockTags: () -> Unit,
     onBlockAuthor: (String) -> Unit,
     onContinue: (() -> Unit)?,
 ) {
@@ -383,18 +357,10 @@ internal fun DetailHeaderCard(
             onOpenAuthor = onOpenAuthor,
             onFavorite = onFavorite,
             onLike = onLike,
-            onBlockTags = onBlockTags,
             onBlockAuthor = onBlockAuthor,
             resumeChapter = resumeChapter,
             resumeChapterNumber = resumeChapterNumber,
             onContinue = onContinue,
-        )
-
-        BlockActions(
-            album = album,
-            onBlockAuthor = onBlockAuthor,
-            onBlockTags = onBlockTags,
-            modifier = Modifier.padding(top = 8.dp),
         )
 
         DetailStatsRow(
@@ -560,40 +526,4 @@ internal fun SameAuthorSection(
             }
         }
     }
-}
-
-/** 批量屏蔽标签的勾选弹窗。 */
-@Composable
-internal fun BlockTagsDialog(
-    tags: List<String>,
-    selected: Set<String>,
-    onSelectedChange: (Set<String>) -> Unit,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("屏蔽標籤") },
-        text = {
-            Column {
-                tags.forEach { tag ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = selected.contains(tag),
-                            onCheckedChange = { checked ->
-                                onSelectedChange(if (checked) selected + tag else selected - tag)
-                            },
-                        )
-                        Text(tag)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) { Text("確定") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
-        },
-    )
 }
