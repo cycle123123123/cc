@@ -210,15 +210,16 @@ internal fun Header(
                 )
             }
 
-            Spacer(Modifier.height(4.dp))
+        }
+    }
 
-            // iOS App Store 主操作栏：「閱讀」蓝色胶囊按钮 + 收藏/点赞圆按钮
-            // 单话本会多一个「下载」，按钮总宽度可能超过封面右侧的可用宽度，
-            // 用 FlowRow 让放不下的按钮换行，而不是被裁到屏幕外。
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+    // iOS App Store 主操作栏：整行排布，不再挤在封面右侧的窄栏里；
+    // 单话本多一个「下载」，放不下时由 FlowRow 自动换行。
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
                 Box(
                     modifier = Modifier
                         .clip(CircleShape)
@@ -305,9 +306,6 @@ internal fun Header(
                         tint = if (album.liked) IosPink else IosLabelSecondary,
                     )
                 }
-            }
-
-        }
     }
 }
 
@@ -321,7 +319,7 @@ internal fun BlockActions(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
     ) {
         Text(
             text = "屏蔽作者",
@@ -396,7 +394,7 @@ internal fun DetailHeaderCard(
             album = album,
             onBlockAuthor = onBlockAuthor,
             onBlockTags = onBlockTags,
-            modifier = Modifier.padding(top = 10.dp),
+            modifier = Modifier.padding(top = 8.dp),
         )
 
         DetailStatsRow(
