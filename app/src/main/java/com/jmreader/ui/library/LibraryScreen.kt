@@ -4,7 +4,6 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,9 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +49,7 @@ import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.data.local.ReadingHistory
 import com.jmreader.ui.common.formatCacheSize
+import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.data.JmRepository
 import com.jmreader.BuildConfig
 
@@ -189,34 +187,39 @@ private fun LoggedOutLibrary(
     val gridState = rememberLazyGridState()
     var showClearConfirm by remember { mutableStateOf(false) }
 
-    LazyVerticalGrid(
-        state = gridState,
-        columns = GridCells.Fixed(3),
-        contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 72.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    AlbumGrid(
+        repo = repo,
+        // 本地历史仍由 localHistoryEntries 渲染（保留「第 N 頁」角标和单行标题）。
+        // 因此网格自身的 albums 留空，内容全部通过 header 复用同一套 LazyGridScope 扩展。
+        albums = emptyList(),
+        onOpen = onOpen,
         modifier = Modifier.fillMaxSize(),
-    ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            LoginPromptCard(onLogin = onLogin)
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            SettingsGroup(
-                onDownloads = onDownloads,
-                onBlocks = onBlocks,
-                onClearCache = onClearCache,
-                onCheckUpdate = onCheckUpdate,
-                versionName = com.jmreader.BuildConfig.VERSION_NAME,
-            )
-        }
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            LocalHistoryHeader(
-                count = localHistory.size,
-                onClear = { showClearConfirm = true },
-            )
-        }
-        localHistoryEntries(repo, localHistory, onOpen)
-    }
+        state = gridState,
+        applyBlockFilter = false,
+        showMeta = false,
+        contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 72.dp),
+        header = {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                LoginPromptCard(onLogin = onLogin)
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                SettingsGroup(
+                    onDownloads = onDownloads,
+                    onBlocks = onBlocks,
+                    onClearCache = onClearCache,
+                    onCheckUpdate = onCheckUpdate,
+                    versionName = com.jmreader.BuildConfig.VERSION_NAME,
+                )
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                LocalHistoryHeader(
+                    count = localHistory.size,
+                    onClear = { showClearConfirm = true },
+                )
+            }
+            localHistoryEntries(repo, localHistory, onOpen)
+        },
+    )
 
     LocalHistoryClearDialog(
         visible = showClearConfirm,

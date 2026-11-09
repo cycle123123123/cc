@@ -6,36 +6,25 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.sync.Semaphore
 import com.jmreader.data.JmRepository
-import com.jmreader.data.local.ContentFilter
 import com.jmreader.data.model.AlbumBrief
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.WeekOptions
 import com.jmreader.data.model.userMessage
-import com.jmreader.ui.components.AlbumCard
-import com.jmreader.data.local.AlbumMeta
-import com.jmreader.data.local.ensureAlbumMeta
-import com.jmreader.data.local.metaBadge
+import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.ui.components.ErrorState
 import com.jmreader.ui.components.IosFilterPill
 import com.jmreader.ui.theme.IosBlue
@@ -44,11 +33,7 @@ import com.jmreader.ui.theme.IosBlue
 internal fun WeekTab(
     repo: JmRepository,
     onOpen: (Long) -> Unit,
-    metas: MutableMap<String, AlbumMeta>,
-    metaRequests: MutableSet<String>,
-    metaGate: Semaphore,
 ) {
-    val scope = rememberCoroutineScope()
     var options by remember { mutableStateOf<WeekOptions?>(null) }
     var type by remember { mutableStateOf("") }
     var period by remember { mutableStateOf("") }
@@ -56,8 +41,6 @@ internal fun WeekTab(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var reloadKey by remember { mutableIntStateOf(0) }
-    val context = LocalContext.current
-    val blockRules by ContentFilter.of(context).rules.collectAsState()
 
     LaunchedEffect(Unit) {
         runCatchingCancellable { repo.week() }
@@ -121,25 +104,14 @@ internal fun WeekTab(
                     modifier = Modifier.align(Alignment.Center),
                     onRetry = { reloadKey++ },
                 )
-                else -> LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                // 週榜只有第一页，没有分页
+                else -> AlbumGrid(
+                    repo = repo,
+                    albums = albums,
+                    onOpen = onOpen,
                     modifier = Modifier.fillMaxSize(),
-                ) {
-                    items(items = albums.filterNot { ContentFilter.matches(it, blockRules) }, key = { it.id }) { album ->
-                        AlbumCard(
-                            repo = repo,
-                            album = album,
-                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
-                            badge = metaBadge(metas[album.id]),
-                            onVisible = {
-                                ensureAlbumMeta(repo, scope, metaGate, metas, metaRequests, album.id)
-                            },
-                        )
-                    }
-                }
+                    showTopBadge = false,
+                )
             }
         }
     }

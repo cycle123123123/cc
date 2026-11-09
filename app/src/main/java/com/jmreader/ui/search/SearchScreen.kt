@@ -8,19 +8,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -29,12 +24,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,8 +47,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import com.jmreader.ui.components.AlbumCard
+import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.ui.components.CategoryChips
 import com.jmreader.data.local.ContentFilter
 import com.jmreader.ui.components.ErrorState
@@ -65,24 +56,21 @@ import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
-import com.jmreader.ui.theme.IosPink
 import com.jmreader.ui.theme.IosSearchBg
 import com.jmreader.data.local.SearchHistory
 import com.jmreader.ui.components.SortChips
 import com.jmreader.data.JmRepository
+import com.jmreader.data.model.AlbumBrief
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.ui.components.loadWorkCategories
-import com.jmreader.data.model.userMessage
-import com.jmreader.ui.common.OnBottomReached
-import com.jmreader.data.local.ensureAlbumMeta
-import com.jmreader.data.local.metaBadge
-import com.jmreader.data.local.metaTopBadge
+import com.jmreader.ui.common.PageResult
+import com.jmreader.ui.common.PagedList
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     repo: JmRepository,
-    state: SearchState,
+    state: AlbumQueryState,
     onBack: () -> Unit,
     onOpen: (Long) -> Unit,
     initialQuery: String = "",
@@ -91,35 +79,44 @@ fun SearchScreen(
     val context = LocalContext.current
     val searchHistory = remember { SearchHistory.of(context) }
     val recent by searchHistory.keywords.collectAsState()
-    val viewGate = remember { Semaphore(2) }
-    val blockFilter = remember { ContentFilter.of(context) }
-    val blockRules by blockFilter.rules.collectAsState()
-    val shown = remember(state.results, blockRules) {
-        state.results.filterNot { ContentFilter.matches(it, blockRules) }
+    val blockRules by ContentFilter.of(context).rules.collectAsState()
+
+    // 状态类拿不到 repo：首次进入时懒创建，之后挂在 state 上，从详情返回复用同一份列表。
+    val paged = remember(state, repo) {
+        state.paged ?: PagedList<AlbumBrief>(
+            keyOf = { it.id },
+            fetch = { page ->
+                val result = repo.search(
+                    query = state.query.trim(),
+                    page = page,
+                    category = state.category,
+                    order = state.order,
+                )
+                PageResult(items = result.content, total = result.total)
+            },
+        ).also { state.paged = it }
     }
-    val hiddenCount = state.results.size - shown.size
+    val albums = paged.items
+
+    // 屏蔽过滤由 AlbumGrid 内部完成，这里只算计数，文案与数字语义保持不变。
+    val hiddenCount = remember(albums, blockRules) {
+        albums.count { ContentFilter.matches(it, blockRules) }
+    }
 
     suspend fun runSearch(reset: Boolean) {
-        val keyword = state.query.trim()
-        if (keyword.isEmpty() || state.loading) return
-        state.loading = true
-        state.error = null
-        runCatchingCancellable { repo.search(keyword, if (reset) 1 else state.page, state.category, state.order) }
-            .onSuccess { result ->
-                val fresh = result.content.filter { new -> state.results.none { it.id == new.id } }
-                state.results = if (reset) result.content else state.results + fresh
-                state.total = result.total
-                state.page = if (reset) 2 else state.page + 1
+        if (state.query.isBlank()) return
+        if (reset) {
+            // 与原实现一致：加载中忽略重复搜索（避免两次 refresh 并发覆盖结果）。
+            if (paged.loading) return
+            // refresh() 取第 1 页并整体替换列表：切换关键词/分类/排序都从头开始。
+            paged.refresh()
+            if (paged.error == null) {
                 state.searched = true
-                state.hasMore = if (reset) {
-                    result.content.isNotEmpty() && result.content.size < result.total
-                } else {
-                    fresh.isNotEmpty() && state.results.size < result.total
-                }
-                searchHistory.add(keyword)
+                searchHistory.add(state.query.trim())
             }
-            .onFailure { state.error = it.userMessage() }
-        state.loading = false
+        } else {
+            paged.loadMore()
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -235,21 +232,13 @@ fun SearchScreen(
             )
         }
 
-        if (state.searched && state.results.isNotEmpty()) {
-            OnBottomReached(
-                gridState = state.gridState,
-                enabled = !state.loading && state.error == null && state.hasMore,
-                onLoadMore = { scope.launch { runSearch(false) } },
-            )
-        }
-
         Box(Modifier.fillMaxSize()) {
             when {
-                state.loading && state.results.isEmpty() ->
+                paged.loading && albums.isEmpty() ->
                     CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
 
-                state.error != null && state.results.isEmpty() -> ErrorState(
-                    message = state.error!!,
+                paged.error != null && albums.isEmpty() -> ErrorState(
+                    message = paged.error!!,
                     modifier = Modifier.align(Alignment.Center),
                     onRetry = { scope.launch { runSearch(true) } },
                 )
@@ -359,69 +348,36 @@ fun SearchScreen(
                     }
                 }
 
-                state.results.isEmpty() -> Text(
+                albums.isEmpty() -> Text(
                     text = "沒有找到相關作品",
                     color = IosLabelSecondary,
                     modifier = Modifier.align(Alignment.Center),
                 )
 
-                else -> LazyVerticalGrid(
-                    state = state.gridState,
-                    columns = GridCells.Fixed(3),
-                    contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                else -> AlbumGrid(
+                    repo = repo,
+                    albums = albums,
+                    onOpen = onOpen,
                     modifier = Modifier.fillMaxSize(),
-                ) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            text = if (hiddenCount > 0) {
-                                "共 ${state.total} 個結果 · 已屏蔽 $hiddenCount 項"
-                            } else {
-                                "共 ${state.total} 個結果"
-                            },
-                            fontSize = 12.sp,
-                            color = IosLabelSecondary,
-                        )
-                    }
-                    items(items = shown, key = { it.id }) { album ->
-                        val id = album.id
-                        AlbumCard(
-                            repo = repo,
-                            album = album,
-                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
-                            badge = metaBadge(state.metas[id]),
-                            topBadge = metaTopBadge(state.metas[id]),
-                            onVisible = {
-                                ensureAlbumMeta(repo, scope, viewGate, state.metas, state.albumRequests, id)
-                            },
-                        )
-                    }
-                    if (state.loading || state.error != null) {
+                    state = state.gridState,
+                    loading = paged.loading,
+                    error = paged.error,
+                    hasMore = paged.hasMore,
+                    onLoadMore = { scope.launch { paged.loadMore() } },
+                    header = {
                         item(span = { GridItemSpan(maxLineSpan) }) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                horizontalArrangement = Arrangement.Center,
-                            ) {
-                                if (state.loading) {
-                                    CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
+                            Text(
+                                text = if (hiddenCount > 0) {
+                                    "共 ${paged.total} 個結果 · 已屏蔽 $hiddenCount 項"
                                 } else {
-                                    Button(
-                                        onClick = { scope.launch { runSearch(false) } },
-                                        shape = CircleShape,
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = IosCardWhite,
-                                            contentColor = IosPink,
-                                        ),
-                                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
-                                    ) {
-                                        Text("載入失敗，點擊重試", fontWeight = FontWeight.SemiBold)
-                                    }
-                                }
-                            }
+                                    "共 ${paged.total} 個結果"
+                                },
+                                fontSize = 12.sp,
+                                color = IosLabelSecondary,
+                            )
                         }
-                    }
-                }
+                    },
+                )
             }
         }
     }

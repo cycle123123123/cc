@@ -17,7 +17,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -25,13 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.sync.Semaphore
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.components.IosSegmentedControl
 import com.jmreader.data.JmRepository
-import com.jmreader.data.local.AlbumMeta
 
 @Composable
 fun DiscoverScreen(
@@ -41,9 +38,6 @@ fun DiscoverScreen(
     onBack: (() -> Unit)? = null,
 ) {
     var tab by remember { mutableIntStateOf(0) }
-    val metas = remember { mutableStateMapOf<String, AlbumMeta>() }
-    val metaRequests = remember { mutableSetOf<String>() }
-    val metaGate = remember { Semaphore(2) }
 
     Column(
         modifier = Modifier
@@ -83,10 +77,10 @@ fun DiscoverScreen(
         }
 
         when (tab) {
-            0 -> CategoryTab(repo, onOpen, metas, metaRequests, metaGate)
+            0 -> CategoryTab(repo, onOpen)
             1 -> TagTab(repo, onSearchTag)
-            2 -> WeekTab(repo, onOpen, metas, metaRequests, metaGate)
-            else -> RecommendTab(repo, onOpen, metas, metaRequests, metaGate)
+            2 -> WeekTab(repo, onOpen)
+            else -> RecommendTab(repo, onOpen)
         }
     }
 }

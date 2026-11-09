@@ -57,7 +57,12 @@ internal fun LocalHistoryHeader(
     }
 }
 
-/** 本地历史网格项：3 列，和云端收藏/历史共用 [AlbumCard]。 */
+/**
+ * 本地历史网格项：3 列，和云端收藏/历史共用 [AlbumCard]。
+ *
+ * 挂在 `LazyGridScope` 上，由 [com.jmreader.ui.components.AlbumGrid] 的 `header` 直接调用，
+ * 这样「第 N 頁」角标和单行标题（compact）保持原样。
+ */
 internal fun LazyGridScope.localHistoryEntries(
     repo: JmRepository,
     history: List<LastRead>,

@@ -16,18 +16,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -38,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,29 +47,26 @@ import androidx.compose.ui.unit.sp
 import coil.imageLoader
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
 import com.jmreader.ui.components.AlbumCard
-import com.jmreader.data.local.AlbumMeta
+import com.jmreader.ui.components.AlbumGrid
+import com.jmreader.data.local.AlbumMetaCache
 import com.jmreader.data.local.ContentFilter
-import com.jmreader.ui.theme.IosBlue
-import com.jmreader.ui.theme.IosCardWhite
+import com.jmreader.data.local.metaBadge
+import com.jmreader.data.local.metaTopBadge
 import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
-import com.jmreader.ui.theme.IosPink
 import com.jmreader.ui.theme.IosSearchBg
 import com.jmreader.ui.theme.IosSeparator
 import com.jmreader.data.local.LastRead
-import com.jmreader.ui.common.OnBottomReached
+import com.jmreader.data.model.AlbumBrief
 import com.jmreader.data.model.PromoteSection
 import com.jmreader.data.local.ReadingHistory
-import com.jmreader.data.local.ensureAlbumMeta
-import com.jmreader.data.local.metaBadge
-import com.jmreader.data.local.metaTopBadge
 import com.jmreader.core.JmConfig
 import com.jmreader.data.JmRepository
 import com.jmreader.core.runCatchingCancellable
-import com.jmreader.data.model.userMessage
+import com.jmreader.ui.common.PageResult
+import com.jmreader.ui.common.PagedList
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,9 +83,21 @@ fun HomeScreen(
     val history = remember { ReadingHistory.of(context) }
     val lastRead by history.last.collectAsState()
 
-    val albums = state.albums
-    val loading = state.loading
-    val error = state.error
+    // 状态类拿不到 repo：首次进入时懒创建，之后挂在 state 上，从详情返回复用同一份列表。
+    val pager = remember(state, repo) {
+        state.paged ?: PagedList<AlbumBrief>(
+            keyOf = { it.id },
+            // latest 接口没有总数：用 Int.MAX_VALUE 占位，hasMore 只看「新页是否为空」，与原实现一致
+            fetch = { page ->
+                val items = repo.latest(page)
+                if (page == 1) state.cached = emptyList()
+                PageResult(items, Int.MAX_VALUE)
+            },
+        ).also { state.paged = it }
+    }
+    val albums = pager.items.ifEmpty { state.cached }
+    val loading = pager.loading
+    val error = pager.error
     val update = state.update
     var sections by remember { mutableStateOf<List<PromoteSection>>(emptyList()) }
     var refreshing by remember { mutableStateOf(false) }
@@ -105,35 +108,6 @@ fun HomeScreen(
         albums.filterNot { ContentFilter.matches(it, blockRules) }
     }
     val hiddenCount = albums.size - shown.size
-
-    // 卡片右上角（页数/日文）与底部（点击/爱心）信息，可见时按需补
-    val metas = remember { mutableStateMapOf<String, AlbumMeta>() }
-    val metaRequests = remember { mutableSetOf<String>() }
-    val metaGate = remember { Semaphore(2) }
-    var noMore by remember { mutableStateOf(false) }
-
-    suspend fun load(reset: Boolean) {
-        if (state.loading) return
-        state.loading = true
-        state.error = null
-        runCatchingCancellable { repo.latest(if (reset) 1 else state.page) }
-            .onSuccess { list ->
-                val fresh = if (reset) {
-                    list
-                } else {
-                    list.filter { new -> state.albums.none { it.id == new.id } }
-                }
-                state.albums = if (reset) list else state.albums + fresh
-                state.page = if (reset) 2 else state.page + 1
-                state.loaded = true
-                noMore = !reset && fresh.isEmpty()
-            }
-            .onFailure {
-                state.error = it.userMessage()
-                state.loaded = true
-            }
-        state.loading = false
-    }
 
     LaunchedEffect(shown) {
         shown.take(9).forEach { album ->
@@ -146,12 +120,13 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
-        if (!state.loaded) {
-            if (state.albums.isEmpty()) {
-                repo.cachedLatest()?.let { state.albums = it }
+        // loaded 为 true 或上次已失败时不再自动重拉（与原 loaded 语义一致）
+        if (!pager.loaded && pager.error == null) {
+            if (pager.items.isEmpty()) {
+                repo.cachedLatest()?.let { state.cached = it }
             }
             launch { runCatchingCancellable { repo.optimizeHost() } }
-            load(true)
+            pager.refresh()
         }
     }
 
@@ -219,19 +194,12 @@ fun HomeScreen(
                 scope.launch {
                     refreshing = true
                     runCatchingCancellable { repo.promote() }.onSuccess { sections = it }
-                    load(true)
+                    pager.refresh()
                     refreshing = false
                 }
             },
             modifier = Modifier.fillMaxSize(),
         ) {
-            if (albums.isNotEmpty()) {
-                OnBottomReached(
-                    gridState = state.gridState,
-                    enabled = !loading && error == null && !noMore,
-                    onLoadMore = { scope.launch { load(false) } },
-                )
-            }
             when {
                 albums.isEmpty() && loading -> SkeletonGrid()
 
@@ -242,7 +210,7 @@ fun HomeScreen(
                 ) {
                     Text(error, color = MaterialTheme.colorScheme.error)
                     Button(
-                        onClick = { scope.launch { load(true) } },
+                        onClick = { scope.launch { pager.refresh() } },
                         shape = CircleShape,
                         modifier = Modifier.padding(top = 12.dp),
                     ) {
@@ -250,14 +218,20 @@ fun HomeScreen(
                     }
                 }
 
-                else -> LazyVerticalGrid(
-                    state = state.gridState,
-                    columns = GridCells.Fixed(3),
-                    contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 72.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                else -> AlbumGrid(
+                    repo = repo,
+                    albums = albums,
+                    onOpen = onOpen,
                     modifier = Modifier.fillMaxSize(),
+                    state = state.gridState,
+                    loading = loading,
+                    error = error,
+                    hasMore = pager.hasMore,
+                    onLoadMore = { scope.launch { pager.loadMore() } },
+                    compact = true,
+                    contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 72.dp),
                 ) {
+                    // 首页所有非网格内容都作为整行 header：更新横幅 / 继续阅读 / 已屏蔽 / 分区横滑 / 最新上架标题
                     update?.let { setting ->
                         item(span = { GridItemSpan(maxLineSpan) }, key = "update") {
                             UpdateBanner(
@@ -311,11 +285,9 @@ fun HomeScreen(
                                                     album = album,
                                                     onClick = { album.id.toLongOrNull()?.let(onOpen) },
                                                     compact = true,
-                                                    badge = metaBadge(metas[album.id]),
-                                                    topBadge = metaTopBadge(metas[album.id]),
-                                                    onVisible = {
-                                                        ensureAlbumMeta(repo, scope, metaGate, metas, metaRequests, album.id)
-                                                    },
+                                                    badge = metaBadge(AlbumMetaCache[album.id]),
+                                                    topBadge = metaTopBadge(AlbumMetaCache[album.id]),
+                                                    onVisible = { AlbumMetaCache.request(repo, album.id) },
                                                 )
                                             }
                                         }
@@ -338,39 +310,6 @@ fun HomeScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = IosLabelPrimary,
                             )
-                        }
-                    }
-
-                    items(items = shown, key = { it.id }) { album ->
-                        AlbumCard(
-                            repo = repo,
-                            album = album,
-                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
-                            compact = true,
-                            badge = metaBadge(metas[album.id]),
-                            topBadge = metaTopBadge(metas[album.id]),
-                            onVisible = {
-                                ensureAlbumMeta(repo, scope, metaGate, metas, metaRequests, album.id)
-                            },
-                        )
-                    }
-
-                    item(span = { GridItemSpan(maxLineSpan) }, key = "more") {
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            when {
-                                loading -> CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
-                                error != null -> Button(
-                                    onClick = { scope.launch { load(false) } },
-                                    shape = CircleShape,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = IosCardWhite,
-                                        contentColor = IosPink,
-                                    ),
-                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
-                                ) {
-                                    Text("載入失敗，點擊重試", fontWeight = FontWeight.SemiBold)
-                                }
-                            }
                         }
                     }
                 }
