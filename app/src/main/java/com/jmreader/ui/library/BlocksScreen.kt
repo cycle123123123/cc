@@ -42,12 +42,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import com.jmreader.data.local.ContentFilter
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosGroupedBg
@@ -59,8 +58,8 @@ import com.jmreader.data.JmRepository
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BlocksScreen(repo: JmRepository, onBack: () -> Unit) {
-    val context = LocalContext.current
-    val filter = remember { ContentFilter.of(context) }
+    val container = LocalAppContainer.current
+    val filter = container.contentFilter
     val rules by filter.rules.collectAsState()
     var input by remember { mutableStateOf("") }
     var syncing by remember { mutableStateOf(false) }

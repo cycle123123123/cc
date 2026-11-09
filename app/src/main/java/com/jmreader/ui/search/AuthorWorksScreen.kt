@@ -23,7 +23,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -32,6 +31,7 @@ import kotlinx.coroutines.launch
 import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.ui.components.CategoryChips
 import com.jmreader.data.local.ContentFilter
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.components.ErrorState
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosGroupedBg
@@ -54,8 +54,8 @@ fun AuthorWorksScreen(
     onOpen: (Long) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    val blockRules by ContentFilter.of(context).rules.collectAsState()
+    val container = LocalAppContainer.current
+    val blockRules by container.contentFilter.rules.collectAsState()
 
     // 状态类拿不到 repo：首次进入时懒创建，之后挂在 state 上，从详情返回复用同一份列表。
     val paged = remember(state, repo, authorName) {

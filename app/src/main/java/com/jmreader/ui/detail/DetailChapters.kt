@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -108,6 +111,60 @@ internal fun ChapterRow(
                 tint = IosBlue,
                 modifier = Modifier.size(20.dp),
             )
+        }
+    }
+}
+
+/** 详情页里的章节列表项；[preview] 为首页预览（key 前缀不同，只展示前几话）。 */
+internal fun LazyListScope.chapterItems(
+    chapters: List<ChapterEntry>,
+    resumeCid: Long?,
+    preview: Boolean = false,
+    onRead: (ChapterEntry) -> Unit,
+    onDownload: (ChapterEntry) -> Unit,
+) {
+    items(items = chapters, key = { if (preview) "preview_ch_${it.id}" else it.id }) { chapter ->
+        ChapterRow(
+            chapter = chapter,
+            onRead = { onRead(chapter) },
+            isResume = resumeCid != null && chapter.id == resumeCid,
+            onDownload = { onDownload(chapter) },
+        )
+    }
+}
+
+/** 「详情」页里的章节预览：标题 + 前 5 话 + 查看全部。 */
+internal fun LazyListScope.chapterPreviewSection(
+    chapters: List<ChapterEntry>,
+    resumeCid: Long?,
+    onRead: (ChapterEntry) -> Unit,
+    onDownload: (ChapterEntry) -> Unit,
+    onViewAll: () -> Unit,
+) {
+    item {
+        Text(
+            text = "章節列表（共 ${chapters.size} 話）",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = IosLabelPrimary,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
+    chapterItems(
+        chapters = chapters.take(5),
+        resumeCid = resumeCid,
+        preview = true,
+        onRead = onRead,
+        onDownload = onDownload,
+    )
+    if (chapters.size > 5) {
+        item {
+            TextButton(
+                onClick = onViewAll,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("查看全部 ${chapters.size} 話 ›", color = IosBlue, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }

@@ -10,13 +10,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import com.jmreader.data.update.UpdateChecker
 import com.jmreader.data.update.UpdateInfo
+import com.jmreader.ui.common.rememberToaster
 
 /**
  * 应用内更新弹窗：说明、安装包大小、下载进度、下载 + 静默安装（失败回退系统安装器）。
@@ -34,7 +34,7 @@ internal fun UpdateDialog(
     onProgressChange: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val context = LocalContext.current
+    val toast = rememberToaster()
 
     AlertDialog(
         onDismissRequest = { if (!updating) onDismiss() },
@@ -81,11 +81,10 @@ internal fun UpdateDialog(
                                 updateChecker.install(file)
                             }
                         }.onFailure {
-                            android.widget.Toast.makeText(
-                                context,
+                            toast(
                                 "更新失敗：${it.message ?: "請稍後再試"}",
-                                android.widget.Toast.LENGTH_LONG,
-                            ).show()
+                                true,
+                            )
                         }
                         onUpdatingChange(false)
                         onDismiss()

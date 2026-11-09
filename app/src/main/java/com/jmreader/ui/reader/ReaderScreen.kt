@@ -45,10 +45,10 @@ import kotlinx.coroutines.launch
 import com.jmreader.ui.navigation.AppRoot
 import com.jmreader.data.model.ChapterEntry
 import com.jmreader.data.model.ComicRead
-import com.jmreader.data.download.DownloadRepository
 import com.jmreader.data.page.PageCache
 import com.jmreader.data.page.PageStore
-import com.jmreader.data.local.ReadingHistory
+import com.jmreader.ui.common.LocalAppContainer
+import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.navigation.Screen
 import com.jmreader.data.model.SeriesParser
 import com.jmreader.core.JmConfig
@@ -68,7 +68,9 @@ fun ReaderScreen(
     onOpenChapter: (Long, String) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("jmreader_reader", android.content.Context.MODE_PRIVATE) }
+    val container = LocalAppContainer.current
+    val readerPrefs = container.readerPrefs
+    val toast = rememberToaster()
     val view = LocalView.current
     val scope = rememberCoroutineScope()
 
@@ -89,21 +91,21 @@ fun ReaderScreen(
     var initialRestored by remember { mutableStateOf(false) }
     // 頁碼歸位之前不要寫進度，否則切話瞬間會把上一話的頁碼寫到新話身上
     var positionReady by remember { mutableStateOf(false) }
-    var brightness by remember { mutableStateOf(prefs.getFloat("brightness", -1f)) }
-    var animate by remember { mutableStateOf(prefs.getBoolean("animate", true)) }
-    var rtl by remember { mutableStateOf(prefs.getBoolean("rtl", false)) }
-    var tapWhenZoomed by remember { mutableStateOf(prefs.getBoolean("tap_when_zoomed", false)) }
-    var lockOrientation by remember { mutableStateOf(prefs.getBoolean("lock_orientation", true)) }
+    var brightness by remember { mutableStateOf(readerPrefs.brightness) }
+    var animate by remember { mutableStateOf(readerPrefs.animate) }
+    var rtl by remember { mutableStateOf(readerPrefs.rtl) }
+    var tapWhenZoomed by remember { mutableStateOf(readerPrefs.tapWhenZoomed) }
+    var lockOrientation by remember { mutableStateOf(readerPrefs.lockOrientation) }
     val configuration = LocalConfiguration.current
     // 書籤只保留最近添加的一頁（null = 沒有書籤）
-    var bookmark by remember(cid) { mutableStateOf(readBookmark(prefs, cid)) }
+    var bookmark by remember(cid) { mutableStateOf(readerPrefs.bookmark(cid)) }
     var mode by remember {
         mutableStateOf(
-            if (prefs.getString("mode", "vertical") == "horizontal") ReaderMode.HORIZONTAL else ReaderMode.VERTICAL,
+            if (readerPrefs.vertical) ReaderMode.VERTICAL else ReaderMode.HORIZONTAL,
         )
     }
 
-    val savedPage = remember(cid) { prefs.getInt("progress_$cid", 0).coerceAtLeast(0) }
+    val savedPage = remember(cid) { readerPrefs.progress(cid) }
 
     // 亮度：-1 表示跟随系统
     val activity = context as? android.app.Activity
@@ -159,7 +161,7 @@ fun ReaderScreen(
             }
             .onFailure { throwable ->
                 // 断网时用本地下载元数据打开已下载章节
-                val local = DownloadRepository.of(context).localComicRead(cid)
+                val local = container.downloads.localComicRead(cid)
                 if (local != null) {
                     read = local
                     loadedCid = cid
@@ -241,11 +243,7 @@ fun ReaderScreen(
     // 書籤只保留一條：page == null 表示移除
     fun setBookmark(page: Int?) {
         bookmark = page
-        val editor = prefs.edit()
-        if (page == null) editor.remove("bookmark_$cid") else editor.putInt("bookmark_$cid", page)
-        // 清掉舊版多值格式，避免下次被兼容邏輯復活
-        editor.remove("bookmarks_$cid")
-        editor.apply()
+        readerPrefs.saveBookmark(cid, page)
     }
 
     // 圖源測速（底欄「圖源」菜單用）
@@ -255,17 +253,9 @@ fun ReaderScreen(
             val best = repo.benchmarkImageHosts(sample)
             if (best != null) {
                 shard = 5
-                android.widget.Toast.makeText(
-                    context,
-                    "已選 圖源 ${best.first}（${best.second}ms）",
-                    android.widget.Toast.LENGTH_SHORT,
-                ).show()
+                toast("已選 圖源 ${best.first}（${best.second}ms）", false)
             } else {
-                android.widget.Toast.makeText(
-                    context,
-                    "測速失敗，請稍後再試",
-                    android.widget.Toast.LENGTH_SHORT,
-                ).show()
+                toast("測速失敗，請稍後再試", false)
             }
         }
     }
@@ -276,8 +266,8 @@ fun ReaderScreen(
         snapshotFlow {
             if (mode == ReaderMode.VERTICAL) listState.firstVisibleItemIndex else pagerState.currentPage
         }.collect { index ->
-            prefs.edit().putInt("progress_$cid", index).apply()
-            ReadingHistory.of(context).save(albumId, cid, title, index)
+            readerPrefs.saveProgress(cid, index)
+            container.readingHistory.save(albumId, cid, title, index)
         }
     }
 
@@ -343,7 +333,7 @@ fun ReaderScreen(
     fun toggleMode() {
         val index = currentIndex
         mode = if (mode == ReaderMode.VERTICAL) ReaderMode.HORIZONTAL else ReaderMode.VERTICAL
-        prefs.edit().putString("mode", if (mode == ReaderMode.HORIZONTAL) "horizontal" else "vertical").apply()
+        readerPrefs.vertical = (mode == ReaderMode.VERTICAL)
         scope.launch {
             if (mode == ReaderMode.VERTICAL) listState.scrollToItem(index) else pagerState.scrollToPage(index)
         }
@@ -482,27 +472,27 @@ fun ReaderScreen(
                 brightness = brightness,
                 onBrightness = {
                     brightness = it
-                    prefs.edit().putFloat("brightness", it).apply()
+                    readerPrefs.brightness = it
                 },
                 animate = animate,
                 onAnimate = {
                     animate = it
-                    prefs.edit().putBoolean("animate", it).apply()
+                    readerPrefs.animate = it
                 },
                 rtl = rtl,
                 onRtl = {
                     rtl = it
-                    prefs.edit().putBoolean("rtl", it).apply()
+                    readerPrefs.rtl = it
                 },
                 tapWhenZoomed = tapWhenZoomed,
                 onTapWhenZoomed = {
                     tapWhenZoomed = it
-                    prefs.edit().putBoolean("tap_when_zoomed", it).apply()
+                    readerPrefs.tapWhenZoomed = it
                 },
                 lockOrientation = lockOrientation,
                 onLockOrientation = {
                     lockOrientation = it
-                    prefs.edit().putBoolean("lock_orientation", it).apply()
+                    readerPrefs.lockOrientation = it
                 },
                 index = currentIndex,
                 total = images.size,
@@ -546,20 +536,3 @@ private fun ColumnScope.SourceMenu(
     }
 }
 
-/**
- * 讀取當前話唯一的一條書籤。
- *
- * 新格式是 `bookmark_$cid` 單值（Int 或字串）；舊版用 `bookmarks_$cid` 存逗號分隔的多值，
- * 兼容時只取最後一個有效頁碼。
- */
-private fun readBookmark(prefs: android.content.SharedPreferences, cid: Long): Int? {
-    val all = prefs.all
-    val raw = all["bookmark_$cid"] ?: all["bookmarks_$cid"] ?: return null
-    val pages = when (raw) {
-        is Int -> listOf(raw)
-        is Long -> listOf(raw.toInt())
-        is String -> raw.split(',').mapNotNull { it.trim().toIntOrNull() }
-        else -> emptyList()
-    }
-    return pages.filter { it >= 0 }.lastOrNull()
-}

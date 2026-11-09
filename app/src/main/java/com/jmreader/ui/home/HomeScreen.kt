@@ -61,10 +61,10 @@ import com.jmreader.ui.theme.IosSeparator
 import com.jmreader.data.local.LastRead
 import com.jmreader.data.model.AlbumBrief
 import com.jmreader.data.model.PromoteSection
-import com.jmreader.data.local.ReadingHistory
 import com.jmreader.core.JmConfig
 import com.jmreader.data.JmRepository
 import com.jmreader.core.runCatchingCancellable
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
 
@@ -79,8 +79,8 @@ fun HomeScreen(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("jmreader", android.content.Context.MODE_PRIVATE) }
-    val history = remember { ReadingHistory.of(context) }
+    val container = LocalAppContainer.current
+    val history = container.readingHistory
     val lastRead by history.last.collectAsState()
 
     // 状态类拿不到 repo：首次进入时懒创建，之后挂在 state 上，从详情返回复用同一份列表。
@@ -102,7 +102,7 @@ fun HomeScreen(
     var sections by remember { mutableStateOf<List<PromoteSection>>(emptyList()) }
     var refreshing by remember { mutableStateOf(false) }
 
-    val blockFilter = remember { ContentFilter.of(context) }
+    val blockFilter = container.contentFilter
     val blockRules by blockFilter.rules.collectAsState()
     val shown = remember(albums, blockRules) {
         albums.filterNot { ContentFilter.matches(it, blockRules) }
@@ -134,7 +134,7 @@ fun HomeScreen(
         runCatchingCancellable { repo.settingInfo() }
             .onSuccess { setting ->
                 val latest = setting.jm3Version
-                val dismissed = prefs.getString("dismissed_protocol", null)
+                val dismissed = container.appPrefs.dismissedProtocol
                 if (latest.isNotBlank() && latest != JmConfig.PROTOCOL_VERSION && latest != dismissed) {
                     state.update = setting
                 }
@@ -237,7 +237,7 @@ fun HomeScreen(
                             UpdateBanner(
                                 version = setting.jm3Version,
                                 onDismiss = {
-                                    prefs.edit().putString("dismissed_protocol", setting.jm3Version).apply()
+                                    container.appPrefs.dismissedProtocol = setting.jm3Version
                                     state.update = null
                                 },
                             )

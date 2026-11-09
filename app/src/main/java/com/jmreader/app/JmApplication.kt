@@ -8,9 +8,14 @@ import com.jmreader.data.JmRepository
 
 class JmApplication : Application(), ImageLoaderFactory {
 
+    /** 应用级单例集合，UI 通过 LocalAppContainer 取用。 */
+    lateinit var container: AppContainer
+        private set
+
     override fun onCreate() {
         super.onCreate()
-        repository = JmRepository.of(this)
+        container = AppContainer(this)
+        repository = container.repository
     }
 
     /**
@@ -19,7 +24,7 @@ class JmApplication : Application(), ImageLoaderFactory {
      */
     override fun newImageLoader(): ImageLoader =
         ImageLoader.Builder(this)
-            .okHttpClient(repository.okHttpClient)
+            .okHttpClient(container.repository.okHttpClient)
             .respectCacheHeaders(false)
             .diskCache {
                 DiskCache.Builder()

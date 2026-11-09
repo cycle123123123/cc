@@ -40,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -50,6 +49,7 @@ import kotlinx.coroutines.launch
 import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.ui.components.CategoryChips
 import com.jmreader.data.local.ContentFilter
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.components.ErrorState
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
@@ -57,7 +57,6 @@ import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosSearchBg
-import com.jmreader.data.local.SearchHistory
 import com.jmreader.ui.components.SortChips
 import com.jmreader.data.JmRepository
 import com.jmreader.data.model.AlbumBrief
@@ -76,10 +75,10 @@ fun SearchScreen(
     initialQuery: String = "",
 ) {
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    val searchHistory = remember { SearchHistory.of(context) }
+    val container = LocalAppContainer.current
+    val searchHistory = container.searchHistory
     val recent by searchHistory.keywords.collectAsState()
-    val blockRules by ContentFilter.of(context).rules.collectAsState()
+    val blockRules by container.contentFilter.rules.collectAsState()
 
     // 状态类拿不到 repo：首次进入时懒创建，之后挂在 state 上，从详情返回复用同一份列表。
     val paged = remember(state, repo) {

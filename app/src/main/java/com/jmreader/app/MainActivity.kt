@@ -4,17 +4,22 @@ import android.os.Bundle
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.CompositionLocalProvider
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.navigation.AppRoot
-import com.jmreader.ui.theme.JmTheme
 import com.jmreader.ui.reader.ReaderKeyBus
+import com.jmreader.ui.theme.JmTheme
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val container = (application as JmApplication).container
         setContent {
-            JmTheme {
-                AppRoot(JmApplication.repository)
+            CompositionLocalProvider(LocalAppContainer provides container) {
+                JmTheme {
+                    AppRoot(container.repository)
+                }
             }
         }
     }

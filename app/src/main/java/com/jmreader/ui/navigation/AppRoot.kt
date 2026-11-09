@@ -26,7 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.jmreader.ui.search.AuthorWorksScreen
@@ -44,20 +43,22 @@ import com.jmreader.ui.library.LibraryScreen
 import com.jmreader.ui.reader.ReaderScreen
 import com.jmreader.ui.search.SearchScreen
 import com.jmreader.data.update.UpdateCheckResult
-import com.jmreader.data.update.UpdateChecker
 import com.jmreader.data.update.UpdateInfo
 import com.jmreader.data.JmRepository
+import com.jmreader.ui.common.LocalAppContainer
+import com.jmreader.ui.common.rememberToaster
 
 @Composable
 fun AppRoot(repo: JmRepository) {
     var tab by remember { mutableStateOf(RootTab.HOME) }
     val overlays = remember { mutableStateListOf<Screen>() }
     val homeState = remember { HomeState() }
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val container = LocalAppContainer.current
+    val toaster = rememberToaster()
 
     // 应用内更新：启动时查一次（6 小时内不重复查）
-    val updateChecker = remember { UpdateChecker.of(context) }
+    val updateChecker = container.updateChecker
     var update by remember { mutableStateOf<UpdateInfo?>(null) }
     var updating by remember { mutableStateOf(false) }
     var updateProgress by remember { mutableIntStateOf(0) }
@@ -67,7 +68,7 @@ fun AppRoot(repo: JmRepository) {
     }
 
     fun toast(text: String) {
-        android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_SHORT).show()
+        toaster(text, false)
     }
 
     fun checkUpdate(manual: Boolean) {

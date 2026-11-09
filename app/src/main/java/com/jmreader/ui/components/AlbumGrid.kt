@@ -24,7 +24,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jmreader.data.JmRepository
@@ -33,6 +32,7 @@ import com.jmreader.data.local.ContentFilter
 import com.jmreader.data.local.metaBadge
 import com.jmreader.data.local.metaTopBadge
 import com.jmreader.data.model.AlbumBrief
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.OnBottomReached
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
@@ -61,8 +61,8 @@ fun AlbumGrid(
     contentPadding: PaddingValues = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
     header: LazyGridScope.() -> Unit = {},
 ) {
-    val context = LocalContext.current
-    val rules by ContentFilter.of(context).rules.collectAsState()
+    val container = LocalAppContainer.current
+    val rules by container.contentFilter.rules.collectAsState()
     val shown = remember(albums, rules, applyBlockFilter) {
         if (applyBlockFilter) albums.filterNot { ContentFilter.matches(it, rules) } else albums
     }

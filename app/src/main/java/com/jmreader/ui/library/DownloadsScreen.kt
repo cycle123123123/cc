@@ -27,18 +27,16 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jmreader.data.download.DownloadRepository
 import com.jmreader.data.download.DownloadTask
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosFillGray
@@ -49,8 +47,8 @@ import com.jmreader.ui.theme.IosLabelSecondary
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadsScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val downloads = remember { DownloadRepository.of(context) }
+    val container = LocalAppContainer.current
+    val downloads = container.downloads
     val tasks by downloads.tasks.collectAsState()
 
     Scaffold(

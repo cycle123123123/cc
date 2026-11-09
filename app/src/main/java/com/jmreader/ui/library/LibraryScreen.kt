@@ -1,6 +1,5 @@
 package com.jmreader.ui.library
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -47,8 +46,9 @@ import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
-import com.jmreader.data.local.ReadingHistory
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.formatCacheSize
+import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.data.JmRepository
 import com.jmreader.BuildConfig
@@ -63,6 +63,7 @@ fun LibraryScreen(
 ) {
     val member by repo.auth.member.collectAsState()
     val context = LocalContext.current
+    val toast = rememberToaster()
     val scope = rememberCoroutineScope()
     var showCacheDialog by remember { mutableStateOf(false) }
     var cacheBytes by remember { mutableStateOf(0L) }
@@ -147,7 +148,7 @@ fun LibraryScreen(
                             cacheBytes = repo.cacheSizeBytes()
                             clearing = false
                             showCacheDialog = false
-                            Toast.makeText(context, "已清除快取", Toast.LENGTH_SHORT).show()
+                            toast("已清除快取")
                         }
                     },
                 ) { Text(if (clearing) "清除中…" else "清除") }
@@ -181,8 +182,8 @@ private fun LoggedOutLibrary(
     onCheckUpdate: () -> Unit,
     onLogin: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val readingHistory = remember { ReadingHistory.of(context) }
+    val container = LocalAppContainer.current
+    val readingHistory = container.readingHistory
     val localHistory by readingHistory.history.collectAsState()
     val gridState = rememberLazyGridState()
     var showClearConfirm by remember { mutableStateOf(false) }

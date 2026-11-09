@@ -1,6 +1,5 @@
 package com.jmreader.ui.library
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -38,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -51,6 +49,8 @@ import com.jmreader.ui.components.IosFilterPill
 import com.jmreader.ui.components.IosSegmentedControl
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
+import com.jmreader.ui.common.LocalAppContainer
+import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosBlueSoft
 import com.jmreader.ui.theme.IosCardWhite
@@ -59,7 +59,6 @@ import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosPink
 import com.jmreader.data.model.JmException
 import com.jmreader.data.model.Member
-import com.jmreader.data.local.ReadingHistory
 import com.jmreader.data.JmRepository
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.userMessage
@@ -112,10 +111,11 @@ internal fun LibraryContent(
     var renameText by remember { mutableStateOf("") }
     var moveTarget by remember { mutableStateOf<AlbumBrief?>(null) }
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
+    val container = LocalAppContainer.current
+    val toast = rememberToaster()
 
     // 本地閱讀歷史（第三個 tab）
-    val readingHistory = remember { ReadingHistory.of(context) }
+    val readingHistory = container.readingHistory
     val localHistory by readingHistory.history.collectAsState()
     var showClearHistory by remember { mutableStateOf(false) }
 
@@ -323,7 +323,7 @@ internal fun LibraryContent(
                                             favoritesPaged.refresh()
                                         }
                                         .onFailure {
-                                            Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                            toast(it.userMessage())
                                         }
                                 }
                             },
@@ -350,7 +350,7 @@ internal fun LibraryContent(
                                                 favoritesPaged.refresh()
                                             }
                                             .onFailure {
-                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                                toast(it.userMessage())
                                             }
                                     }
                                 },
@@ -388,7 +388,7 @@ internal fun LibraryContent(
                                     favoritesPaged.refresh()
                                 }
                                 .onFailure {
-                                    Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                    toast(it.userMessage())
                                 }
                         }
                     },
@@ -418,11 +418,11 @@ internal fun LibraryContent(
                                     scope.launch {
                                         runCatchingCancellable { repo.moveFavorite(folder.fid, aid) }
                                             .onSuccess {
-                                                Toast.makeText(context, "已移動到 ${folder.name}", Toast.LENGTH_SHORT).show()
+                                                toast("已移動到 ${folder.name}")
                                                 favoritesPaged.refresh()
                                             }
                                             .onFailure {
-                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                                toast(it.userMessage())
                                             }
                                     }
                                 }
