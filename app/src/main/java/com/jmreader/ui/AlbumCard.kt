@@ -106,23 +106,5 @@ fun AlbumCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 6.dp, start = 1.dp, end = 1.dp),
         )
-
-        // 接口偶尔给 "N/A"，当成没有作者处理
-        val author = album.author.trim()
-        val sub = if (author.isBlank() || author.equals("N/A", ignoreCase = true)) {
-            album.category?.title.orEmpty()
-        } else {
-            author
-        }
-        if (sub.isNotBlank()) {
-            Text(
-                text = sub,
-                fontSize = 11.sp,
-                color = IosLabelSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 1.dp, start = 1.dp, end = 1.dp),
-            )
-        }
     }
 }

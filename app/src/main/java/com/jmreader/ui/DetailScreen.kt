@@ -293,21 +293,21 @@ fun DetailScreen(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             verticalArrangement = Arrangement.spacedBy(8.dp),
                                         ) {
-                                            album.author.forEach { name ->
-                                                Box(
-                                                    modifier = Modifier
-                                                        .clip(CircleShape)
-                                                        .background(IosBlueSoft)
-                                                        .clickable { onOpenAuthor(name) }
-                                                        .padding(horizontal = 12.dp, vertical = 5.dp),
-                                                ) {
-                                                    Text(
-                                                        text = name,
-                                                        fontSize = 12.sp,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = IosBlue,
-                                                    )
-                                                }
+                                            // 接口会把作者名按空格拆成多项（如 ["STUDIO","J"]），这里合并回一个
+                                            val authorName = album.author.joinToString(" ").trim()
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(CircleShape)
+                                                    .background(IosBlueSoft)
+                                                    .clickable { onOpenAuthor(authorName) }
+                                                    .padding(horizontal = 12.dp, vertical = 5.dp),
+                                            ) {
+                                                Text(
+                                                    text = authorName,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = IosBlue,
+                                                )
                                             }
                                         }
                                     }

@@ -104,8 +104,25 @@ class UpdateChecker private constructor(
         )
     }
 
-    /** 下载 APK 到 cache/update，返回文件。 */
+    /**
+     * 下载 APK 到 cache/update。
+     * 直连 GitHub 失败时依次尝试几个公共加速镜像（国内网络常见连不上 github.com）。
+     */
     suspend fun download(url: String, onProgress: (Int) -> Unit = {}): File = withContext(Dispatchers.IO) {
+        var lastError: Throwable? = null
+        for (prefix in DOWNLOAD_PREFIXES) {
+            try {
+                return@withContext downloadFrom(prefix + url, onProgress)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                lastError = e
+            }
+        }
+        throw (lastError as? IOException) ?: IOException(lastError?.message ?: "下载失败")
+    }
+
+    private fun downloadFrom(url: String, onProgress: (Int) -> Unit): File {
         val dir = File(appContext.cacheDir, "update").apply { mkdirs() }
         val target = File(dir, APK_NAME)
         if (target.exists()) target.delete()
@@ -139,7 +156,7 @@ class UpdateChecker private constructor(
                 }
             }
         }
-        target
+        return target
     }
 
     /** 拉起系统安装器（需要用户允许「安装未知应用」）。 */
@@ -187,6 +204,14 @@ class UpdateChecker private constructor(
         private const val KEY_URL = "url"
         private const val KEY_SIZE = "size"
         private const val CHECK_TTL_MS = 15L * 60L * 1000L
+
+        /** 直连 + 公共加速镜像；依次尝试，第一个成功即返回。 */
+        private val DOWNLOAD_PREFIXES = listOf(
+            "",
+            "https://ghfast.top/",
+            "https://gh-proxy.com/",
+            "https://ghproxy.net/",
+        )
 
         @Volatile
         private var instance: UpdateChecker? = null

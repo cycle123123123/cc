@@ -82,7 +82,7 @@ internal fun DetailStatsRow(
                 .padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            DetailStatCell(top = "頁數", value = pages, sub = "P", modifier = Modifier.weight(1f))
+            DetailStatCell(top = "頁數", value = pages, sub = "頁", modifier = Modifier.weight(1f))
             VerticalShortDivider()
             DetailStatCell(top = "點閱", value = views, sub = "次", modifier = Modifier.weight(1f))
             VerticalShortDivider()
@@ -340,9 +340,9 @@ internal fun Header(
                 overflow = TextOverflow.Ellipsis,
             )
             if (album.author.isNotEmpty()) {
-                val firstAuthor = album.author.first()
+                val firstAuthor = album.author.joinToString(" ").trim()
                 Text(
-                    text = album.author.joinToString(" · "),
+                    text = firstAuthor,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = IosBlue,
@@ -434,9 +434,10 @@ internal fun Header(
                     color = IosLabelSecondary,
                     modifier = Modifier
                         .clickable {
-                            album.author.firstOrNull()?.let {
-                                filter.addAuthor(it)
-                                android.widget.Toast.makeText(context, "已屏蔽作者 $it", android.widget.Toast.LENGTH_SHORT).show()
+                            val name = album.author.joinToString(" ").trim()
+                            if (name.isNotBlank()) {
+                                filter.addAuthor(name)
+                                android.widget.Toast.makeText(context, "已屏蔽作者 $name", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         }
                         .padding(vertical = 2.dp),
