@@ -1,162 +1,139 @@
 # JMReader
 
-18comic.vip / JMComic 的原生 Android 客户端（Kotlin + Jetpack Compose）。
+> 一个第三方 JM（18comic）Android 客户端。Kotlin + Jetpack Compose，单 Activity + overlay 栈，**没有 ViewModel、没有 DI 框架**，纯手写的轻量架构。
 
-不是对官方 WebView 壳的套皮，而是直接对接官方 App v2.1.12 使用的 JSON API：
-原生列表、原生图片缓存、原生分条还原，用来解决官方客户端卡顿的问题。
+[![Release](https://img.shields.io/github/v/release/cycle123123123/cc?label=release)](https://github.com/cycle123123123/cc/releases/latest)
+[![Platform](https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white)](#下载)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
+[![License](https://img.shields.io/github/license/cycle123123123/cc)](LICENSE)
 
----
+![JMReader 界面预览](docs/screenshots/hero.png)
 
-## 当前状态
+## 功能
 
-已完成（可运行的最小闭环）：
+**浏览**
 
-- 动态线路发现（解密 `newsvr-2025.txt`，自动测速选线，失败回退内置域名）
-- 请求签名（`Token` / `Tokenparam`）与响应 AES-ECB 解密
-- 首页最新列表 + 分页
-- 作品详情 + 目录
-- 多话作品目录解析（`series`）+ 上一话/下一话
-- 阅读器（纵向滚动、按屏宽采样解码、逐页还原、OkHttp 磁盘缓存）
-- 章节图分条还原（算法与官方一致，已用线上数据 + 模拟器双重验证）
-- 搜索（分页，接口实测 48 条结果）
-- 分類 / 週榜：分類走 `/categories/filter?c=<slug>&o=<排序>`（实测韓漫 2259 部），週榜走 `/week/filter`
-- 详情页评论列表 + 发表评论 + 作品点赞 + 评论点赞
-- 图源切换（阅读器内，CDN host 替换，支持手动 4 档 + 一键测速）
-- 协议更新提示（对比 `/setting` 的 `jm3_version`）
-- 登录 / 收藏 / 历史；**自动登录**（密码用 Android Keystore 加密保存，token 过期自动重登）
-- 收藏：详情页收藏/取消（toggle）、多收藏夹增删改、长按移动到收藏夹、按收藏夹筛选
-- 评论：列表、发表、楼中楼回复、删除自己的评论、评论点赞
-- 發現页：分類（含子分类）、標籤、週榜、推薦（每週必看 + 随机）、作者列表与作者作品
-- 首页「繼續閱讀」：记录最近阅读的作品/章节/页码，点击直接跳回
-- 阅读体验：纵向/横向切换、音量键翻页、点击全屏、阅读进度记忆、后 3 页预取、48MB 内存 LRU
-- 离线下载：应用内队列、断点续传、暂停/继续、删除、断网读本地
-- 20 个 JVM 单元测试（签名、解密、分条数、分条顺序、目录解析、返回结构）
+- 首页：最新上架、分区横滑、继续阅读、协议更新提示、下拉刷新、骨架屏
+- 发现：分类（三排筛选，向下滚动自动收起、回顶自动展开）、标签、周榜、随机推荐
+- 搜索：关键词 / 分类 / 排序，最近搜索 + 热门标签
+- 全站统一 3 列封面网格：右上角「页数 · 日文」角标、底部点击/爱心、**触底自动加载**
 
-未实现：
+**详情**
 
-- 更新检查只能提示协议版本，没有自己的 APK 分发地址
-- 图片源自动测速只在阅读器内触发（打开一本书才能测）
-- 阅读器的双指缩放还没在真机上手动验证过（双击缩放已验证）
-- 分类的子分类筛选（接口只支持顶级 slug）
+- 续读记忆：「继续第 N 话」胶囊 + 目录里对应的「續讀」标记
+- 单话本自动隐藏「目录」页签，只保留 详情 / 评论
+- 作者作品横滑推荐、标签单击搜索 / **长按直接屏蔽**、屏蔽作者
+- 收藏、点赞、评论 / 回复 / 删除、单话下载
 
----
+**阅读器**
 
-## 目录结构
+- 纵向滚动 / 横向翻页，双击缩放，音量键翻页
+- 底栏：页码拖动条 + 上一话 / 下一话 + 纵向·书签·图源·更多设置
+- 进度保存、书签（只保留最新一条）、图源测速切换、亮度/方向锁定
+- 换话自动从第 1 页开始，并预取下一话前三页
 
-```
-jmapp/
-├─ docs/
-│  └─ API.md                  # 协议参考（签名、加密、端点、图片还原）
-├─ tools/
-│  └─ jm_probe.py             # 同协议的 Python 参考实现，可独立跑通
-├─ app/src/main/java/com/jmreader/
-│  ├─ core/
-│  │  ├─ JmCrypto.kt          # 请求签名 + AES-ECB 解密
-│  │  └─ ImageDescrambler.kt  # 章节图分条倒序还原
-│  ├─ data/
-│  │  ├─ JmRepository.kt      # 线路发现、请求封装、图片加载
-│  │  └─ Models.kt
-│  └─ ui/
-│     ├─ AppRoot.kt           # 简单的页面状态机（无 navigation 依赖）
-│     ├─ HomeScreen.kt
-│     ├─ DetailScreen.kt
-│     ├─ ReaderScreen.kt
-│     └─ Theme.kt
-└─ app/build.gradle.kts
-```
+**我的**
 
----
+- 登录前后同一套 iOS 分组样式：账号卡 / 工具与设置 / 内容区
+- 云端收藏（收藏夹管理、长按移动）、云端历史、本地阅读历史（可清空）
+- 下载管理、屏蔽管理、清除缓存、检查更新
+
+**其他**
+
+- 多线路自动测速（内置 4 个主站 + 远程线路清单），失败自动重新发现
+- 内置更新：GitHub Release 检查 + 多镜像加速下载 + root 静默安装
+- 离线阅读：已下载章节断网可开
+
+## 截图
+
+| 首页 | 详情 | 阅读器 | 我的 |
+|:--:|:--:|:--:|:--:|
+| ![首页](docs/screenshots/home.png) | ![详情](docs/screenshots/detail.png) | ![阅读器](docs/screenshots/reader.png) | ![我的](docs/screenshots/profile.png) |
+
+> 截图为界面示意图：封面与内页以灰块替代，避免展示成人内容。
+
+## 下载
+
+最新版本：**[jmreader.apk](https://github.com/cycle123123123/cc/releases/latest/download/jmreader.apk)**（约 1.7 MB）
+
+- 支持 Android 7.0（API 24）及以上
+- 应用内「我的 → 检查更新」可自动升级；有 root 时优先静默安装，否则走系统安装器
 
 ## 构建
-
-要求：
-
-- Android Studio（Ladybug 或更新）
-- JDK 17
-- Android SDK 35
-
-步骤：
-
-1. Android Studio → Open → 选择 `jmapp` 目录。
-2. 直接使用仓库自带的 `gradlew.bat`（Gradle 8.9 已配置在 `gradle/wrapper`）。
-3. Run `app`。
-
-命令行（生成 wrapper 之后）：
-
-```bash
-./gradlew :app:assembleDebug
-```
-
-### 本机已装好的环境（便携版，无需管理员权限）
-
-| 组件 | 路径 |
-|---|---|
-| JDK 17 | `C:\Android\jdk-17` |
-| Gradle 8.9 | `C:\Android\gradle-8.9` |
-| Android SDK | `C:\Android\Sdk`（platform 35 / build-tools 35.0.0） |
-| 模拟器 | AVD `jmtest`（android-35 google_apis x86_64） |
-
-每次开新终端先设置：
 
 ```powershell
 $env:JAVA_HOME='C:\Android\jdk-17'
 $env:ANDROID_HOME='C:\Android\Sdk'
 $env:PATH="C:\Android\jdk-17\bin;C:\Android\gradle-8.9\bin;$env:ANDROID_HOME\platform-tools;$env:PATH"
+
+gradle :app:assembleDebug        # 调试包
+gradle :app:testDebugUnitTest    # 62 个 JVM 单测
+gradle :app:assembleRelease      # R8 压缩，产物 ~1.7 MB
 ```
 
-启动模拟器：
+## 架构
 
-```powershell
-C:\Android\Sdk\emulator\emulator.exe -avd jmtest -gpu swiftshader_indirect
+```
+app/     MainActivity + JmApplication + AppContainer（单例集合，经 CompositionLocal 下发）
+core/    纯 JVM：签名、AES 解密、分条还原、TtlCache、格式化
+data/    JmRepository（门面）
+         ├─ net/    HostManager / SessionManager / JmHttp / ApiClient / HostBenchmark
+         ├─ page/   PageRepository / PageLoader / PageCache(200MB) / PageStore(48MB) / ImageHostManager
+         ├─ local/  AuthStore / SecureStore / ContentFilter / ReadingHistory / SearchHistory / ReaderPrefs
+         ├─ download/ DownloadRepository
+         ├─ update/   UpdateChecker
+         └─ model/    DTO + JmError + SeriesParser
+ui/      theme / components / common / navigation
+         home / discover / search / detail / reader / library（每屏一个目录）
 ```
 
-> `gradle-wrapper.properties` 已指向腾讯云镜像（`mirrors.cloud.tencent.com`），
-> 国内首次同步不必等 services.gradle.org。
+设计取舍：
 
----
+| 决策 | 原因 |
+|---|---|
+| 不用 ViewModel | 单 Activity + `android:configChanges` 已覆盖旋转，状态挂在 `Screen` 实例上即可跨页面保留 |
+| 不用 DI 框架 | 依赖图很小，`AppContainer` + `CompositionLocal` 足够，省掉编译期开销 |
+| 不用 Paging 3 | 只需「首页 + 加载更多 + 去重」，手写 `PagedList` 约 90 行，行为完全可控 |
+| 手写状态 | 所有列表状态都是普通类 + Compose `mutableStateOf`，方便单测与调试 |
 
-## 用 Python 验证协议（不需要 Android 环境）
+缓存分四层：OkHttp HTTP 256 MB、Coil 封面 200 MB、阅读页字节 200 MB、阅读位图 48 MB（每话一个实例）。
 
-```bash
-pip install pycryptodome pillow
+## 协议实现
 
-cd jmapp
-python tools/jm_probe.py hosts            # 看当前线路
-python tools/jm_probe.py latest 1         # 最新列表
-python tools/jm_probe.py read 1489023     # 图片列表 + scramble_id
-python tools/jm_probe.py image 1489023 1489023 1 out.png   # 下载并还原第 1 页
+- 请求头 `Token = md5(ts + secret)`、`Tokenparam = "{ts},2.1.12"`，另有 `Token-time` 等
+- 响应体 AES-ECB 加密，密钥依次尝试两个内置 secret
+- 图片为纵向分条乱序，条数由 `md5(aid + 文件名)` 末位决定，需在客户端还原
+
+> 协议细节见 [`docs/API.md`](docs/API.md)，架构细节见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+
+## 测试
+
+```
+app/src/test  11 个文件 / 62 个用例
+  ├─ 加密与签名
+  ├─ 图片分条还原
+  ├─ 目录 / 模型解析
+  ├─ 屏蔽规则匹配
+  ├─ 页缓存淘汰
+  ├─ 版本比较
+  ├─ 卡片角标拼装
+  ├─ TtlCache（命中 / 过期 / LRU）
+  └─ PagedList（首屏 / 追加去重 / 到底 / 错误保留）
 ```
 
-`image` 子命令会按照 docs/API.md §6 还原并保存，可以直接确认算法是否正确。
+UI 与仓库层暂无自动化测试，靠真机冒烟（首页 / 发现 / 详情 / 阅读器 / 我的 / 搜索 / 写操作）。
 
----
+## 更新日志
 
-## 性能设计
+见 [Releases](https://github.com/cycle123123123/cc/releases)。
 
-官方 App 慢的根因是「WebView 里跑整个 React 站 + 无原生图片缓存」。本项目对应做了四件事：
+## 免责声明
 
-1. **不加载任何前端代码**：列表就是 `LazyVerticalGrid`，没有 DOM、没有虚拟滚动。
-2. **两处缓存**：OkHttp 磁盘缓存（256MB，覆盖接口与图片）+ 内存位图按需持有。
-3. **解码前采样**：先读图片头算 `inSampleSize`，按屏幕宽度解码，避免 1280×1800 全尺寸进内存。
-4. **还原在降采样图上做**：分条拼接只操作小图，单页开销从几十毫秒降到个位数。
+- 本项目为**个人学习与技术交流**用途，与内容提供方无任何关联，非官方客户端。
+- App 不存储、不分发任何作品内容，所有数据均来自第三方接口，版权归原作者与原站所有。
+- 请勿用于商业用途；请支持正版。使用本软件产生的一切后果由使用者自行承担。
 
-官方 App 首屏要串行做「拉线路清单 → 测速 → 拉 setting → 拉首页」，本项目把线路结果
-持久化，正常情况下首屏只发一次请求。
+## License
 
----
-
-## 后续可做
-
-1. 登录（`/login`，FormData）→ 收藏 / 历史 / 签到
-2. 离线下载：`WorkManager` + 分页任务队列 + 断点续传
-3. 多话作品：按 `series` 生成目录并预取下一话
-4. 图源切换：`setting.app_shunts` 的 4 个图源 + 测速
-5. 阅读体验：横向翻页模式、音量键翻页、预取后 3 页、长图切分
-6. 搜索 / 分类 / 每周排行页
-
----
-
-## 说明
-
-接口来自对官方 APK 的静态分析，属于非公开接口，随时可能变更；本项目只用于技术研究与
-个人使用，内容版权归原权利人所有。
+[MIT](LICENSE)
