@@ -1,43 +1,46 @@
-﻿package com.jmreader.ui
+package com.jmreader.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,21 +53,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.imageLoader
 import coil.request.ImageRequest
-import com.jmreader.data.userMessage
-import com.jmreader.core.runCatchingCancellable
 import com.jmreader.core.JmConfig
+import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.ContentFilter
 import com.jmreader.data.JmRepository
 import com.jmreader.data.LastRead
 import com.jmreader.data.PromoteSection
 import com.jmreader.data.ReadingHistory
+import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,7 +80,7 @@ fun HomeScreen(
     repo: JmRepository,
     state: HomeState,
     onOpen: (Long) -> Unit,
-    onContinue: (com.jmreader.data.LastRead) -> Unit,
+    onContinue: (LastRead) -> Unit,
     onSearch: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -118,8 +125,7 @@ fun HomeScreen(
     }
 
     LaunchedEffect(shown) {
-        // 首屏封面预加载（Coil 会写进内存 + 磁盘缓存）
-        shown.take(8).forEach { album ->
+        shown.take(9).forEach { album ->
             context.imageLoader.enqueue(
                 ImageRequest.Builder(context)
                     .data(repo.coverUrl(album.id, tall = true))
@@ -130,11 +136,9 @@ fun HomeScreen(
 
     LaunchedEffect(Unit) {
         if (!state.loaded) {
-            // 先用上次缓存的首页内容垫着，再走网络刷新
             if (state.albums.isEmpty()) {
                 repo.cachedLatest()?.let { state.albums = it }
             }
-            // 测速放后台：首屏不用等（首启最多要 2.5s）
             launch { runCatchingCancellable { repo.optimizeHost() } }
             load(true)
         }
@@ -153,18 +157,51 @@ fun HomeScreen(
         runCatchingCancellable { repo.promote() }.onSuccess { sections = it }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("首頁") },
-                actions = {
-                    IconButton(onClick = onSearch) {
-                        Icon(Icons.Filled.Search, contentDescription = "搜索")
-                    }
-                },
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(IosGroupedBg)
+            .statusBarsPadding(),
+    ) {
+        // iOS App Store 极简顶栏：大标题 + 浅灰搜索框
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(IosGroupedBg)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            Text(
+                text = "首頁",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosLabelPrimary,
+                letterSpacing = (-0.5).sp,
             )
-        },
-    ) { padding ->
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(IosSearchBg)
+                    .clickable(onClick = onSearch)
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Search,
+                    contentDescription = "搜尋",
+                    tint = IosLabelSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+                Text(
+                    text = "搜尋漫畫、作者、標籤…",
+                    fontSize = 14.sp,
+                    color = IosLabelSecondary,
+                    modifier = Modifier.padding(start = 6.dp),
+                )
+            }
+        }
+
         PullToRefreshBox(
             isRefreshing = refreshing,
             onRefresh = {
@@ -175,7 +212,7 @@ fun HomeScreen(
                     refreshing = false
                 }
             },
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize(),
         ) {
             when {
                 albums.isEmpty() && loading -> SkeletonGrid()
@@ -185,17 +222,21 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Text(error!!, color = MaterialTheme.colorScheme.error)
-                    Button(onClick = { scope.launch { load(true) } }, modifier = Modifier.padding(top = 12.dp)) {
+                    Text(error, color = MaterialTheme.colorScheme.error)
+                    Button(
+                        onClick = { scope.launch { load(true) } },
+                        shape = CircleShape,
+                        modifier = Modifier.padding(top = 12.dp),
+                    ) {
                         Text("重試")
                     }
                 }
 
                 else -> LazyVerticalGrid(
                     state = state.gridState,
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 72.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    columns = GridCells.Fixed(3),
+                    contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 72.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
@@ -220,9 +261,9 @@ fun HomeScreen(
                     if (hiddenCount > 0) {
                         item(span = { GridItemSpan(maxLineSpan) }, key = "hidden") {
                             Text(
-                                text = "已屏蔽 $hiddenCount 项",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                text = "已依規則隱藏 $hiddenCount 部作品",
+                                fontSize = 12.sp,
+                                color = IosLabelSecondary,
                             )
                         }
                     }
@@ -231,16 +272,22 @@ fun HomeScreen(
                         val visible = section.content.filterNot { ContentFilter.matches(it, blockRules) }
                         if (visible.isNotEmpty()) {
                             item(span = { GridItemSpan(maxLineSpan) }, key = "sec_${section.id}") {
-                                Column {
+                                Column(modifier = Modifier.padding(top = 4.dp)) {
+                                    HorizontalDivider(
+                                        thickness = 0.5.dp,
+                                        color = IosSeparator.copy(alpha = 0.7f),
+                                        modifier = Modifier.padding(bottom = 10.dp),
+                                    )
                                     Text(
                                         text = section.title,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(vertical = 6.dp),
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = IosLabelPrimary,
+                                        modifier = Modifier.padding(bottom = 10.dp),
                                     )
-                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         items(items = visible, key = { it.id }) { album ->
-                                            Box(Modifier.width(120.dp)) {
+                                            Box(Modifier.width(108.dp)) {
                                                 AlbumCard(
                                                     repo = repo,
                                                     album = album,
@@ -255,12 +302,19 @@ fun HomeScreen(
                     }
 
                     item(span = { GridItemSpan(maxLineSpan) }, key = "latest_header") {
-                        Text(
-                            text = "最新",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
-                        )
+                        Column(modifier = Modifier.padding(top = 6.dp)) {
+                            HorizontalDivider(
+                                thickness = 0.5.dp,
+                                color = IosSeparator.copy(alpha = 0.7f),
+                                modifier = Modifier.padding(bottom = 10.dp),
+                            )
+                            Text(
+                                text = "最新上架",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = IosLabelPrimary,
+                            )
+                        }
                     }
 
                     items(items = shown, key = { it.id }) { album ->
@@ -270,9 +324,23 @@ fun HomeScreen(
                     item(span = { GridItemSpan(maxLineSpan) }, key = "more") {
                         Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                             if (loading) {
-                                CircularProgressIndicator()
+                                CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
                             } else {
-                                Button(onClick = { scope.launch { load(false) } }) { Text("載入更多") }
+                                Button(
+                                    onClick = { scope.launch { load(false) } },
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = IosCardWhite,
+                                        contentColor = IosBlue,
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
+                                ) {
+                                    Text(
+                                        text = "載入更多",
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                    )
+                                }
                             }
                         }
                     }
@@ -286,29 +354,29 @@ fun HomeScreen(
 private fun SkeletonGrid() {
     val transition = rememberInfiniteTransition(label = "skeleton")
     val alpha by transition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 0.6f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(700),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+        initialValue = 0.35f,
+        targetValue = 0.75f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(700),
+            repeatMode = RepeatMode.Reverse,
         ),
         label = "alpha",
     )
 
     LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 72.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        columns = GridCells.Fixed(3),
+        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        items(6) {
+        items(9) {
             Box(
                 Modifier
                     .fillMaxWidth()
                     .aspectRatio(3f / 4f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = alpha)),
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(IosFillGray.copy(alpha = alpha)),
             )
         }
     }
@@ -316,13 +384,16 @@ private fun SkeletonGrid() {
 
 @Composable
 private fun ContinueCard(repo: JmRepository, item: LastRead, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .shadow(2.dp, shape, clip = false)
+            .clip(shape)
+            .background(IosCardWhite)
+            .border(0.5.dp, Color(0x12000000), shape)
             .clickable(onClick = onClick)
-            .padding(10.dp),
+            .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         AsyncImage(
@@ -330,58 +401,78 @@ private fun ContinueCard(repo: JmRepository, item: LastRead, onClick: () -> Unit
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .width(48.dp)
+                .width(46.dp)
                 .aspectRatio(3f / 4f)
-                .clip(RoundedCornerShape(6.dp))
-                .background(MaterialTheme.colorScheme.surface),
+                .clip(RoundedCornerShape(7.dp))
+                .background(IosFillGray)
+                .border(0.5.dp, Color(0x14000000), RoundedCornerShape(7.dp)),
         )
-        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             Text(
                 text = "繼續閱讀",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosBlue,
             )
             Text(
                 text = item.title,
-                style = MaterialTheme.typography.bodyMedium,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = IosLabelPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp),
             )
             Text(
-                text = "第 ${item.page + 1} 頁",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = "上次讀到 第 ${item.page + 1} 頁",
+                fontSize = 12.sp,
+                color = IosLabelSecondary,
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
-        Text(
-            text = "›",
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(IosBlueSoft)
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+        ) {
+            Text(
+                text = "繼續",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosBlue,
+            )
+        }
     }
 }
 
 @Composable
 private fun UpdateBanner(version: String, onDismiss: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .clip(shape)
+            .background(IosCardWhite)
+            .border(0.5.dp, Color(0x14000000), shape)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
             Text(
                 text = "官方協議已更新至 v$version",
-                style = MaterialTheme.typography.labelLarge,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = IosLabelPrimary,
             )
             Text(
                 text = "當前客戶端適配 v${JmConfig.PROTOCOL_VERSION}，如遇異常請更新",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                color = IosLabelSecondary,
             )
         }
-        TextButton(onClick = onDismiss) { Text("知道了") }
+        TextButton(onClick = onDismiss) {
+            Text("知道了", color = IosBlue, fontWeight = FontWeight.SemiBold)
+        }
     }
 }

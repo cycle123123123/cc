@@ -1,5 +1,8 @@
 package com.jmreader.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,38 +13,32 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -49,10 +46,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.jmreader.data.userMessage
+import androidx.compose.ui.unit.sp
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
 import com.jmreader.data.CategoryBlock
@@ -60,6 +59,7 @@ import com.jmreader.data.CategoryNode
 import com.jmreader.data.ContentFilter
 import com.jmreader.data.JmRepository
 import com.jmreader.data.WeekOptions
+import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 
@@ -96,7 +96,6 @@ internal fun CategoryTab(
 
     suspend fun load(reset: Boolean) {
         val cValue = if (subSlug.isNotBlank()) "${slug}_$subSlug" else slug
-        // 刷新/切筛选允许打断上一次请求；「載入更多」才需要防重复
         if (cValue.isBlank() || (loading && !reset)) return
         loading = true
         error = null
@@ -113,7 +112,6 @@ internal fun CategoryTab(
                 }
                 .onFailure { error = it.userMessage() }
         } finally {
-            // 被 LaunchedEffect 取消时也要复位，否则 loading 永远卡住，后续点标签不再请求
             loading = false
         }
     }
@@ -128,20 +126,21 @@ internal fun CategoryTab(
 
     Column(Modifier.fillMaxSize()) {
         val subCategories = categories.firstOrNull { it.slug == slug }?.subCategories.orEmpty()
-        val summary = listOfNotNull(
-            categories.firstOrNull { it.slug == slug }?.name,
-            subCategories.firstOrNull { it.slug == subSlug }?.name,
-            SORTS.firstOrNull { it.first == order }?.second,
-        ).joinToString(" · ")
+        val summary = buildList {
+            categories.firstOrNull { it.slug == slug }?.name?.let(::add)
+            subCategories.firstOrNull { it.slug == subSlug }?.name?.let(::add)
+            SORTS.firstOrNull { it.first == order }?.second?.let(::add)
+            if (total > 0) add("共 $total 部")
+        }.joinToString(" · ")
 
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = summary,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                color = IosLabelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
@@ -149,90 +148,92 @@ internal fun CategoryTab(
             IconButton(
                 onClick = { scope.launch { load(true) } },
                 enabled = !loading,
+                modifier = Modifier.size(32.dp),
             ) {
-                Icon(Icons.Filled.Refresh, contentDescription = "刷新")
+                Icon(Icons.Filled.Refresh, contentDescription = "刷新", tint = IosBlue, modifier = Modifier.size(18.dp))
             }
             TextButton(onClick = { filtersOpen = !filtersOpen }) {
-                Text(if (filtersOpen) "收起" else "篩選")
+                Text(
+                    text = if (filtersOpen) "收起篩選" else "展開篩選",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = IosBlue,
+                )
             }
         }
 
         if (error != null && albums.isNotEmpty()) {
             Text(
                 text = "更新失敗：$error（點此重試）",
-                style = MaterialTheme.typography.labelSmall,
+                fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { scope.launch { load(true) } }
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
 
         if (filtersOpen) {
-            if (categories.isNotEmpty()) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(items = categories, key = { it.slug }) { item ->
-                        FilterChip(
-                            selected = slug == item.slug,
-                            onClick = { slug = item.slug },
-                            label = { Text(item.name) },
-                        )
-                    }
-                }
-            }
-
-            if (subCategories.isNotEmpty()) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    item {
-                        FilterChip(
-                            selected = subSlug.isBlank(),
-                            onClick = { subSlug = "" },
-                            label = { Text("全部") },
-                        )
-                    }
-                    items(items = subCategories, key = { it.cid }) { sub ->
-                        FilterChip(
-                            selected = subSlug == sub.slug,
-                            onClick = { subSlug = sub.slug },
-                            label = { Text(sub.name) },
-                        )
-                    }
-                }
-            }
-
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Column(
+                modifier = Modifier.padding(bottom = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                items(items = SORTS, key = { it.first }) { sort ->
-                    FilterChip(
-                        selected = order == sort.first,
-                        onClick = { order = sort.first },
-                        label = { Text(sort.second) },
-                    )
+                if (categories.isNotEmpty()) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(items = categories, key = { it.slug }) { item ->
+                            IosFilterPill(
+                                selected = slug == item.slug,
+                                label = item.name,
+                                onClick = { slug = item.slug },
+                            )
+                        }
+                    }
+                }
+
+                if (subCategories.isNotEmpty()) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        item {
+                            IosFilterPill(
+                                selected = subSlug.isBlank(),
+                                label = "全部",
+                                onClick = { subSlug = "" },
+                            )
+                        }
+                        items(items = subCategories, key = { it.cid }) { sub ->
+                            IosFilterPill(
+                                selected = subSlug == sub.slug,
+                                label = sub.name,
+                                onClick = { subSlug = sub.slug },
+                            )
+                        }
+                    }
+                }
+
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(items = SORTS, key = { it.first }) { sort ->
+                        IosFilterPill(
+                            selected = order == sort.first,
+                            label = sort.second,
+                            onClick = { order = sort.first },
+                        )
+                    }
                 }
             }
-        }
-
-        if (total > 0) {
-            Text(
-                text = "共 $total 部",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
         }
 
         Box(Modifier.fillMaxSize()) {
             when {
-                loading && albums.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                loading && albums.isEmpty() -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
 
                 error != null && albums.isEmpty() -> Text(
                     text = error!!,
@@ -241,9 +242,9 @@ internal fun CategoryTab(
                 )
 
                 else -> LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 72.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    columns = GridCells.Fixed(3),
+                    contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 72.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
@@ -261,9 +262,19 @@ internal fun CategoryTab(
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                             if (loading) {
-                                CircularProgressIndicator()
+                                CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
                             } else {
-                                Button(onClick = { scope.launch { load(false) } }) { Text("載入更多") }
+                                Button(
+                                    onClick = { scope.launch { load(false) } },
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = IosCardWhite,
+                                        contentColor = IosBlue,
+                                    ),
+                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
+                                ) {
+                                    Text("載入更多", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp))
+                                }
                             }
                         }
                     }
@@ -293,33 +304,53 @@ internal fun TagTab(repo: JmRepository, onSearchTag: (String) -> Unit) {
     }
 
     if (loading) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = IosBlue)
+        }
         return
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 72.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
         items(items = blocks, key = { it.title }) { block ->
-            Column {
+            val shape = RoundedCornerShape(14.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(IosCardWhite)
+                    .border(0.5.dp, Color(0x12000000), shape)
+                    .padding(14.dp),
+            ) {
                 Text(
                     text = block.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = IosLabelPrimary,
                 )
                 FlowRow(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     block.content.forEach { tag ->
-                        FilterChip(
-                            selected = false,
-                            onClick = { onSearchTag(tag) },
-                            label = { Text(tag) },
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(IosGroupedBg)
+                                .clickable { onSearchTag(tag) }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                        ) {
+                            Text(
+                                text = tag,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = IosLabelPrimary,
+                            )
+                        }
                     }
                 }
             }
@@ -349,7 +380,6 @@ internal fun WeekTab(
         runCatchingCancellable { repo.week() }
             .onSuccess { week ->
                 options = week
-                // 韩漫（hanman）的内容和日漫完全一样且标题为空，不显示
                 type = week.type.firstOrNull { it.title.isNotBlank() }?.id.orEmpty()
                 period = week.categories.firstOrNull()?.id.orEmpty()
             }
@@ -373,28 +403,28 @@ internal fun WeekTab(
         val week = options
         if (week != null && week.type.any { it.title.isNotBlank() }) {
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(items = week.type.filter { it.title.isNotBlank() }, key = { it.id }) { item ->
-                    FilterChip(
+                    IosFilterPill(
                         selected = type == item.id,
+                        label = item.title,
                         onClick = { type = item.id },
-                        label = { Text(item.title) },
                     )
                 }
             }
         }
         if (week != null && week.categories.isNotEmpty()) {
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 itemsIndexed(items = week.categories, key = { _, item -> item.id }) { _, item ->
-                    FilterChip(
+                    IosFilterPill(
                         selected = period == item.id,
+                        label = item.time.ifBlank { item.title.ifBlank { "第 ${item.id} 期" } },
                         onClick = { period = item.id },
-                        label = { Text(item.time.ifBlank { item.title.ifBlank { "第 ${item.id} 期" } }) },
                     )
                 }
             }
@@ -402,16 +432,16 @@ internal fun WeekTab(
 
         Box(Modifier.fillMaxSize()) {
             when {
-                loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                loading -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
                 error != null -> Text(
                     text = error!!,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.align(Alignment.Center),
                 )
                 else -> LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 72.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    columns = GridCells.Fixed(3),
+                    contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
@@ -469,35 +499,49 @@ internal fun RecommendTab(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "隨機推薦",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
+                text = "為你推薦",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosLabelPrimary,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { load() }, enabled = !loading) { Text("換一批") }
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(IosBlueSoft)
+                    .clickable(enabled = !loading) { load() }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = "換一批",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = IosBlue,
+                )
+            }
         }
 
         Box(Modifier.fillMaxSize()) {
             when {
-                loading && albums.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                loading && albums.isEmpty() -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
                 error != null && albums.isEmpty() -> Column(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(error!!, color = MaterialTheme.colorScheme.error)
-                    Button(onClick = { load() }, modifier = Modifier.padding(top = 12.dp)) {
+                    Button(onClick = { load() }, shape = CircleShape, modifier = Modifier.padding(top = 12.dp)) {
                         Text("重試")
                     }
                 }
                 albums.isEmpty() -> Text(
                     text = "沒有推薦內容",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = IosLabelSecondary,
                     modifier = Modifier.align(Alignment.Center),
                 )
                 else -> LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 72.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    columns = GridCells.Fixed(3),
+                    contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {

@@ -1,102 +1,139 @@
 package com.jmreader.ui
 
-import android.widget.Toast
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import com.jmreader.data.userMessage
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumDetail
 import com.jmreader.data.ChapterEntry
 import com.jmreader.data.ComicRead
 import com.jmreader.data.CommentItem
 import com.jmreader.data.ContentFilter
-import com.jmreader.data.DownloadRepository
-import com.jmreader.data.ForumPage
 import com.jmreader.data.JmRepository
 import com.jmreader.data.PageImage
-import kotlinx.coroutines.launch
+
+/** iOS App Store 风格四栏横向数据条（上下细线 + 竖向短分割线） */
+@Composable
+internal fun DetailStatsRow(
+    pages: String,
+    views: String,
+    likes: String,
+    comments: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        HorizontalDivider(thickness = 0.5.dp, color = IosSeparator)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DetailStatCell(top = "頁數", value = pages, sub = "P", modifier = Modifier.weight(1f))
+            VerticalShortDivider()
+            DetailStatCell(top = "點閱", value = views, sub = "次", modifier = Modifier.weight(1f))
+            VerticalShortDivider()
+            DetailStatCell(top = "喜愛", value = likes, sub = "讚", modifier = Modifier.weight(1f))
+            VerticalShortDivider()
+            DetailStatCell(top = "討論", value = comments, sub = "則", modifier = Modifier.weight(1f))
+        }
+        HorizontalDivider(thickness = 0.5.dp, color = IosSeparator)
+    }
+}
+
+@Composable
+private fun VerticalShortDivider() {
+    Box(
+        Modifier
+            .width(0.5.dp)
+            .height(28.dp)
+            .background(IosSeparator),
+    )
+}
+
+@Composable
+private fun DetailStatCell(top: String, value: String, sub: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = top,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = IosLabelSecondary,
+        )
+        Text(
+            text = value,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = IosLabelPrimary,
+            modifier = Modifier.padding(vertical = 1.dp),
+        )
+        Text(
+            text = sub,
+            fontSize = 10.sp,
+            color = IosLabelSecondary,
+        )
+    }
+}
 
 @Composable
 internal fun DetailStat(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-            .padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(value, style = MaterialTheme.typography.titleMedium)
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    DetailStatCell(top = label, value = value, sub = "", modifier = modifier)
 }
 
 @Composable
@@ -105,30 +142,49 @@ internal fun ChapterRow(
     onRead: () -> Unit,
     onDownload: () -> Unit,
 ) {
-    Column(
+    val shape = RoundedCornerShape(12.dp)
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .padding(horizontal = 4.dp, vertical = 4.dp),
+            .clip(shape)
+            .background(IosCardWhite)
+            .border(0.5.dp, Color(0x12000000), shape)
+            .clickable(onClick = onRead)
+            .padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = chapter.title,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(onClick = onRead)
-                    .padding(vertical = 8.dp),
-            )
-            IconButton(onClick = onDownload) {
-                Icon(Icons.Filled.Download, contentDescription = "下載")
-            }
-        }
-        HorizontalDivider(
-            modifier = Modifier.padding(top = 4.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
+        Text(
+            text = chapter.title,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            color = IosLabelPrimary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
         )
+        Box(
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .clip(CircleShape)
+                .background(IosBlueSoft)
+                .clickable(onClick = onRead)
+                .padding(horizontal = 14.dp, vertical = 5.dp),
+        ) {
+            Text(
+                text = "閱讀",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosBlue,
+            )
+        }
+        IconButton(onClick = onDownload) {
+            Icon(
+                Icons.Filled.Download,
+                contentDescription = "下載",
+                tint = IosBlue,
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
 
@@ -141,10 +197,15 @@ internal fun CommentRow(
     onDelete: () -> Unit,
 ) {
     val isReply = comment.parentCid != "0" && comment.parentCid.isNotBlank()
+    val shape = RoundedCornerShape(12.dp)
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(start = if (isReply) 24.dp else 0.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = if (isReply) 20.dp else 0.dp)
+            .clip(shape)
+            .background(IosCardWhite)
+            .border(0.5.dp, Color(0x12000000), shape)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -153,33 +214,83 @@ internal fun CommentRow(
         ) {
             Text(
                 text = comment.nickname.ifBlank { comment.username },
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = IosBlue,
             )
             Text(
                 text = comment.addtime,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                color = IosLabelSecondary,
             )
         }
         Text(
             text = stripHtml(comment.content),
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 4.dp),
+            fontSize = 14.sp,
+            color = IosLabelPrimary,
+            modifier = Modifier.padding(top = 6.dp, bottom = 4.dp),
         )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onLike) {
-                Icon(Icons.Filled.ThumbUp, contentDescription = null, modifier = Modifier.width(16.dp))
-                Text(text = " ${comment.likes}", style = MaterialTheme.typography.labelMedium)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onLike)
+                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Filled.ThumbUp,
+                    contentDescription = null,
+                    tint = IosLabelSecondary,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = " ${comment.likes}",
+                    fontSize = 12.sp,
+                    color = IosLabelSecondary,
+                )
             }
-            TextButton(onClick = onReply) {
-                Icon(Icons.Filled.Reply, contentDescription = null, modifier = Modifier.width(16.dp))
-                Text(text = " 回覆", style = MaterialTheme.typography.labelMedium)
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onReply)
+                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Filled.Reply,
+                    contentDescription = null,
+                    tint = IosLabelSecondary,
+                    modifier = Modifier.size(14.dp),
+                )
+                Text(
+                    text = " 回覆",
+                    fontSize = 12.sp,
+                    color = IosLabelSecondary,
+                )
             }
             if (canDelete) {
-                TextButton(onClick = onDelete) {
-                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.width(16.dp))
-                    Text(text = " 刪除", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(onClick = onDelete)
+                        .padding(vertical = 4.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        text = " 刪除",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             }
         }
@@ -191,67 +302,153 @@ internal fun Header(
     repo: JmRepository,
     album: AlbumDetail,
     isFavorite: Boolean,
+    onReadFirst: () -> Unit,
+    onOpenAuthor: (String) -> Unit,
     onFavorite: () -> Unit,
     onLike: () -> Unit,
     onBlockTags: () -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    val context = LocalContext.current
+    val coverShape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
         AsyncImage(
             model = repo.coverUrl(album.id.toString()),
             contentDescription = album.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier
-                .width(120.dp)
+                .width(114.dp)
                 .aspectRatio(3f / 4f)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .shadow(4.dp, coverShape, clip = false)
+                .clip(coverShape)
+                .background(IosFillGray)
+                .border(0.5.dp, Color(0x18000000), coverShape),
         )
         Column(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
                 text = album.name,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 4,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosLabelPrimary,
+                lineHeight = 22.sp,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
-            TextButton(onClick = onFavorite) {
-                Icon(
-                    Icons.Filled.Star,
-                    contentDescription = "收藏",
-                    modifier = Modifier.width(18.dp),
-                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            if (album.author.isNotEmpty()) {
+                val firstAuthor = album.author.first()
                 Text(
-                    text = if (isFavorite) " 已收藏" else " 收藏",
-                    color = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = album.author.joinToString(" · "),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = IosBlue,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable { onOpenAuthor(firstAuthor) },
                 )
             }
-            TextButton(onClick = onLike) {
-                Icon(
-                    Icons.Filled.ThumbUp,
-                    contentDescription = "點讚",
-                    modifier = Modifier.width(18.dp),
-                    tint = if (album.liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            if (album.addTime.isNotBlank()) {
                 Text(
-                    text = " 讚",
-                    color = if (album.liked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = "上架於 ${formatEpochSeconds(album.addTime)} · JM${album.id}",
+                    fontSize = 11.sp,
+                    color = IosLabelSecondary,
                 )
             }
-            Row {
-                val filter = ContentFilter.of(androidx.compose.ui.platform.LocalContext.current)
-                TextButton(
-                    onClick = {
-                        album.author.firstOrNull()?.let { filter.addAuthor(it) }
-                    },
+
+            Spacer(Modifier.height(4.dp))
+
+            // iOS App Store 主操作栏：「閱讀」蓝色胶囊按钮 + 收藏/点赞圆按钮
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(IosBlue)
+                        .clickable(onClick = onReadFirst)
+                        .padding(horizontal = 20.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Text("屏蔽作者", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        text = "開始閱讀",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                    )
                 }
-                TextButton(onClick = onBlockTags) {
-                    Text("屏蔽标签", style = MaterialTheme.typography.labelSmall)
+
+                // 收藏按钮
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (isFavorite) IosBlueSoft else IosFillGray)
+                        .clickable(onClick = onFavorite)
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.Star,
+                            contentDescription = "收藏",
+                            modifier = Modifier.size(16.dp),
+                            tint = if (isFavorite) IosBlue else IosLabelSecondary,
+                        )
+                        Text(
+                            text = if (isFavorite) " 已藏" else " 收藏",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isFavorite) IosBlue else IosLabelPrimary,
+                        )
+                    }
                 }
+
+                // 点赞按钮
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(if (album.liked) Color(0xFFFFE5EA) else IosFillGray)
+                        .clickable(onClick = onLike),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.ThumbUp,
+                        contentDescription = "點讚",
+                        modifier = Modifier.size(15.dp),
+                        tint = if (album.liked) IosPink else IosLabelSecondary,
+                    )
+                }
+            }
+
+            // 轻量级屏蔽操作
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val filter = ContentFilter.of(context)
+                Text(
+                    text = "屏蔽作者",
+                    fontSize = 11.sp,
+                    color = IosLabelSecondary,
+                    modifier = Modifier
+                        .clickable {
+                            album.author.firstOrNull()?.let {
+                                filter.addAuthor(it)
+                                android.widget.Toast.makeText(context, "已屏蔽作者 $it", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .padding(vertical = 2.dp),
+                )
+                Text(
+                    text = "屏蔽標籤",
+                    fontSize = 11.sp,
+                    color = IosLabelSecondary,
+                    modifier = Modifier
+                        .clickable(onClick = onBlockTags)
+                        .padding(vertical = 2.dp),
+                )
             }
         }
     }
@@ -293,32 +490,43 @@ internal fun PreviewStrip(
 
     if (thumbs.isEmpty() && !loading) return
 
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        if (thumbs.isEmpty()) {
-            repeat(PREVIEW_COUNT) {
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(120.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                )
-            }
-        } else {
-            thumbs.forEachIndexed { index, (_, bitmap) ->
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = "預覽",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(120.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { viewerIndex = index },
-                )
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Text(
+            text = "內頁預覽",
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = IosLabelPrimary,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val shape = RoundedCornerShape(10.dp)
+            if (thumbs.isEmpty()) {
+                repeat(PREVIEW_COUNT) {
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(124.dp)
+                            .clip(shape)
+                            .background(IosFillGray),
+                    )
+                }
+            } else {
+                thumbs.forEachIndexed { index, (_, bitmap) ->
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "預覽",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(124.dp)
+                            .clip(shape)
+                            .border(0.5.dp, Color(0x16000000), shape)
+                            .clickable { viewerIndex = index },
+                    )
+                }
             }
         }
     }

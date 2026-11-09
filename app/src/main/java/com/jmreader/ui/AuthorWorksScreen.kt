@@ -13,9 +13,11 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -24,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -37,8 +40,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
 import com.jmreader.data.CategoryNode
@@ -48,10 +53,6 @@ import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 
-/**
- * 作者页状态。和 [SearchState] 一样挂在 overlay 栈上，
- * 进作品详情再返回时保留列表和滚动位置。
- */
 class AuthorWorksState {
     var albums by mutableStateOf<List<AlbumBrief>>(emptyList())
     var total by mutableIntStateOf(0)
@@ -60,29 +61,18 @@ class AuthorWorksState {
     var error by mutableStateOf<String?>(null)
     var started by mutableStateOf(false)
 
-    /** 分类筛选：同人 / 單本 / 短篇 / 韓漫…，空串表示全部。 */
     var category by mutableStateOf("")
     var categories by mutableStateOf<List<CategoryNode>>(emptyList())
 
-    /** 排序：""=默認，mv=最多點閱，tf=最多愛心。 */
     var order by mutableStateOf("")
 
-    /** 点击量 / 爱心数 / 是否日文（卡片可见时按需从 /album 补）。 */
     val metas = mutableStateMapOf<String, AlbumMeta>()
     val albumRequests = mutableSetOf<String>()
 
-    /** 是否还有下一页。用「已加载条数」判断，不能用屏蔽后的数量，否则会一直显示「載入更多」却加不出东西。 */
     var hasMore by mutableStateOf(true)
     val gridState = LazyGridState()
 }
 
-/**
- * 作者作品页。
- *
- * 接口只有 `creator_work?author_id=`，但作品详情里的 `author` 只有名字、没有 id；
- * 而 `/search?search_query=<名字>` 实测能命中该作者的作品（作者名通常也在标题里），
- * 所以这里用搜索兜底，标题显示作者名。
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuthorWorksScreen(
@@ -110,7 +100,6 @@ fun AuthorWorksScreen(
                 state.albums = if (reset) result.content else state.albums + fresh
                 state.total = result.total
                 state.page = if (reset) 2 else state.page + 1
-                // 服务端有时会把越界页返回成上一页（全是重复 id），拿不到新数据就停止翻页
                 state.hasMore = if (reset) {
                     result.content.isNotEmpty() && result.content.size < result.total
                 } else {
@@ -134,20 +123,31 @@ fun AuthorWorksScreen(
     val viewGate = remember { Semaphore(2) }
 
     Scaffold(
+        containerColor = IosGroupedBg,
         topBar = {
             TopAppBar(
                 title = {
                     Text(
                         text = authorName,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回",
+                            tint = IosBlue,
+                        )
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = IosGroupedBg,
+                    titleContentColor = IosLabelPrimary,
+                ),
             )
         },
     ) { padding ->
@@ -176,78 +176,92 @@ fun AuthorWorksScreen(
                 )
             }
             Box(Modifier.fillMaxSize()) {
-            when {
-                state.loading && state.albums.isEmpty() ->
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
+                when {
+                    state.loading && state.albums.isEmpty() ->
+                        CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
 
-                state.error != null && state.albums.isEmpty() -> Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(state.error!!, color = MaterialTheme.colorScheme.error)
-                    Button(onClick = { scope.launch { load(true) } }, modifier = Modifier.padding(top = 12.dp)) {
-                        Text("重試")
+                    state.error != null && state.albums.isEmpty() -> Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(state.error!!, color = MaterialTheme.colorScheme.error)
+                        Button(onClick = { scope.launch { load(true) } }, shape = CircleShape, modifier = Modifier.padding(top = 12.dp)) {
+                            Text("重試")
+                        }
                     }
-                }
 
-                state.albums.isEmpty() -> Text(
-                    text = "沒有找到作品",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.Center),
-                )
+                    state.albums.isEmpty() -> Text(
+                        text = "沒有找到作品",
+                        color = IosLabelSecondary,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
 
-                else -> LazyVerticalGrid(
-                    state = state.gridState,
-                    columns = GridCells.Fixed(2),
-                    // 底部多留一点：否则「載入更多」会贴在手势条下面，点不到
-                    contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 72.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            text = if (hiddenCount > 0) {
-                                "共 ${state.total} 部 · 已屏蔽 $hiddenCount 项"
-                            } else {
-                                "共 ${state.total} 部"
-                            },
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    items(items = shown, key = { it.id }) { album ->
-                        val id = album.id
-                        AlbumCard(
-                            repo = repo,
-                            album = album,
-                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
-                            badge = metaBadge(state.metas[id]),
-                            onVisible = {
-                                ensureAlbumMeta(repo, scope, viewGate, state.metas, state.albumRequests, id)
-                            },
-                        )
-                    }
-                    if (state.hasMore) {
+                    else -> LazyVerticalGrid(
+                        state = state.gridState,
+                        columns = GridCells.Fixed(3),
+                        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                horizontalArrangement = Arrangement.Center,
-                            ) {
-                                when {
-                                    state.loading -> CircularProgressIndicator()
-                                    state.error != null -> Button(onClick = { scope.launch { load(false) } }) {
-                                        Text("載入失敗，點擊重試")
-                                    }
-                                    else -> Button(onClick = { scope.launch { load(false) } }) {
-                                        Text("載入更多（${state.albums.size}/${state.total}）")
+                            Text(
+                                text = if (hiddenCount > 0) {
+                                    "共 ${state.total} 部 · 已屏蔽 $hiddenCount 項"
+                                } else {
+                                    "共 ${state.total} 部"
+                                },
+                                fontSize = 12.sp,
+                                color = IosLabelSecondary,
+                            )
+                        }
+                        items(items = shown, key = { it.id }) { album ->
+                            val id = album.id
+                            AlbumCard(
+                                repo = repo,
+                                album = album,
+                                onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                                badge = metaBadge(state.metas[id]),
+                                onVisible = {
+                                    ensureAlbumMeta(repo, scope, viewGate, state.metas, state.albumRequests, id)
+                                },
+                            )
+                        }
+                        if (state.hasMore) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                    horizontalArrangement = Arrangement.Center,
+                                ) {
+                                    when {
+                                        state.loading -> CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
+                                        state.error != null -> Button(
+                                            onClick = { scope.launch { load(false) } },
+                                            shape = CircleShape,
+                                        ) {
+                                            Text("載入失敗，點擊重試")
+                                        }
+                                        else -> Button(
+                                            onClick = { scope.launch { load(false) } },
+                                            shape = CircleShape,
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = IosCardWhite,
+                                                contentColor = IosBlue,
+                                            ),
+                                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
+                                        ) {
+                                            Text(
+                                                "載入更多（${state.albums.size}/${state.total}）",
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.padding(horizontal = 12.dp),
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
             }
         }
     }

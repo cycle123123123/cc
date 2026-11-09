@@ -96,25 +96,44 @@ fun AppRoot(repo: JmRepository) {
     Scaffold(
         bottomBar = {
             if (overlays.isEmpty()) {
-                NavigationBar {
-                    NavigationBarItem(
-                        selected = tab == RootTab.HOME,
-                        onClick = { tab = RootTab.HOME },
-                        icon = { Icon(Icons.Filled.Home, contentDescription = "首頁") },
-                        label = { Text("首頁") },
+                androidx.compose.foundation.layout.Column {
+                    androidx.compose.material3.HorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = IosSeparator,
                     )
-                    NavigationBarItem(
-                        selected = tab == RootTab.DISCOVER,
-                        onClick = { tab = RootTab.DISCOVER },
-                        icon = { Icon(Icons.Filled.Explore, contentDescription = "發現") },
-                        label = { Text("發現") },
-                    )
-                    NavigationBarItem(
-                        selected = tab == RootTab.ME,
-                        onClick = { tab = RootTab.ME },
-                        icon = { Icon(Icons.Filled.Person, contentDescription = "我的") },
-                        label = { Text("我的") },
-                    )
+                    NavigationBar(
+                        containerColor = IosCardWhite,
+                        tonalElevation = 0.dp,
+                    ) {
+                        val itemColors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                            selectedIconColor = IosBlue,
+                            selectedTextColor = IosBlue,
+                            indicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                            unselectedIconColor = IosLabelSecondary,
+                            unselectedTextColor = IosLabelSecondary,
+                        )
+                        NavigationBarItem(
+                            selected = tab == RootTab.HOME,
+                            onClick = { tab = RootTab.HOME },
+                            icon = { Icon(Icons.Filled.Home, contentDescription = "首頁") },
+                            label = { Text("首頁") },
+                            colors = itemColors,
+                        )
+                        NavigationBarItem(
+                            selected = tab == RootTab.DISCOVER,
+                            onClick = { tab = RootTab.DISCOVER },
+                            icon = { Icon(Icons.Filled.Explore, contentDescription = "發現") },
+                            label = { Text("發現") },
+                            colors = itemColors,
+                        )
+                        NavigationBarItem(
+                            selected = tab == RootTab.ME,
+                            onClick = { tab = RootTab.ME },
+                            icon = { Icon(Icons.Filled.Person, contentDescription = "我的") },
+                            label = { Text("我的") },
+                            colors = itemColors,
+                        )
+                    }
                 }
             }
         },

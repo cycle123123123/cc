@@ -1,52 +1,28 @@
 package com.jmreader.ui
 
 import android.widget.Toast
-import coil.imageLoader
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,24 +30,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.jmreader.core.runCatchingCancellable
-import com.jmreader.data.AlbumBrief
-import com.jmreader.data.FolderItem
-import com.jmreader.data.JmException
+import androidx.compose.ui.unit.sp
+import coil.imageLoader
 import com.jmreader.data.JmRepository
-import com.jmreader.data.Member
-import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
 
-
-/**
- * 「我的」：账号 + 收藏 / 历史。收藏与历史各自独立分页，避免切 tab 时互相串数据。
- */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(
     repo: JmRepository,
@@ -88,36 +53,52 @@ fun LibraryScreen(
     var clearing by remember { mutableStateOf(false) }
     var accountVisible by remember { mutableStateOf(true) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("我的") },
-                actions = {
-                    IconButton(onClick = { accountVisible = !accountVisible }) {
-                        Icon(
-                            if (accountVisible) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                            contentDescription = if (accountVisible) "隱藏帳號資訊" else "顯示帳號資訊",
-                        )
-                    }
-                    IconButton(
-                        onClick = {
-                            showCacheDialog = true
-                            scope.launch { cacheBytes = repo.cacheSizeBytes() }
-                        },
-                    ) {
-                        Icon(Icons.Filled.DeleteSweep, contentDescription = "清除快取")
-                    }
-                    IconButton(onClick = onBlocks) {
-                        Icon(Icons.Filled.Block, contentDescription = "屏蔽管理")
-                    }
-                    IconButton(onClick = onDownloads) {
-                        Icon(Icons.Filled.Download, contentDescription = "下載管理")
-                    }
-                },
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(IosGroupedBg)
+            .statusBarsPadding(),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "我的",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosLabelPrimary,
+                letterSpacing = (-0.5).sp,
+                modifier = Modifier.weight(1f),
             )
-        },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
+            if (member != null) {
+                IconButton(onClick = { accountVisible = !accountVisible }) {
+                    Icon(
+                        if (accountVisible) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (accountVisible) "隱藏帳號資訊" else "顯示帳號資訊",
+                        tint = IosBlue,
+                    )
+                }
+            }
+            IconButton(
+                onClick = {
+                    showCacheDialog = true
+                    scope.launch { cacheBytes = repo.cacheSizeBytes() }
+                },
+            ) {
+                Icon(Icons.Filled.DeleteSweep, contentDescription = "清除快取", tint = IosBlue)
+            }
+            IconButton(onClick = onBlocks) {
+                Icon(Icons.Filled.Block, contentDescription = "屏蔽管理", tint = IosBlue)
+            }
+            IconButton(onClick = onDownloads) {
+                Icon(Icons.Filled.Download, contentDescription = "下載管理", tint = IosBlue)
+            }
+        }
+
+        Box(Modifier.fillMaxSize()) {
             if (member == null) {
                 LoginForm(repo)
             } else {

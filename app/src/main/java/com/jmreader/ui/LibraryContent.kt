@@ -1,7 +1,9 @@
 package com.jmreader.ui
 
 import android.widget.Toast
-import coil.imageLoader
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,41 +12,25 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -53,11 +39,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumBrief
 import com.jmreader.data.FolderItem
@@ -152,7 +139,6 @@ internal fun LibraryContent(
         historyLoading = false
     }
 
-    // 收藏：换账号 / 换收藏夹时重新拉取；切回收藏 tab 不重复请求
     LaunchedEffect(member.uid, folderId, tab) {
         if (tab == 0 && (loadedFolder != folderId || !favoritesLoaded)) {
             loadedFolder = folderId
@@ -162,7 +148,6 @@ internal fun LibraryContent(
         }
     }
 
-    // 歷史：首次进入时拉取，之后切 tab 复用缓存
     LaunchedEffect(member.uid, tab) {
         if (tab == 1 && !historyLoaded) {
             historyPage = 1
@@ -183,75 +168,122 @@ internal fun LibraryContent(
 
     Column(Modifier.fillMaxSize()) {
         if (accountVisible) {
+            val cardShape = RoundedCornerShape(14.dp)
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .clip(cardShape)
+                    .background(IosCardWhite)
+                    .border(0.5.dp, Color(0x12000000), cardShape)
+                    .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column {
-                    Text(member.username.ifBlank { "已登入" }, style = MaterialTheme.typography.titleLarge)
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(IosBlueSoft),
+                    contentAlignment = Alignment.Center,
+                ) {
                     Text(
-                        text = "UID ${member.uid} · 收藏 ${member.totalFavorites} · Lv.${member.level}",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = member.username.take(1).uppercase().ifBlank { "J" },
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IosBlue,
                     )
                 }
-                TextButton(onClick = { scope.launch { repo.logout() } }) { Text("退出") }
-            }
-            TextButton(
-                onClick = onCheckUpdate,
-                modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
-            ) {
-                Text(
-                    text = "v${com.jmreader.BuildConfig.VERSION_NAME} · 檢查更新",
-                    style = MaterialTheme.typography.labelSmall,
-                )
+                Column(
+                    modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
+                ) {
+                    Text(
+                        text = member.username.ifBlank { "已登入" },
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = IosLabelPrimary,
+                    )
+                    Text(
+                        text = "UID ${member.uid} · 收藏 ${member.totalFavorites} · Lv.${member.level}",
+                        fontSize = 12.sp,
+                        color = IosLabelSecondary,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                    Text(
+                        text = "v${com.jmreader.BuildConfig.VERSION_NAME} · 點此檢查更新",
+                        fontSize = 11.sp,
+                        color = IosBlue,
+                        modifier = Modifier
+                            .padding(top = 3.dp)
+                            .clickable(onClick = onCheckUpdate),
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(IosGroupedBg)
+                        .clickable { scope.launch { repo.logout() } }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        text = "登出",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
 
-        TabRow(selectedTabIndex = tab) {
-            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("收藏") })
-            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("歷史") })
-        }
+        IosSegmentedControl(
+            items = listOf("收藏", "閱讀歷史"),
+            selectedIndex = tab,
+            onSelect = { tab = it },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        )
 
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (tab == 0) {
                 item {
-                    FilterChip(
+                    IosFilterPill(
                         selected = folderId.isBlank(),
+                        label = "全部",
                         onClick = { folderId = "" },
-                        label = { Text("全部") },
                     )
                 }
                 items(items = folders, key = { it.fid }) { folder ->
-                    FilterChip(
+                    IosFilterPill(
                         selected = folderId == folder.fid,
+                        label = folder.name,
                         onClick = { folderId = folder.fid },
-                        label = { Text(folder.name) },
                     )
                 }
                 item {
-                    TextButton(onClick = { showFolders = true }) { Text("管理") }
+                    IosFilterPill(
+                        selected = false,
+                        label = "管理收藏夾",
+                        onClick = { showFolders = true },
+                    )
                 }
             }
             item {
-                TextButton(
+                IosFilterPill(
+                    selected = searchOpen,
+                    label = if (searchOpen) "收起搜尋" else "🔍 篩選",
                     onClick = {
                         searchOpen = !searchOpen
                         if (!searchOpen) query = ""
                     },
-                ) {
-                    Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.width(18.dp))
-                    Text(if (searchOpen) " 收起" else " 搜尋")
-                }
+                )
             }
             item {
-                TextButton(onClick = { sortByName = !sortByName }) {
-                    Text(if (sortByName) "名稱↓" else "默認")
-                }
+                IosFilterPill(
+                    selected = sortByName,
+                    label = if (sortByName) "排序：名稱↓" else "排序：默認",
+                    onClick = { sortByName = !sortByName },
+                )
             }
         }
 
@@ -266,33 +298,34 @@ internal fun LibraryContent(
                     )
                 },
                 singleLine = true,
+                shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
 
         Box(Modifier.fillMaxSize()) {
             when {
-                currentLoading && shown.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                currentLoading && shown.isEmpty() -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
                 currentError != null && shown.isEmpty() -> Text(
-                    text = currentError!!,
+                    text = currentError,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.align(Alignment.Center),
                 )
                 shown.isEmpty() -> Text(
                     text = when {
                         query.isNotBlank() -> "沒有符合的結果"
-                        tab == 0 -> "沒有資料"
+                        tab == 0 -> "收藏夾還沒有作品"
                         else -> "還沒有閱讀記錄"
                     },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = IosLabelSecondary,
                     modifier = Modifier.align(Alignment.Center),
                 )
                 else -> LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 72.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    columns = GridCells.Fixed(3),
+                    contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
@@ -312,7 +345,7 @@ internal fun LibraryContent(
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                                 if (currentLoading) {
-                                    CircularProgressIndicator()
+                                    CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
                                 } else {
                                     Button(
                                         onClick = {
@@ -320,8 +353,18 @@ internal fun LibraryContent(
                                                 if (tab == 0) loadFavorites(folderId, false) else loadHistory(false)
                                             }
                                         },
+                                        shape = CircleShape,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = IosCardWhite,
+                                            contentColor = IosBlue,
+                                        ),
+                                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
                                     ) {
-                                        Text("載入更多（${shown.size}/$currentTotal）")
+                                        Text(
+                                            "載入更多（${shown.size}/$currentTotal）",
+                                            fontWeight = FontWeight.SemiBold,
+                                            modifier = Modifier.padding(horizontal = 12.dp),
+                                        )
                                     }
                                 }
                             }

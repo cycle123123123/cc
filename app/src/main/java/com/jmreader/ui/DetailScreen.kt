@@ -1,9 +1,8 @@
 package com.jmreader.ui
 
 import android.widget.Toast
-import android.graphics.Bitmap
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,41 +11,29 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Reply
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.ThumbUp
-import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -60,25 +47,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import coil.compose.AsyncImage
-import com.jmreader.data.userMessage
+import androidx.compose.ui.unit.sp
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.AlbumDetail
 import com.jmreader.data.ChapterEntry
-import com.jmreader.data.ComicRead
 import com.jmreader.data.CommentItem
 import com.jmreader.data.ContentFilter
 import com.jmreader.data.DownloadRepository
 import com.jmreader.data.ForumPage
 import com.jmreader.data.JmRepository
-import com.jmreader.data.PageImage
+import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -153,21 +134,30 @@ fun DetailScreen(
     }
 
     Scaffold(
+        containerColor = IosGroupedBg,
         topBar = {
             TopAppBar(
-                title = { Text("詳情") },
+                title = { Text("作品詳情", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回",
+                            tint = IosBlue,
+                        )
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = IosGroupedBg,
+                    titleContentColor = IosLabelPrimary,
+                ),
             )
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             val album = detail
             when {
-                loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                loading -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
 
                 album == null -> Text(
                     text = error ?: "載入失敗",
@@ -176,16 +166,32 @@ fun DetailScreen(
                 )
 
                 else -> LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     item(key = "header") {
-                        Column {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(IosCardWhite)
+                                .border(0.5.dp, Color(0x12000000), RoundedCornerShape(16.dp))
+                                .padding(14.dp),
+                        ) {
                             Header(
                                 repo = repo,
                                 album = album,
                                 isFavorite = isFavorite,
+                                onReadFirst = {
+                                    val first = chapters.firstOrNull()
+                                    if (first != null) {
+                                        onRead(first.id, first.title)
+                                    } else {
+                                        onRead(album.id, album.name)
+                                    }
+                                },
+                                onOpenAuthor = onOpenAuthor,
                                 onFavorite = {
                                     scope.launch {
                                         runCatchingCancellable { repo.toggleFavorite(albumId) }
@@ -230,6 +236,15 @@ fun DetailScreen(
                                     showTagBlock = true
                                 },
                             )
+
+                            DetailStatsRow(
+                                pages = album.totalPhotos.toString(),
+                                views = formatCount(album.viewCount),
+                                likes = formatCount(album.likes),
+                                comments = formatCount(forum?.total ?: album.commentTotal),
+                                modifier = Modifier.padding(top = 14.dp),
+                            )
+
                             chapters.firstOrNull()?.let { first ->
                                 PreviewStrip(
                                     repo = repo,
@@ -246,107 +261,139 @@ fun DetailScreen(
                             "目錄（${chapters.size}）",
                             "評論（${forum?.total ?: album.commentTotal}）",
                         )
-                        TabRow(
-                            selectedTabIndex = detailTab,
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.padding(top = 4.dp),
-                        ) {
-                            tabs.forEachIndexed { index, title ->
-                                Tab(
-                                    selected = detailTab == index,
-                                    onClick = { detailTab = index },
-                                    text = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                )
-                            }
-                        }
+                        IosSegmentedControl(
+                            items = tabs,
+                            selectedIndex = detailTab,
+                            onSelect = { detailTab = it },
+                        )
                     }
 
                     if (detailTab == 0) {
                         item {
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    DetailStat("頁數", album.totalPhotos.toString(), Modifier.weight(1f))
-                                    DetailStat("觀看", formatCount(album.viewCount), Modifier.weight(1f))
-                                    DetailStat("點讚", formatCount(album.likes), Modifier.weight(1f))
-                                    DetailStat(
-                                        "評論",
-                                        formatCount(forum?.total ?: album.commentTotal),
-                                        Modifier.weight(1f),
-                                    )
-                                }
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    if (album.addTime.isNotBlank()) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(IosCardWhite)
+                                    .border(0.5.dp, Color(0x12000000), RoundedCornerShape(14.dp))
+                                    .padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                if (album.author.isNotEmpty()) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Text(
-                                            text = "上架 ${formatEpochSeconds(album.addTime)}",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            text = "作者",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = IosLabelSecondary,
                                         )
-                                    }
-                                    if (album.author.isNotEmpty()) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = "作者",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(end = 8.dp),
-                                            )
-                                            FlowRow(
-                                                modifier = Modifier.weight(1f),
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            ) {
-                                                album.author.forEach { name ->
-                                                    AssistChip(
-                                                        onClick = { onOpenAuthor(name) },
-                                                        label = { Text(name, style = MaterialTheme.typography.labelMedium) },
+                                        FlowRow(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            album.author.forEach { name ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(CircleShape)
+                                                        .background(IosBlueSoft)
+                                                        .clickable { onOpenAuthor(name) }
+                                                        .padding(horizontal = 12.dp, vertical = 5.dp),
+                                                ) {
+                                                    Text(
+                                                        text = name,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = IosBlue,
                                                     )
                                                 }
                                             }
                                         }
                                     }
-                                    if (album.tags.isNotEmpty()) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = "標籤",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.padding(end = 8.dp),
-                                            )
-                                            FlowRow(
-                                                modifier = Modifier.weight(1f),
-                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                            ) {
-                                                album.tags.forEach { tag ->
-                                                    AssistChip(
-                                                        onClick = { onSearchTag(tag) },
-                                                        label = { Text(tag, style = MaterialTheme.typography.labelMedium) },
+                                }
+                                if (album.tags.isNotEmpty()) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(
+                                            text = "標籤",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = IosLabelSecondary,
+                                        )
+                                        FlowRow(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            album.tags.forEach { tag ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(IosGroupedBg)
+                                                        .clickable { onSearchTag(tag) }
+                                                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                                                ) {
+                                                    Text(
+                                                        text = "#$tag",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = IosLabelPrimary,
                                                     )
                                                 }
                                             }
                                         }
+                                    }
+                                }
+                                if (album.description.isNotBlank()) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(
+                                            text = "簡介",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = IosLabelSecondary,
+                                        )
+                                        Text(
+                                            text = album.description,
+                                            fontSize = 13.sp,
+                                            color = IosLabelPrimary,
+                                            lineHeight = 19.sp,
+                                        )
                                     }
                                 }
                             }
                         }
-                        if (album.description.isNotBlank()) {
+
+                        if (chapters.isNotEmpty()) {
                             item {
                                 Text(
-                                    text = album.description,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    text = "章節列表（共 ${chapters.size} 話）",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = IosLabelPrimary,
+                                    modifier = Modifier.padding(top = 4.dp),
                                 )
+                            }
+                            items(items = chapters.take(5), key = { "preview_ch_${it.id}" }) { chapter ->
+                                ChapterRow(
+                                    chapter = chapter,
+                                    onRead = { onRead(chapter.id, chapter.title) },
+                                    onDownload = {
+                                        DownloadRepository.of(context).enqueue(chapter.id, album.id, chapter.title)
+                                        Toast.makeText(context, "已加入下載", Toast.LENGTH_SHORT).show()
+                                    },
+                                )
+                            }
+                            if (chapters.size > 5) {
+                                item {
+                                    TextButton(
+                                        onClick = { detailTab = 1 },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Text("查看全部 ${chapters.size} 話 ›", color = IosBlue, fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
                             }
                         }
                     }
 
                     if (detailTab == 1) {
-                        item {
-                            Text(
-                                text = "目錄（${chapters.size}）",
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
-                        }
-
                         items(items = chapters, key = { it.id }) { chapter ->
                             ChapterRow(
                                 chapter = chapter,
@@ -360,140 +407,136 @@ fun DetailScreen(
                     }
 
                     if (detailTab == 2) {
-                    item {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(top = 12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                        )
-                    }
-
-                    item {
-                        Text(
-                            text = "評論（${forum?.total ?: album.commentTotal}）",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
-
-                    item {
-                        Column {
-                            replyTo?.let { target ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = "回覆 @${target.nickname.ifBlank { target.username }}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.primary,
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(IosCardWhite)
+                                    .border(0.5.dp, Color(0x12000000), RoundedCornerShape(12.dp))
+                                    .padding(12.dp),
+                            ) {
+                                replyTo?.let { target ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            text = "回覆 @${target.nickname.ifBlank { target.username }}",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = IosBlue,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        TextButton(onClick = { replyTo = null }) { Text("取消") }
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    OutlinedTextField(
+                                        value = commentText,
+                                        onValueChange = { commentText = it },
+                                        placeholder = { Text(if (loggedIn) "撰寫評論…" else "登入後可發表評論") },
+                                        enabled = loggedIn && !posting,
+                                        shape = RoundedCornerShape(10.dp),
                                         modifier = Modifier.weight(1f),
                                     )
-                                    TextButton(onClick = { replyTo = null }) { Text("取消") }
-                                }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                OutlinedTextField(
-                                    value = commentText,
-                                    onValueChange = { commentText = it },
-                                    placeholder = { Text(if (loggedIn) "說點什麼…" else "登入後可評論") },
-                                    enabled = loggedIn && !posting,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Button(
-                                    onClick = { submitComment() },
-                                    enabled = loggedIn && !posting && commentText.isNotBlank(),
-                                    modifier = Modifier.padding(start = 8.dp),
-                                ) {
-                                    Text("發送")
+                                    Button(
+                                        onClick = { submitComment() },
+                                        enabled = loggedIn && !posting && commentText.isNotBlank(),
+                                        shape = CircleShape,
+                                        modifier = Modifier.padding(start = 8.dp),
+                                    ) {
+                                        Text("發送")
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    val list = forum?.list.orEmpty()
-                    if (list.isEmpty()) {
-                        item {
-                            Text(
-                                text = "還沒有評論",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
+                        val list = forum?.list.orEmpty()
+                        if (list.isEmpty()) {
+                            item {
+                                Text(
+                                    text = "還沒有評論",
+                                    color = IosLabelSecondary,
+                                    fontSize = 13.sp,
+                                    modifier = Modifier.padding(vertical = 16.dp),
+                                )
+                            }
+                        } else {
+                            items(items = list, key = { it.cid }) { comment ->
+                                CommentRow(
+                                    comment = comment,
+                                    canDelete = loggedIn && member?.uid == comment.uid,
+                                    onLike = {
+                                        scope.launch {
+                                            runCatchingCancellable { repo.voteComment(comment.cid) }
+                                                .onFailure {
+                                                    Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                                }
+                                        }
+                                    },
+                                    onReply = {
+                                        replyTo = comment
+                                        commentText = ""
+                                    },
+                                    onDelete = {
+                                        scope.launch {
+                                            runCatchingCancellable { repo.deleteComment(comment.cid) }
+                                                .onSuccess { result ->
+                                                    Toast.makeText(
+                                                        context,
+                                                        if (result.status == "ok") "已刪除" else (result.msg.ifBlank { "刪除失敗" }),
+                                                        Toast.LENGTH_SHORT,
+                                                    ).show()
+                                                    refreshComments()
+                                                }
+                                                .onFailure {
+                                                    Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
+                                                }
+                                        }
+                                    },
+                                )
+                            }
                         }
-                    } else {
-                        items(items = list, key = { it.cid }) { comment ->
-                            CommentRow(
-                                comment = comment,
-                                canDelete = loggedIn && member?.uid == comment.uid,
-                                onLike = {
-                                    scope.launch {
-                                        runCatchingCancellable { repo.voteComment(comment.cid) }
-                                            .onFailure {
-                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
-                                            }
-                                    }
-                                },
-                                onReply = {
-                                    replyTo = comment
-                                    commentText = ""
-                                },
-                                onDelete = {
-                                    scope.launch {
-                                        runCatchingCancellable { repo.deleteComment(comment.cid) }
-                                            .onSuccess { result ->
-                                                Toast.makeText(
-                                                    context,
-                                                    if (result.status == "ok") "已刪除" else (result.msg.ifBlank { "刪除失敗" }),
-                                                    Toast.LENGTH_SHORT,
-                                                ).show()
-                                                refreshComments()
-                                            }
-                                            .onFailure {
-                                                Toast.makeText(context, it.userMessage(), Toast.LENGTH_SHORT).show()
-                                            }
-                                    }
-                                },
-                            )
-                        }
-                    }
                     }
                 }
             }
         }
-    if (showTagBlock) {
-        detail?.let { album ->
-            AlertDialog(
-                onDismissRequest = { showTagBlock = false },
-                title = { Text("屏蔽标签") },
-                text = {
-                    Column {
-                        album.tags.forEach { tag ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                androidx.compose.material3.Checkbox(
-                                    checked = tagsToBlock.contains(tag),
-                                    onCheckedChange = { checked ->
-                                        tagsToBlock = if (checked) tagsToBlock + tag else tagsToBlock - tag
-                                    },
-                                )
-                                Text(tag)
+        if (showTagBlock) {
+            detail?.let { album ->
+                AlertDialog(
+                    onDismissRequest = { showTagBlock = false },
+                    title = { Text("屏蔽標籤") },
+                    text = {
+                        Column {
+                            album.tags.forEach { tag ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = tagsToBlock.contains(tag),
+                                        onCheckedChange = { checked ->
+                                            tagsToBlock = if (checked) tagsToBlock + tag else tagsToBlock - tag
+                                        },
+                                    )
+                                    Text(tag)
+                                }
                             }
                         }
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            val filter = ContentFilter.of(context)
-                            tagsToBlock.forEach { filter.addKeyword(it) }
-                            Toast.makeText(context, "已屏蔽 ${tagsToBlock.size} 个标签", Toast.LENGTH_SHORT).show()
-                            showTagBlock = false
-                        },
-                    ) { Text("确定") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showTagBlock = false }) { Text("取消") }
-                },
-            )
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                val filter = ContentFilter.of(context)
+                                tagsToBlock.forEach { filter.addKeyword(it) }
+                                Toast.makeText(context, "已屏蔽 ${tagsToBlock.size} 個標籤", Toast.LENGTH_SHORT).show()
+                                showTagBlock = false
+                            },
+                        ) { Text("確定") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showTagBlock = false }) { Text("取消") }
+                    },
+                )
+            }
         }
     }
-}
 }
