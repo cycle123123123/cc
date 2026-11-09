@@ -27,8 +27,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
@@ -75,7 +73,6 @@ fun LibraryScreen(
     var showCacheDialog by remember { mutableStateOf(false) }
     var cacheBytes by remember { mutableStateOf(0L) }
     var clearing by remember { mutableStateOf(false) }
-    var accountVisible by remember { mutableStateOf(true) }
     var showLoginDialog by remember { mutableStateOf(false) }
 
     fun openCacheDialog() {
@@ -108,15 +105,6 @@ fun LibraryScreen(
                 letterSpacing = (-0.5).sp,
                 modifier = Modifier.weight(1f),
             )
-            if (member != null) {
-                IconButton(onClick = { accountVisible = !accountVisible }) {
-                    Icon(
-                        if (accountVisible) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = if (accountVisible) "隱藏帳號資訊" else "顯示帳號資訊",
-                        tint = IosBlue,
-                    )
-                }
-            }
         }
 
         Box(Modifier.fillMaxSize()) {
@@ -135,7 +123,6 @@ fun LibraryScreen(
                     repo = repo,
                     member = member!!,
                     onOpen = onOpen,
-                    accountVisible = accountVisible,
                     onDownloads = onDownloads,
                     onBlocks = onBlocks,
                     onClearCache = { openCacheDialog() },

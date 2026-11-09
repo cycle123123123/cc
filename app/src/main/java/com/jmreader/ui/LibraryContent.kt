@@ -63,7 +63,6 @@ internal fun LibraryContent(
     repo: JmRepository,
     member: Member,
     onOpen: (Long) -> Unit,
-    accountVisible: Boolean,
     onDownloads: () -> Unit,
     onBlocks: () -> Unit,
     onClearCache: () -> Unit,
@@ -206,13 +205,11 @@ internal fun LibraryContent(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        if (accountVisible) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                AccountCard(
-                    member = member,
-                    onLogout = { scope.launch { repo.logout() } },
-                )
-            }
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            AccountCard(
+                member = member,
+                onLogout = { scope.launch { repo.logout() } },
+            )
         }
 
         item(span = { GridItemSpan(maxLineSpan) }) {
@@ -247,6 +244,14 @@ internal fun LibraryContent(
                     contentPadding = PaddingValues(0.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    // 排序放最前面，收藏夾很多時也不會被擠出螢幕（收藏/歷史兩頁都有）
+                    item {
+                        IosFilterPill(
+                            selected = sortByName,
+                            label = if (sortByName) "排序：名稱↓" else "排序：默認",
+                            onClick = { sortByName = !sortByName },
+                        )
+                    }
                     if (tab == 0) {
                         item {
                             IosFilterPill(
@@ -278,13 +283,6 @@ internal fun LibraryContent(
                                 searchOpen = !searchOpen
                                 if (!searchOpen) query = ""
                             },
-                        )
-                    }
-                    item {
-                        IosFilterPill(
-                            selected = sortByName,
-                            label = if (sortByName) "排序：名稱↓" else "排序：默認",
-                            onClick = { sortByName = !sortByName },
                         )
                     }
                 }

@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -206,16 +207,20 @@ fun AppRoot(repo: JmRepository) {
                     onOpenAlbum = { id -> push(Screen.Detail(id)) },
                 )
 
-                is Screen.Reader -> ReaderScreen(
-                    repo = repo,
-                    albumId = current.aid,
-                    cid = current.cid,
-                    title = current.title,
-                    onBack = { pop() },
-                    onOpenChapter = { newCid, newTitle ->
-                        overlays[overlays.lastIndex] = Screen.Reader(current.aid, newCid, newTitle)
-                    },
-                )
+                is Screen.Reader -> key(current.cid) {
+                    // 換話時整塊重建：章節、頁碼、圖片緩存、書籤全部按新 cid 重新初始化，
+                    // 避免沿用上一話的滾動位置（曾出現「第 3 話第 40 頁 → 第 4 話第 40 頁」）。
+                    ReaderScreen(
+                        repo = repo,
+                        albumId = current.aid,
+                        cid = current.cid,
+                        title = current.title,
+                        onBack = { pop() },
+                        onOpenChapter = { newCid, newTitle ->
+                            overlays[overlays.lastIndex] = Screen.Reader(current.aid, newCid, newTitle)
+                        },
+                    )
+                }
 
                 Screen.Downloads -> DownloadsScreen(onBack = { pop() })
 
