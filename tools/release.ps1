@@ -15,13 +15,29 @@ $tokenFile = Join-Path $env:USERPROFILE '.config\jmreader\token.txt'
 if (-not (Test-Path $tokenFile)) { throw "缺少 token 文件: $tokenFile" }
 $token = (Get-Content $tokenFile -Raw).Trim()
 
-# 网络：优先走系统代理（这台机器 github.com 直连不稳）
+# 网络：系统代理可用就走代理，不可用就直连（这台机器两者经常切换）
 $sysProxy = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction SilentlyContinue).ProxyServer
+$proxyUsable = $false
 if ($sysProxy) {
     if ($sysProxy -notmatch '^https?://') { $sysProxy = "http://$sysProxy" }
+    $m = [regex]::Match($sysProxy, '://([^:]+):(\d+)')
+    if ($m.Success) {
+        $proxyUsable = (Test-NetConnection $m.Groups[1].Value -Port ([int]$m.Groups[2].Value) -WarningAction SilentlyContinue).TcpTestSucceeded
+    }
+}
+if ($proxyUsable) {
     $env:HTTP_PROXY = $sysProxy
     $env:HTTPS_PROXY = $sysProxy
+    Remove-Item Env:no_proxy -ErrorAction SilentlyContinue
+    Remove-Item Env:NO_PROXY -ErrorAction SilentlyContinue
     Write-Host "==> 使用代理 $sysProxy"
+} else {
+    Remove-Item Env:HTTP_PROXY -ErrorAction SilentlyContinue
+    Remove-Item Env:HTTPS_PROXY -ErrorAction SilentlyContinue
+    $env:no_proxy = 'github.com,api.github.com,uploads.github.com'
+    $env:NO_PROXY = $env:no_proxy
+    [System.Net.WebRequest]::DefaultWebProxy = $null
+    Write-Host '==> 代理不可用，直连 GitHub'
 }
 
 function AuthHeader {
