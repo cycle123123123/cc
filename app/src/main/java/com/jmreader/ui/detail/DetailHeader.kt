@@ -307,31 +307,43 @@ internal fun Header(
                 }
             }
 
-            // 轻量级屏蔽操作
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "屏蔽作者",
-                    fontSize = 11.sp,
-                    color = IosLabelSecondary,
-                    modifier = Modifier
-                        .clickable {
-                            val name = album.author.joinToString(" ").trim()
-                            if (name.isNotBlank()) {
-                                onBlockAuthor(name)
-                            }
-                        }
-                        .padding(vertical = 2.dp),
-                )
-                Text(
-                    text = "屏蔽標籤",
-                    fontSize = 11.sp,
-                    color = IosLabelSecondary,
-                    modifier = Modifier
-                        .clickable(onClick = onBlockTags)
-                        .padding(vertical = 2.dp),
-                )
-            }
         }
+    }
+}
+
+/** 轻量级屏蔽操作：整行放在封面区下方、统计条上方。 */
+@Composable
+internal fun BlockActions(
+    album: AlbumDetail,
+    onBlockAuthor: (String) -> Unit,
+    onBlockTags: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = "屏蔽作者",
+            fontSize = 11.sp,
+            color = IosLabelSecondary,
+            modifier = Modifier
+                .clickable {
+                    val name = album.author.joinToString(" ").trim()
+                    if (name.isNotBlank()) {
+                        onBlockAuthor(name)
+                    }
+                }
+                .padding(vertical = 2.dp),
+        )
+        Text(
+            text = "屏蔽標籤",
+            fontSize = 11.sp,
+            color = IosLabelSecondary,
+            modifier = Modifier
+                .clickable(onClick = onBlockTags)
+                .padding(vertical = 2.dp),
+        )
     }
 }
 
@@ -378,6 +390,13 @@ internal fun DetailHeaderCard(
             resumeChapter = resumeChapter,
             resumeChapterNumber = resumeChapterNumber,
             onContinue = onContinue,
+        )
+
+        BlockActions(
+            album = album,
+            onBlockAuthor = onBlockAuthor,
+            onBlockTags = onBlockTags,
+            modifier = Modifier.padding(top = 10.dp),
         )
 
         DetailStatsRow(
