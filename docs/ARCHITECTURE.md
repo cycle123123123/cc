@@ -43,17 +43,26 @@ app/src/main/java/com/jmreader/
 ## 数据流
 
 ```
-Compose 屏幕
-   │ suspend 调用
-   ▼
-JmRepository ──► HostBenchmark（选线路）
-   │  ├─ ensureReady / recoverBase（缓存线路、失败重发现）
-   │  ├─ ensureSession / silentLogin（JWT 过期用记住的密码重登）
-   │  └─ JmHttp.get/post（签名头 + AES 解密）
+MainActivity
+   └─ CompositionLocalProvider(LocalAppContainer)
+        └─ AppRoot ── 屏幕
+             │ suspend
+             ▼
+        AppContainer（单例集合：repository / contentFilter / downloads /
+                      readingHistory / searchHistory / updateChecker /
+                      readerPrefs / appPrefs / albumMetaCache）
+             │
+             ▼
+JmRepository ──► HostManager（线路 + /setting 元信息）
+   │   ├─ net/JmHttp（签名头 + AES 解密）、net/HostBenchmark（测速）
+   │   ├─ net/CatalogApi / net/BrowseApi / net/AccountApi（只读、只读杂项、账号写接口）
+   │   ├─ page/PageRepository（字节下载 / 缓存 / 预取 / 解码）
+   │   └─ page/ImageHostManager（图源选择与测速）
    ▼
 DTO（kotlinx.serialization）∈ data/model
    ▼
-屏幕状态（State / remember）
+屏幕状态：AlbumQueryState / HomeState / DetailState + PagedList
+```
 
 阅读：
 PageStore（内存位图）→ PageLoader（下载目录 → PageCache → 网络 → 解码 → 还原）
@@ -77,8 +86,12 @@ DownloadRepository（协程队列，写 files/downloads/{cid}/{page}.bin）
 ## 导航与状态
 
 `AppRoot` 维护 `mutableStateListOf<Screen>`，只渲染栈顶；`Screen.Search` / `Screen.AuthorWorks`
-各自持有 `SearchState` / `AuthorWorksState`，因此从详情返回不会丢列表和滚动位置。
-首页用常驻 `HomeState`。
+各自持有 `AlbumQueryState`（内部含 `PagedList` 与 `LazyGridState`），因此从详情返回不会丢列表和滚动位置。
+首页用常驻 `HomeState`，详情页用 `remember(albumId) { DetailState(...) }`。
+
+列表统一走 `ui/common/PagedList` + `ui/components/AlbumGrid`：
+`PagedList` 负责第 1 页/加载更多/去重/错误保留旧数据，`AlbumGrid` 负责 3 列网格、屏蔽过滤、
+`AlbumMetaCache` 角标与触底加载。
 
 没有 ViewModel：`android:configChanges` 已覆盖旋转，进程被杀后状态仍会丢（阅读进度有 prefs 兜底）。
 
@@ -90,5 +103,6 @@ DownloadRepository（协程队列，写 files/downloads/{cid}/{page}.bin）
 
 ## 测试
 
-`app/src/test` 共 9 个文件 / 49 个用例：crypto、分条算法、解析、屏蔽匹配、页缓存、版本比较、卡片角标。
-仓库层与 UI 暂无自动化测试。
+`app/src/test` 共 11 个文件 / 62 个用例：crypto、分条算法、解析、屏蔽匹配、页缓存、版本比较、
+卡片角标、`TtlCache`（命中/过期/LRU）、`PagedList`（首屏/追加去重/到底/错误保留）。
+仓库层与 UI 的其它部分暂无自动化测试。

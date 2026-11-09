@@ -2,7 +2,6 @@ package com.jmreader.data
 
 import android.content.Context
 import android.graphics.Bitmap
-import com.jmreader.core.JmConfig
 import com.jmreader.core.TtlCache
 import com.jmreader.data.local.AuthStore
 import com.jmreader.data.local.HomeCache
@@ -11,11 +10,10 @@ import com.jmreader.data.model.AlbumDetail
 import com.jmreader.data.model.AppSetting
 import com.jmreader.data.model.ChapterEntry
 import com.jmreader.data.model.ComicRead
-import com.jmreader.data.model.JmException
 import com.jmreader.data.model.Member
 import com.jmreader.data.model.SeriesParser
 import com.jmreader.data.net.AccountApi
-import com.jmreader.data.net.ApiFetcher
+import com.jmreader.data.net.ApiClient
 import com.jmreader.data.net.BrowseApi
 import com.jmreader.data.net.CatalogApi
 import com.jmreader.data.net.HostBenchmark
@@ -28,9 +26,6 @@ import com.jmreader.data.page.PageLoader
 import com.jmreader.data.page.PageRepository
 import java.io.File
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.Json
 import okhttp3.Cache
 import okhttp3.OkHttpClient
@@ -89,23 +84,17 @@ class JmRepository(context: Context) {
         base = { hosts.apiBase },
     )
 
-    /** 只读接口的统一取数入口（带线路重试与鉴权刷新）。 */
-    private val fetcher = object : ApiFetcher {
-        override suspend fun <T> fetch(
-            path: String,
-            params: Map<String, String>,
-            deserializer: DeserializationStrategy<T>,
-        ): T = get(path, params, deserializer)
-    }
+    /** 请求执行层（线路重试 + 鉴权刷新）。 */
+    private val api = ApiClient(hosts, session, jmHttp, json)
 
-    private val browse = BrowseApi(fetcher)
+    private val browse = BrowseApi(api)
 
     private val albumCache = TtlCache<Long, AlbumDetail>(16, ALBUM_TTL_MS)
     private val readCache = TtlCache<Long, ComicRead>(8, READ_TTL_MS)
 
-    private val catalog = CatalogApi(fetcher, albumCache, readCache, HomeCache(appContext.filesDir, json))
+    private val catalog = CatalogApi(api, albumCache, readCache, HomeCache(appContext.filesDir, json))
 
-    private val account = AccountApi(fetcher, ::authedForm, ::authedFormRaw, json)
+    private val account = AccountApi(api, api::authedForm, api::authedFormRaw, json)
 
     /** 图源选择与测速。 */
     private val imageHosts = ImageHostManager(prefs, http)
@@ -263,51 +252,6 @@ class JmRepository(context: Context) {
 
     /** 从 /album 的 series 字段提取目录；单本作品返回空列表。 */
     fun seriesChapters(detail: AlbumDetail): List<ChapterEntry> = SeriesParser.parse(detail.series)
-
-    // ------------------------------------------------------------ internals
-
-    private suspend fun <T> get(
-        path: String,
-        params: Map<String, String> = emptyMap(),
-        deserializer: DeserializationStrategy<T>,
-    ): T = withContext(Dispatchers.IO) {
-        hosts.ensureReady()
-        session.ensureSession()
-        val base = hosts.apiBase ?: throw JmException.Network("线路未就绪")
-        val body = try {
-            jmHttp.get(base, path, params)
-        } catch (e: JmException.Auth) {
-            // token 失效：用记住的密码重登一次再重试
-            if (session.silentLogin()) jmHttp.get(base, path, params) else throw e
-        } catch (e: JmException.Network) {
-            // 缓存线路失效：重新发现一次再重试
-            val fresh = hosts.recoverBase()
-            if (fresh != null && fresh != base) jmHttp.get(fresh, path, params) else throw e
-        }
-        try {
-            json.decodeFromString(deserializer, body)
-        } catch (t: Throwable) {
-            throw JmException.Parse(t)
-        }
-    }
-
-    /** 需要登录的写接口：就绪检查 + 静默重登 + 统一取线路，返回响应体。 */
-    private suspend fun authedForm(path: String, form: Map<String, String>): String =
-        withContext(Dispatchers.IO) {
-            hosts.ensureReady()
-            session.ensureSession()
-            val base = hosts.apiBase ?: throw JmException.Network("线路未就绪")
-            jmHttp.post(base, path, form)
-        }
-
-    /** 同 [authedForm]，但只判断 HTTP 状态（有些接口返回空 body）。 */
-    private suspend fun authedFormRaw(path: String, form: Map<String, String>): Boolean =
-        withContext(Dispatchers.IO) {
-            hosts.ensureReady()
-            session.ensureSession()
-            val base = hosts.apiBase ?: throw JmException.Network("线路未就绪")
-            jmHttp.postRaw(base, path, form)
-        }
 
     private suspend fun fetchBytes(url: String): ByteArray = jmHttp.bytes(imageHosts.rewrite(url))
 
