@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -31,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,7 +53,9 @@ import com.jmreader.data.AlbumBrief
 import com.jmreader.data.FolderItem
 import com.jmreader.data.JmException
 import com.jmreader.data.JmRepository
+import com.jmreader.data.LastRead
 import com.jmreader.data.Member
+import com.jmreader.data.ReadingHistory
 import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
 
@@ -65,6 +70,7 @@ internal fun LibraryContent(
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var sortByName by remember { mutableStateOf(false) }
+    val gridState = rememberLazyGridState()
     var searchOpen by remember { mutableStateOf(false) }
 
     // 收藏
@@ -93,6 +99,11 @@ internal fun LibraryContent(
     var moveTarget by remember { mutableStateOf<AlbumBrief?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // 本地閱讀歷史（第三個 tab）
+    val readingHistory = remember { ReadingHistory.of(context) }
+    val localHistory by readingHistory.history.collectAsState()
+    var showClearHistory by remember { mutableStateOf(false) }
 
     suspend fun loadFavorites(selected: String, reset: Boolean) {
         favoritesLoading = true
@@ -153,6 +164,11 @@ internal fun LibraryContent(
             historyPage = 1
             loadHistory(true)
         }
+    }
+
+    // 三個 tab 共用 gridState，切換時回到頂部，避免位置錯亂
+    LaunchedEffect(tab) {
+        gridState.scrollToItem(0)
     }
 
     val list = if (tab == 0) favorites else historyItems
@@ -235,136 +251,151 @@ internal fun LibraryContent(
         }
 
         IosSegmentedControl(
-            items = listOf("收藏", "閱讀歷史"),
+            items = listOf("雲端收藏", "雲端歷史", "本地歷史"),
             selectedIndex = tab,
             onSelect = { tab = it },
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
         )
 
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (tab == 0) {
-                item {
-                    IosFilterPill(
-                        selected = folderId.isBlank(),
-                        label = "全部",
-                        onClick = { folderId = "" },
-                    )
-                }
-                items(items = folders, key = { it.fid }) { folder ->
-                    IosFilterPill(
-                        selected = folderId == folder.fid,
-                        label = folder.name,
-                        onClick = { folderId = folder.fid },
-                    )
-                }
-                item {
-                    IosFilterPill(
-                        selected = false,
-                        label = "管理收藏夾",
-                        onClick = { showFolders = true },
-                    )
-                }
-            }
-            item {
-                IosFilterPill(
-                    selected = searchOpen,
-                    label = if (searchOpen) "收起搜尋" else "🔍 篩選",
-                    onClick = {
-                        searchOpen = !searchOpen
-                        if (!searchOpen) query = ""
-                    },
-                )
-            }
-            item {
-                IosFilterPill(
-                    selected = sortByName,
-                    label = if (sortByName) "排序：名稱↓" else "排序：默認",
-                    onClick = { sortByName = !sortByName },
-                )
-            }
-        }
-
-        if (searchOpen) {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = {
-                    Text(
-                        if (tab == 0) "搜尋收藏（已載入 ${favorites.size} 筆）"
-                        else "搜尋歷史（已載入 ${historyItems.size} 筆）",
-                    )
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-        }
-
-        Box(Modifier.fillMaxSize()) {
-            when {
-                currentLoading && shown.isEmpty() -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
-                currentError != null && shown.isEmpty() -> Text(
-                    text = currentError,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-                shown.isEmpty() -> Text(
-                    text = when {
-                        query.isNotBlank() -> "沒有符合的結果"
-                        tab == 0 -> "收藏夾還沒有作品"
-                        else -> "還沒有閱讀記錄"
-                    },
-                    color = IosLabelSecondary,
-                    modifier = Modifier.align(Alignment.Center),
-                )
-                else -> LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    items(items = shown, key = { "${tab}_${it.id}" }) { album ->
-                        AlbumCard(
-                            repo = repo,
-                            album = album,
-                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
-                            onLongClick = if (tab == 0) {
-                                { moveTarget = album }
-                            } else {
-                                null
-                            },
+        if (tab != 2) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (tab == 0) {
+                    item {
+                        IosFilterPill(
+                            selected = folderId.isBlank(),
+                            label = "全部",
+                            onClick = { folderId = "" },
                         )
                     }
-                    if (shown.size < currentTotal) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                if (currentLoading) {
-                                    CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
+                    items(items = folders, key = { it.fid }) { folder ->
+                        IosFilterPill(
+                            selected = folderId == folder.fid,
+                            label = folder.name,
+                            onClick = { folderId = folder.fid },
+                        )
+                    }
+                    item {
+                        IosFilterPill(
+                            selected = false,
+                            label = "管理收藏夾",
+                            onClick = { showFolders = true },
+                        )
+                    }
+                }
+                item {
+                    IosFilterPill(
+                        selected = searchOpen,
+                        label = if (searchOpen) "收起搜尋" else "🔍 篩選",
+                        onClick = {
+                            searchOpen = !searchOpen
+                            if (!searchOpen) query = ""
+                        },
+                    )
+                }
+                item {
+                    IosFilterPill(
+                        selected = sortByName,
+                        label = if (sortByName) "排序：名稱↓" else "排序：默認",
+                        onClick = { sortByName = !sortByName },
+                    )
+                }
+            }
+
+            if (searchOpen) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = {
+                        Text(
+                            if (tab == 0) "搜尋收藏（已載入 ${favorites.size} 筆）"
+                            else "搜尋歷史（已載入 ${historyItems.size} 筆）",
+                        )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+
+            if (list.isNotEmpty()) {
+                OnBottomReached(
+                    gridState = gridState,
+                    enabled = !currentLoading && currentError == null && list.size < currentTotal,
+                    onLoadMore = {
+                        scope.launch {
+                            if (tab == 0) loadFavorites(folderId, false) else loadHistory(false)
+                        }
+                    },
+                )
+            }
+
+            Box(Modifier.fillMaxSize()) {
+                when {
+                    currentLoading && shown.isEmpty() -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
+                    currentError != null && shown.isEmpty() -> Text(
+                        text = currentError,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
+                    shown.isEmpty() -> Text(
+                        text = when {
+                            query.isNotBlank() -> "沒有符合的結果"
+                            tab == 0 -> "收藏夾還沒有作品"
+                            else -> "還沒有閱讀記錄"
+                        },
+                        color = IosLabelSecondary,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
+                    else -> LazyVerticalGrid(
+                        state = gridState,
+                        columns = GridCells.Fixed(3),
+                        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(items = shown, key = { "${tab}_${it.id}" }) { album ->
+                            AlbumCard(
+                                repo = repo,
+                                album = album,
+                                onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                                onLongClick = if (tab == 0) {
+                                    { moveTarget = album }
                                 } else {
-                                    Button(
-                                        onClick = {
-                                            scope.launch {
-                                                if (tab == 0) loadFavorites(folderId, false) else loadHistory(false)
-                                            }
-                                        },
-                                        shape = CircleShape,
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = IosCardWhite,
-                                            contentColor = IosBlue,
-                                        ),
-                                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
-                                    ) {
-                                        Text(
-                                            "載入更多（${shown.size}/$currentTotal）",
-                                            fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.padding(horizontal = 12.dp),
-                                        )
+                                    null
+                                },
+                            )
+                        }
+                        if (list.size < currentTotal || currentLoading) {
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    if (currentLoading) {
+                                        CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
+                                    } else {
+                                        Button(
+                                            onClick = {
+                                                scope.launch {
+                                                    if (tab == 0) loadFavorites(folderId, false) else loadHistory(false)
+                                                }
+                                            },
+                                            shape = CircleShape,
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = IosCardWhite,
+                                                contentColor = IosBlue,
+                                            ),
+                                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
+                                        ) {
+                                            Text(
+                                                "載入更多（${list.size}/$currentTotal）",
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.padding(horizontal = 12.dp),
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -372,6 +403,16 @@ internal fun LibraryContent(
                     }
                 }
             }
+        }
+
+        if (tab == 2) {
+            LocalHistoryTab(
+                repo = repo,
+                history = localHistory,
+                onOpen = onOpen,
+                onClear = { showClearHistory = true },
+                gridState = gridState,
+            )
         }
     }
 
@@ -512,5 +553,43 @@ internal fun LibraryContent(
                 TextButton(onClick = { moveTarget = null }) { Text("取消") }
             },
         )
+    }
+
+    LocalHistoryClearDialog(
+        visible = showClearHistory,
+        count = localHistory.size,
+        onDismiss = { showClearHistory = false },
+        onConfirm = {
+            readingHistory.clear()
+            showClearHistory = false
+        },
+    )
+}
+
+/** 「本地歷史」tab：3 列网格，没有分页，也不需要触底加载。 */
+@Composable
+private fun LocalHistoryTab(
+    repo: JmRepository,
+    history: List<LastRead>,
+    onOpen: (Long) -> Unit,
+    onClear: () -> Unit,
+    gridState: LazyGridState,
+) {
+    Column(Modifier.fillMaxSize()) {
+        LocalHistoryHeader(
+            count = history.size,
+            onClear = onClear,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
+        )
+        LazyVerticalGrid(
+            state = gridState,
+            columns = GridCells.Fixed(3),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 72.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            localHistoryEntries(repo, history, onOpen)
+        }
     }
 }

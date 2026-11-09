@@ -175,20 +175,23 @@ fun AuthorWorksScreen(
                     },
                 )
             }
+            if (state.albums.isNotEmpty()) {
+                OnBottomReached(
+                    gridState = state.gridState,
+                    enabled = !state.loading && state.error == null && state.hasMore,
+                    onLoadMore = { scope.launch { load(false) } },
+                )
+            }
             Box(Modifier.fillMaxSize()) {
                 when {
                     state.loading && state.albums.isEmpty() ->
                         CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
 
-                    state.error != null && state.albums.isEmpty() -> Column(
+                    state.error != null && state.albums.isEmpty() -> ErrorState(
+                        message = state.error!!,
                         modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text(state.error!!, color = MaterialTheme.colorScheme.error)
-                        Button(onClick = { scope.launch { load(true) } }, shape = CircleShape, modifier = Modifier.padding(top = 12.dp)) {
-                            Text("重試")
-                        }
-                    }
+                        onRetry = { scope.launch { load(true) } },
+                    )
 
                     state.albums.isEmpty() -> Text(
                         text = "沒有找到作品",
@@ -222,39 +225,31 @@ fun AuthorWorksScreen(
                                 album = album,
                                 onClick = { album.id.toLongOrNull()?.let(onOpen) },
                                 badge = metaBadge(state.metas[id]),
+                                topBadge = metaTopBadge(state.metas[id]),
                                 onVisible = {
                                     ensureAlbumMeta(repo, scope, viewGate, state.metas, state.albumRequests, id)
                                 },
                             )
                         }
-                        if (state.hasMore) {
+                        if (state.loading || state.error != null) {
                             item(span = { GridItemSpan(maxLineSpan) }) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                                     horizontalArrangement = Arrangement.Center,
                                 ) {
-                                    when {
-                                        state.loading -> CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
-                                        state.error != null -> Button(
-                                            onClick = { scope.launch { load(false) } },
-                                            shape = CircleShape,
-                                        ) {
-                                            Text("載入失敗，點擊重試")
-                                        }
-                                        else -> Button(
+                                    if (state.loading) {
+                                        CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
+                                    } else {
+                                        Button(
                                             onClick = { scope.launch { load(false) } },
                                             shape = CircleShape,
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = IosCardWhite,
-                                                contentColor = IosBlue,
+                                                contentColor = IosPink,
                                             ),
                                             elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
                                         ) {
-                                            Text(
-                                                "載入更多（${state.albums.size}/${state.total}）",
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(horizontal = 12.dp),
-                                            )
+                                            Text("載入失敗，點擊重試", fontWeight = FontWeight.SemiBold)
                                         }
                                     }
                                 }

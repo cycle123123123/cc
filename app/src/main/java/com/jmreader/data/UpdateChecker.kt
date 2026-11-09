@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okhttp3.CacheControl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -20,6 +21,13 @@ data class UpdateInfo(
     val downloadUrl: String,
     val sizeBytes: Long,
 )
+
+/** 手动检查更新的结果：区分「有新版本」「已是最新」「检查失败」。 */
+sealed interface UpdateCheckResult {
+    data class Available(val info: UpdateInfo) : UpdateCheckResult
+    data object UpToDate : UpdateCheckResult
+    data class Failed(val message: String? = null) : UpdateCheckResult
+}
 
 @Serializable
 private data class GhRelease(
@@ -37,7 +45,7 @@ private data class GhAsset(
 
 /**
  * 应用内更新：查 GitHub 最新的 release，和 [BuildConfig.VERSION_NAME] 比版本。
- * 结果缓存 6 小时，避免每次启动都打一枪（未认证 API 每小时只有 60 次）。
+ * 结果缓存 15 分钟，避免每次启动都打一枪（未认证 API 每小时只有 60 次）。
  */
 class UpdateChecker private constructor(
     private val appContext: Context,
@@ -60,6 +68,31 @@ class UpdateChecker private constructor(
         if (fetched == null) {
             return@withContext cached()
         }
+        store(fetched, now)
+        fetched.takeIf { isNewer(it.version, currentVersion) }
+    }
+
+    /**
+     * 手动检查更新：忽略 15 分钟 TTL、强制走网络、失败时不回退到过期缓存。
+     * 让 UI 能区分「已是最新」和「检查失败」。
+     */
+    suspend fun checkManual(): UpdateCheckResult = withContext(Dispatchers.IO) {
+        val fetched = try {
+            fetchLatest()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            return@withContext UpdateCheckResult.Failed(e.message)
+        }
+        store(fetched, System.currentTimeMillis())
+        if (isNewer(fetched.version, currentVersion)) {
+            UpdateCheckResult.Available(fetched)
+        } else {
+            UpdateCheckResult.UpToDate
+        }
+    }
+
+    private fun store(fetched: UpdateInfo, now: Long) {
         prefs.edit()
             .putLong(KEY_CHECKED_AT, now)
             .putString(KEY_VERSION, fetched.version)
@@ -67,22 +100,22 @@ class UpdateChecker private constructor(
             .putString(KEY_URL, fetched.downloadUrl)
             .putLong(KEY_SIZE, fetched.sizeBytes)
             .apply()
-        fetched.takeIf { isNewer(it.version, currentVersion) }
     }
 
-    private fun fetchLatest(): UpdateInfo? {
+    private fun fetchLatest(): UpdateInfo {
         val request = Request.Builder()
             .url(API_URL)
+            .cacheControl(CacheControl.FORCE_NETWORK)
             .header("User-Agent", "JMReader")
             .header("Accept", "application/vnd.github+json")
             .build()
         http.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
+            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
             val body = response.body?.string().orEmpty()
             val release = json.decodeFromString(GhRelease.serializer(), body)
             val asset = release.assets.firstOrNull { it.name == APK_NAME }
                 ?: release.assets.firstOrNull { it.name.endsWith(".apk", true) }
-                ?: return null
+                ?: throw IOException("Release 裡沒有 apk 安裝包")
             return UpdateInfo(
                 version = release.tagName.trim().trimStart('v', 'V'),
                 notes = release.body.take(500),

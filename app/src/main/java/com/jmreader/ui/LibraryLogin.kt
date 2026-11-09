@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,7 +43,7 @@ import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
 
 @Composable
-internal fun LoginForm(repo: JmRepository) {
+internal fun LoginForm(repo: JmRepository, compact: Boolean = false) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var remember by remember { mutableStateOf(true) }
@@ -65,31 +67,47 @@ internal fun LoginForm(repo: JmRepository) {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(20.dp),
-        verticalArrangement = Arrangement.Center,
+        modifier = if (compact) {
+            // 弹窗内：不占满整屏，随键盘滚动，避免输入框被顶出屏幕
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+        } else {
+            Modifier.fillMaxSize().padding(20.dp)
+        },
+        verticalArrangement = if (compact) Arrangement.Top else Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         val shape = RoundedCornerShape(16.dp)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(shape)
-                .background(IosCardWhite)
-                .border(0.5.dp, Color(0x12000000), shape)
-                .padding(20.dp),
+                .then(
+                    if (compact) {
+                        Modifier
+                    } else {
+                        Modifier
+                            .clip(shape)
+                            .background(IosCardWhite)
+                            .border(0.5.dp, Color(0x12000000), shape)
+                    },
+                )
+                .padding(if (compact) 0.dp else 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = "登入 JM 帳號",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = IosLabelPrimary,
-            )
+            if (!compact) {
+                Text(
+                    text = "登入 JM 帳號",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = IosLabelPrimary,
+                )
+            }
             Text(
                 text = "同步你的雲端書架、收藏夾與閱讀記錄",
                 fontSize = 12.sp,
                 color = IosLabelSecondary,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = if (compact) 0.dp else 4.dp),
             )
             OutlinedTextField(
                 value = username,
@@ -97,7 +115,7 @@ internal fun LoginForm(repo: JmRepository) {
                 label = { Text("帳號") },
                 singleLine = true,
                 shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = if (compact) 12.dp else 18.dp),
             )
             OutlinedTextField(
                 value = password,

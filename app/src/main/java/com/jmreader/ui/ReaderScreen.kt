@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -113,6 +114,8 @@ fun ReaderScreen(
     var zoomed by remember { mutableStateOf(false) }
     var shard by remember { mutableStateOf(repo.imageShard) }
     var sourceMenuOpen by remember { mutableStateOf(false) }
+    // 底欄「圖源」用单独的状态，让菜单贴着底栏弹出，而不是跑到屏幕右上角
+    var bottomSourceMenu by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var brightness by remember { mutableStateOf(prefs.getFloat("brightness", -1f)) }
     var animate by remember { mutableStateOf(prefs.getBoolean("animate", true)) }
@@ -216,6 +219,43 @@ fun ReaderScreen(
     val currentIndex by remember {
         derivedStateOf {
             if (mode == ReaderMode.VERTICAL) listState.firstVisibleItemIndex else pagerState.currentPage
+        }
+    }
+
+    // 跳頁（設定彈窗與底欄進度條共用）
+    fun jumpToPage(target: Int) {
+        val safe = target.coerceIn(0, images.lastIndex.coerceAtLeast(0))
+        scope.launch {
+            if (mode == ReaderMode.VERTICAL) listState.scrollToItem(safe) else pagerState.scrollToPage(safe)
+        }
+    }
+
+    // 書籤切換（設定彈窗與底欄快捷按鈕共用）
+    fun toggleBookmarkAt(page: Int) {
+        val updated = if (bookmarks.contains(page)) bookmarks - page else bookmarks + page
+        bookmarks = updated
+        prefs.edit().putString("bookmarks_$cid", updated.sorted().joinToString(",")).apply()
+    }
+
+    // 圖源測速（頂欄菜單與底欄「圖源」共用）
+    fun benchmarkSources() {
+        val sample = images.firstOrNull()?.image.orEmpty()
+        scope.launch {
+            val best = repo.benchmarkImageHosts(sample)
+            if (best != null) {
+                shard = 5
+                android.widget.Toast.makeText(
+                    context,
+                    "已選 圖源 ${best.first}（${best.second}ms）",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            } else {
+                android.widget.Toast.makeText(
+                    context,
+                    "測速失敗，請稍後再試",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
         }
     }
 
@@ -385,54 +425,20 @@ fun ReaderScreen(
                         DropdownMenu(
                             expanded = sourceMenuOpen,
                             onDismissRequest = { sourceMenuOpen = false },
+                            containerColor = Color(0xF21C1C1E),
                         ) {
-                            DropdownMenuItem(
-                                text = { Text(if (shard == 0) "✓ 自動" else "自動") },
-                                onClick = {
-                                    repo.imageShard = 0
-                                    shard = 0
+                            SourceMenu(
+                                shard = shard,
+                                onPick = { value ->
+                                    if (value >= 0) repo.imageShard = value
+                                    shard = value
                                     sourceMenuOpen = false
                                 },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(if (shard == 5) "✓ 測速最優" else "測速最優") },
-                                onClick = {
+                                onBenchmark = {
                                     sourceMenuOpen = false
-                                    val sample = images.firstOrNull()?.image.orEmpty()
-                                    scope.launch {
-                                        val best = repo.benchmarkImageHosts(sample)
-                                        if (best != null) {
-                                            shard = 5
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                "已選 圖源 ${best.first}（${best.second}ms）",
-                                                android.widget.Toast.LENGTH_SHORT,
-                                            ).show()
-                                        } else {
-                                            android.widget.Toast.makeText(
-                                                context,
-                                                "測速失敗，請稍後再試",
-                                                android.widget.Toast.LENGTH_SHORT,
-                                            ).show()
-                                        }
-                                    }
+                                    benchmarkSources()
                                 },
                             )
-                            JmConfig.IMAGE_SHARDS.forEachIndexed { index, host ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            if (shard == index + 1) "✓ 圖源 ${index + 1}"
-                                            else "圖源 ${index + 1}",
-                                        )
-                                    },
-                                    onClick = {
-                                        repo.imageShard = index + 1
-                                        shard = index + 1
-                                        sourceMenuOpen = false
-                                    },
-                                )
-                            }
                         }
                     }
                     IconButton(onClick = { toggleMode() }) {
@@ -461,17 +467,41 @@ fun ReaderScreen(
                 hasChapters = chapters.size > 1,
                 onPrevious = { chapter -> chapter?.let { onOpenChapter(it.id, it.title) } },
                 onNext = { chapter -> chapter?.let { onOpenChapter(it.id, it.title) } },
+                onJump = { jumpToPage(it) },
+                isVertical = mode == ReaderMode.VERTICAL,
+                onToggleMode = { toggleMode() },
+                isBookmarked = bookmarks.contains(currentIndex),
+                onToggleBookmark = { toggleBookmarkAt(currentIndex) },
+                onOpenSource = { bottomSourceMenu = true },
+                onOpenSettings = { showSettings = true },
             )
         }
 
-        if (showSettings) {
-            fun jumpTo(target: Int) {
-                scope.launch {
-                    if (mode == ReaderMode.VERTICAL) listState.scrollToItem(target)
-                    else pagerState.scrollToPage(target)
+        // 底欄「圖源」的菜單錨點：貼著底欄向上展開
+        if (uiVisible) {
+            Box(Modifier.align(Alignment.BottomCenter)) {
+                DropdownMenu(
+                    expanded = bottomSourceMenu,
+                    onDismissRequest = { bottomSourceMenu = false },
+                    containerColor = Color(0xF21C1C1E),
+                ) {
+                    SourceMenu(
+                        shard = shard,
+                        onPick = { value ->
+                            if (value >= 0) repo.imageShard = value
+                            shard = value
+                            bottomSourceMenu = false
+                        },
+                        onBenchmark = {
+                            bottomSourceMenu = false
+                            benchmarkSources()
+                        },
+                    )
                 }
             }
+        }
 
+        if (showSettings) {
             ReaderSettingsDialog(
                 brightness = brightness,
                 onBrightness = {
@@ -500,17 +530,41 @@ fun ReaderScreen(
                 },
                 index = currentIndex,
                 total = images.size,
-                onJump = { jumpTo(it) },
+                onJump = { jumpToPage(it) },
                 bookmarks = bookmarks,
-                onToggleBookmark = {
-                    val page = currentIndex
-                    val updated = if (bookmarks.contains(page)) bookmarks - page else bookmarks + page
-                    bookmarks = updated
-                    prefs.edit().putString("bookmarks_$cid", updated.sorted().joinToString(",")).apply()
-                },
-                onJumpBookmark = { jumpTo(it) },
+                onToggleBookmark = { toggleBookmarkAt(currentIndex) },
+                onJumpBookmark = { jumpToPage(it) },
                 onDismiss = { showSettings = false },
             )
         }
+    }
+}
+
+/** 圖源菜单内容（顶栏图标与底栏「圖源」共用）。 */
+@Composable
+private fun ColumnScope.SourceMenu(
+    shard: Int,
+    onPick: (Int) -> Unit,
+    onBenchmark: () -> Unit,
+) {
+    DropdownMenuItem(
+        text = { Text(if (shard == 0) "✓ 自動" else "自動", color = Color.White) },
+        onClick = { onPick(0) },
+    )
+    DropdownMenuItem(
+        text = { Text(if (shard == 5) "✓ 測速最優" else "測速最優", color = Color.White) },
+        onClick = onBenchmark,
+    )
+    JmConfig.IMAGE_SHARDS.forEachIndexed { index, _ ->
+        DropdownMenuItem(
+            text = {
+                Text(
+                    if (shard == index + 1) "✓ 圖源 ${index + 1}"
+                    else "圖源 ${index + 1}",
+                    color = Color.White,
+                )
+            },
+            onClick = { onPick(index + 1) },
+        )
     }
 }

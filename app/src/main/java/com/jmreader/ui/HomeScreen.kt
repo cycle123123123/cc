@@ -46,6 +46,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -73,6 +74,7 @@ import com.jmreader.data.PromoteSection
 import com.jmreader.data.ReadingHistory
 import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,19 +105,27 @@ fun HomeScreen(
     }
     val hiddenCount = albums.size - shown.size
 
+    // 卡片右上角（页数/日文）与底部（点击/爱心）信息，可见时按需补
+    val metas = remember { mutableStateMapOf<String, AlbumMeta>() }
+    val metaRequests = remember { mutableSetOf<String>() }
+    val metaGate = remember { Semaphore(2) }
+    var noMore by remember { mutableStateOf(false) }
+
     suspend fun load(reset: Boolean) {
         if (state.loading) return
         state.loading = true
         state.error = null
         runCatchingCancellable { repo.latest(if (reset) 1 else state.page) }
             .onSuccess { list ->
-                state.albums = if (reset) {
+                val fresh = if (reset) {
                     list
                 } else {
-                    state.albums + list.filter { new -> state.albums.none { it.id == new.id } }
+                    list.filter { new -> state.albums.none { it.id == new.id } }
                 }
+                state.albums = if (reset) list else state.albums + fresh
                 state.page = if (reset) 2 else state.page + 1
                 state.loaded = true
+                noMore = !reset && fresh.isEmpty()
             }
             .onFailure {
                 state.error = it.userMessage()
@@ -214,6 +224,13 @@ fun HomeScreen(
             },
             modifier = Modifier.fillMaxSize(),
         ) {
+            if (albums.isNotEmpty()) {
+                OnBottomReached(
+                    gridState = state.gridState,
+                    enabled = !loading && error == null && !noMore,
+                    onLoadMore = { scope.launch { load(false) } },
+                )
+            }
             when {
                 albums.isEmpty() && loading -> SkeletonGrid()
 
@@ -293,6 +310,11 @@ fun HomeScreen(
                                                     album = album,
                                                     onClick = { album.id.toLongOrNull()?.let(onOpen) },
                                                     compact = true,
+                                                    badge = metaBadge(metas[album.id]),
+                                                    topBadge = metaTopBadge(metas[album.id]),
+                                                    onVisible = {
+                                                        ensureAlbumMeta(repo, scope, metaGate, metas, metaRequests, album.id)
+                                                    },
                                                 )
                                             }
                                         }
@@ -324,28 +346,28 @@ fun HomeScreen(
                             album = album,
                             onClick = { album.id.toLongOrNull()?.let(onOpen) },
                             compact = true,
+                            badge = metaBadge(metas[album.id]),
+                            topBadge = metaTopBadge(metas[album.id]),
+                            onVisible = {
+                                ensureAlbumMeta(repo, scope, metaGate, metas, metaRequests, album.id)
+                            },
                         )
                     }
 
                     item(span = { GridItemSpan(maxLineSpan) }, key = "more") {
                         Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            if (loading) {
-                                CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
-                            } else {
-                                Button(
+                            when {
+                                loading -> CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
+                                error != null -> Button(
                                     onClick = { scope.launch { load(false) } },
                                     shape = CircleShape,
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = IosCardWhite,
-                                        contentColor = IosBlue,
+                                        contentColor = IosPink,
                                     ),
                                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
                                 ) {
-                                    Text(
-                                        text = "載入更多",
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.padding(horizontal = 16.dp),
-                                    )
+                                    Text("載入失敗，點擊重試", fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }

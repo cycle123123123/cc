@@ -302,7 +302,9 @@ internal fun Header(
     repo: JmRepository,
     album: AlbumDetail,
     isFavorite: Boolean,
+    isSingleChapter: Boolean = false,
     onReadFirst: () -> Unit,
+    onDownloadFirst: () -> Unit = {},
     onOpenAuthor: (String) -> Unit,
     onFavorite: () -> Unit,
     onLike: () -> Unit,
@@ -380,6 +382,33 @@ internal fun Header(
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
                     )
+                }
+
+                // 單話本：直接给一个「下載」入口，省得进目录
+                if (isSingleChapter) {
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(IosBlueSoft)
+                            .clickable(onClick = onDownloadFirst)
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Filled.Download,
+                                contentDescription = "下載",
+                                modifier = Modifier.size(15.dp),
+                                tint = IosBlue,
+                            )
+                            Text(
+                                text = " 下載",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = IosBlue,
+                            )
+                        }
+                    }
                 }
 
                 // 收藏按钮

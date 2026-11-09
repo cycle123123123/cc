@@ -1,5 +1,10 @@
 package com.jmreader.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -43,6 +49,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -81,6 +88,8 @@ internal fun CategoryTab(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var filtersOpen by remember { mutableStateOf(true) }
+    var noMore by remember { mutableStateOf(false) }
+    val gridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val blockRules by ContentFilter.of(context).rules.collectAsState()
@@ -94,6 +103,12 @@ internal fun CategoryTab(
             .onFailure { error = it.userMessage() }
     }
 
+    // 向下滚动（首行已移出）时自动收起筛选，往上回顶不自动展开
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.firstVisibleItemIndex }
+            .collect { index -> if (index > 0) filtersOpen = false }
+    }
+
     suspend fun load(reset: Boolean) {
         val cValue = if (subSlug.isNotBlank()) "${slug}_$subSlug" else slug
         if (cValue.isBlank() || (loading && !reset)) return
@@ -102,13 +117,15 @@ internal fun CategoryTab(
         try {
             runCatchingCancellable { repo.categoryList(cValue, order, if (reset) 1 else page) }
                 .onSuccess { result ->
-                    albums = if (reset) {
+                    val fresh = if (reset) {
                         result.content
                     } else {
-                        albums + result.content.filter { item -> albums.none { it.id == item.id } }
+                        result.content.filter { item -> albums.none { it.id == item.id } }
                     }
+                    albums = if (reset) result.content else albums + fresh
                     total = result.total
                     page = if (reset) 2 else page + 1
+                    noMore = !reset && fresh.isEmpty()
                 }
                 .onFailure { error = it.userMessage() }
         } finally {
@@ -174,7 +191,11 @@ internal fun CategoryTab(
             )
         }
 
-        if (filtersOpen) {
+        AnimatedVisibility(
+            visible = filtersOpen,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
             Column(
                 modifier = Modifier.padding(bottom = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -231,6 +252,14 @@ internal fun CategoryTab(
             }
         }
 
+        if (albums.isNotEmpty()) {
+            OnBottomReached(
+                gridState = gridState,
+                enabled = !loading && error == null && !noMore && albums.size < total,
+                onLoadMore = { scope.launch { load(false) } },
+            )
+        }
+
         Box(Modifier.fillMaxSize()) {
             when {
                 loading && albums.isEmpty() -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
@@ -242,6 +271,7 @@ internal fun CategoryTab(
                 )
 
                 else -> LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Fixed(3),
                     contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 72.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -254,26 +284,29 @@ internal fun CategoryTab(
                             album = album,
                             onClick = { album.id.toLongOrNull()?.let(onOpen) },
                             badge = metaBadge(metas[album.id]),
+                            topBadge = metaTopBadge(metas[album.id]),
                             onVisible = {
                                 ensureAlbumMeta(repo, scope, metaGate, metas, metaRequests, album.id)
                             },
                         )
                     }
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            if (loading) {
-                                CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
-                            } else {
-                                Button(
-                                    onClick = { scope.launch { load(false) } },
-                                    shape = CircleShape,
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = IosCardWhite,
-                                        contentColor = IosBlue,
-                                    ),
-                                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
-                                ) {
-                                    Text("載入更多", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 16.dp))
+                    if (loading || error != null) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                if (loading) {
+                                    CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
+                                } else {
+                                    Button(
+                                        onClick = { scope.launch { load(false) } },
+                                        shape = CircleShape,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = IosCardWhite,
+                                            contentColor = IosPink,
+                                        ),
+                                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
+                                    ) {
+                                        Text("載入失敗，點擊重試", fontWeight = FontWeight.SemiBold)
+                                    }
                                 }
                             }
                         }

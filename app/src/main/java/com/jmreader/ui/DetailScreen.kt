@@ -1,9 +1,11 @@
 package com.jmreader.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +16,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jmreader.core.runCatchingCancellable
+import com.jmreader.data.AlbumBrief
 import com.jmreader.data.AlbumDetail
 import com.jmreader.data.ChapterEntry
 import com.jmreader.data.CommentItem
@@ -62,7 +67,7 @@ import com.jmreader.data.JmRepository
 import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun DetailScreen(
     repo: JmRepository,
@@ -71,6 +76,7 @@ fun DetailScreen(
     onRead: (Long, String) -> Unit,
     onOpenAuthor: (String) -> Unit,
     onSearchTag: (String) -> Unit,
+    onOpenAlbum: ((Long) -> Unit)? = null,
 ) {
     var showTagBlock by remember { mutableStateOf(false) }
     var tagsToBlock by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -89,6 +95,37 @@ fun DetailScreen(
     val scope = rememberCoroutineScope()
     val member by repo.auth.member.collectAsState()
     val loggedIn = member != null
+
+    // 分頁結構由話數決定：單話本沒有「目錄」頁；索引一律由 tabs 解析，不硬編碼。
+    val hasCatalog = chapters.size > 1
+    val tabs = buildList {
+        add("詳情")
+        if (hasCatalog) add("目錄（${chapters.size}）")
+        add("評論（${forum?.total ?: detail?.commentTotal ?: 0}）")
+    }
+    val catalogIndex = if (hasCatalog) 1 else -1
+    val commentIndex = tabs.lastIndex
+    val currentTab = detailTab.coerceIn(0, tabs.lastIndex)
+
+    // chapters 從 1 話變成多話（或相反）時，把越界的選中項收回「詳情」
+    LaunchedEffect(tabs.size) {
+        if (detailTab > tabs.lastIndex) detailTab = 0
+    }
+
+    // 同作者其它作品：進詳情頁載入一次，失敗或空結果整塊不渲染
+    var authorWorks by remember(detail?.id) { mutableStateOf<List<AlbumBrief>>(emptyList()) }
+    LaunchedEffect(detail?.id) {
+        val current = detail ?: return@LaunchedEffect
+        val authorName = current.author.joinToString(" ").trim()
+        if (authorName.isNotBlank()) {
+            runCatchingCancellable { repo.search(authorName, 1) }
+                .onSuccess { page ->
+                    authorWorks = page.content
+                        .filter { it.id.isNotBlank() && it.id != current.id.toString() }
+                        .take(8)
+                }
+        }
+    }
 
     LaunchedEffect(albumId, reloadKey) {
         loading = true
@@ -185,12 +222,23 @@ fun DetailScreen(
                                 repo = repo,
                                 album = album,
                                 isFavorite = isFavorite,
+                                isSingleChapter = chapters.size <= 1,
                                 onReadFirst = {
                                     val first = chapters.firstOrNull()
                                     if (first != null) {
                                         onRead(first.id, first.title)
                                     } else {
                                         onRead(album.id, album.name)
+                                    }
+                                },
+                                onDownloadFirst = {
+                                    val first = chapters.firstOrNull()
+                                    if (first != null) {
+                                        DownloadRepository.of(context).enqueue(first.id, album.id, first.title)
+                                        Toast.makeText(context, "已加入下載", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        DownloadRepository.of(context).enqueue(album.id, album.id, album.name)
+                                        Toast.makeText(context, "已加入下載", Toast.LENGTH_SHORT).show()
                                     }
                                 },
                                 onOpenAuthor = onOpenAuthor,
@@ -258,19 +306,14 @@ fun DetailScreen(
                     }
 
                     item(key = "tabs") {
-                        val tabs = listOf(
-                            "詳情",
-                            "目錄（${chapters.size}）",
-                            "評論（${forum?.total ?: album.commentTotal}）",
-                        )
                         IosSegmentedControl(
                             items = tabs,
-                            selectedIndex = detailTab,
+                            selectedIndex = currentTab,
                             onSelect = { detailTab = it },
                         )
                     }
 
-                    if (detailTab == 0) {
+                    if (currentTab == 0) {
                         item {
                             Column(
                                 modifier = Modifier
@@ -324,13 +367,24 @@ fun DetailScreen(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             verticalArrangement = Arrangement.spacedBy(8.dp),
                                         ) {
+                                            val tagFilter = ContentFilter.of(context)
                                             album.tags.forEach { tag ->
                                                 Box(
                                                     modifier = Modifier
-                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .clip(CircleShape)
                                                         .background(IosGroupedBg)
-                                                        .clickable { onSearchTag(tag) }
-                                                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                                                        .combinedClickable(
+                                                            onClick = { onSearchTag(tag) },
+                                                            onLongClick = {
+                                                                tagFilter.addKeyword(tag)
+                                                                Toast.makeText(
+                                                                    context,
+                                                                    "已屏蔽標籤：#$tag",
+                                                                    Toast.LENGTH_SHORT,
+                                                                ).show()
+                                                            },
+                                                        )
+                                                        .padding(horizontal = 12.dp, vertical = 5.dp),
                                                 ) {
                                                     Text(
                                                         text = "#$tag",
@@ -362,7 +416,7 @@ fun DetailScreen(
                             }
                         }
 
-                        if (chapters.isNotEmpty()) {
+                        if (hasCatalog && chapters.isNotEmpty()) {
                             item {
                                 Text(
                                     text = "章節列表（共 ${chapters.size} 話）",
@@ -385,7 +439,7 @@ fun DetailScreen(
                             if (chapters.size > 5) {
                                 item {
                                     TextButton(
-                                        onClick = { detailTab = 1 },
+                                        onClick = { detailTab = catalogIndex },
                                         modifier = Modifier.fillMaxWidth(),
                                     ) {
                                         Text("查看全部 ${chapters.size} 話 ›", color = IosBlue, fontWeight = FontWeight.SemiBold)
@@ -393,9 +447,50 @@ fun DetailScreen(
                                 }
                             }
                         }
+
+                        if (authorWorks.isNotEmpty()) {
+                            item(key = "same_author") {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(IosCardWhite)
+                                        .border(0.5.dp, Color(0x12000000), RoundedCornerShape(14.dp))
+                                        .padding(vertical = 14.dp),
+                                ) {
+                                    Text(
+                                        text = "同作者作品",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = IosLabelPrimary,
+                                        modifier = Modifier.padding(horizontal = 14.dp),
+                                    )
+                                    LazyRow(
+                                        contentPadding = PaddingValues(horizontal = 14.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.padding(top = 10.dp),
+                                    ) {
+                                        items(items = authorWorks, key = { it.id }) { work ->
+                                            Box(Modifier.width(96.dp)) {
+                                                AlbumCard(
+                                                    repo = repo,
+                                                    album = work,
+                                                    onClick = {
+                                                        work.id.toLongOrNull()?.let { id ->
+                                                            onOpenAlbum?.invoke(id)
+                                                        }
+                                                    },
+                                                    compact = true,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
-                    if (detailTab == 1) {
+                    if (hasCatalog && currentTab == catalogIndex) {
                         items(items = chapters, key = { it.id }) { chapter ->
                             ChapterRow(
                                 chapter = chapter,
@@ -408,7 +503,7 @@ fun DetailScreen(
                         }
                     }
 
-                    if (detailTab == 2) {
+                    if (currentTab == commentIndex) {
                         item {
                             Column(
                                 modifier = Modifier

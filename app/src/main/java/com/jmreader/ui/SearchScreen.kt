@@ -219,12 +219,20 @@ fun SearchScreen(
             )
         }
 
+        if (state.searched && state.results.isNotEmpty()) {
+            OnBottomReached(
+                gridState = state.gridState,
+                enabled = !state.loading && state.error == null && state.hasMore,
+                onLoadMore = { scope.launch { runSearch(false) } },
+            )
+        }
+
         Box(Modifier.fillMaxSize()) {
             when {
                 state.loading && state.results.isEmpty() ->
                     CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
 
-                state.error != null -> ErrorState(
+                state.error != null && state.results.isEmpty() -> ErrorState(
                     message = state.error!!,
                     modifier = Modifier.align(Alignment.Center),
                     onRetry = { scope.launch { runSearch(true) } },
@@ -367,39 +375,31 @@ fun SearchScreen(
                             album = album,
                             onClick = { album.id.toLongOrNull()?.let(onOpen) },
                             badge = metaBadge(state.metas[id]),
+                            topBadge = metaTopBadge(state.metas[id]),
                             onVisible = {
                                 ensureAlbumMeta(repo, scope, viewGate, state.metas, state.albumRequests, id)
                             },
                         )
                     }
-                    if (state.hasMore) {
+                    if (state.loading || state.error != null) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                                 horizontalArrangement = Arrangement.Center,
                             ) {
-                                when {
-                                    state.loading -> CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
-                                    state.error != null -> Button(
-                                        onClick = { scope.launch { runSearch(false) } },
-                                        shape = CircleShape,
-                                    ) {
-                                        Text("載入失敗，點擊重試")
-                                    }
-                                    else -> Button(
+                                if (state.loading) {
+                                    CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
+                                } else {
+                                    Button(
                                         onClick = { scope.launch { runSearch(false) } },
                                         shape = CircleShape,
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = IosCardWhite,
-                                            contentColor = IosBlue,
+                                            contentColor = IosPink,
                                         ),
                                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
                                     ) {
-                                        Text(
-                                            "載入更多（${state.results.size}/${state.total}）",
-                                            fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.padding(horizontal = 12.dp),
-                                        )
+                                        Text("載入失敗，點擊重試", fontWeight = FontWeight.SemiBold)
                                     }
                                 }
                             }

@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.jmreader.data.JmRepository
 import com.jmreader.data.UpdateChecker
+import com.jmreader.data.UpdateCheckResult
 import com.jmreader.data.UpdateInfo
 import kotlinx.coroutines.launch
 
@@ -67,16 +68,27 @@ fun AppRoot(repo: JmRepository) {
         update = updateChecker.checkIfDue()
     }
 
+    fun toast(text: String) {
+        android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_SHORT).show()
+    }
+
     fun checkUpdate(manual: Boolean) {
         scope.launch {
-            val info = updateChecker.checkIfDue(force = manual)
-            update = info
-            if (info == null && manual) {
-                android.widget.Toast.makeText(
-                    context,
-                    "已是最新版本 v${updateChecker.currentVersion}",
-                    android.widget.Toast.LENGTH_SHORT,
-                ).show()
+            if (!manual) {
+                update = updateChecker.checkIfDue()
+                return@launch
+            }
+            // 手动检查绕过 15 分钟 TTL 与 HTTP 缓存，并把失败和「已是最新」区分开
+            when (val result = updateChecker.checkManual()) {
+                is UpdateCheckResult.Available -> update = result.info
+                UpdateCheckResult.UpToDate -> {
+                    update = null
+                    toast("已是最新版本 v${updateChecker.currentVersion}")
+                }
+                is UpdateCheckResult.Failed -> {
+                    val detail = result.message?.takeIf { it.isNotBlank() }
+                    toast(if (detail != null) "檢查更新失敗：$detail" else "檢查更新失敗，請檢查網路後重試")
+                }
             }
         }
     }
@@ -191,6 +203,7 @@ fun AppRoot(repo: JmRepository) {
                     onRead = { cid, title -> push(Screen.Reader(current.id, cid, title)) },
                     onOpenAuthor = { name -> push(Screen.AuthorWorks(name)) },
                     onSearchTag = { tag -> push(Screen.Search(tag)) },
+                    onOpenAlbum = { id -> push(Screen.Detail(id)) },
                 )
 
                 is Screen.Reader -> ReaderScreen(

@@ -38,6 +38,7 @@ fun AlbumCard(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     badge: String? = null,
+    topBadge: String? = null,
     onVisible: (() -> Unit)? = null,
     compact: Boolean = false,
 ) {
@@ -71,6 +72,25 @@ fun AlbumCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
+
+            if (!topBadge.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0xA6000000))
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = topBadge,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        maxLines = 1,
+                    )
+                }
+            }
 
             if (!badge.isNullOrBlank()) {
                 Box(

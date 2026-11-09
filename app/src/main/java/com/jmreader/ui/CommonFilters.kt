@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +19,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,14 +38,16 @@ import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.CategoryNode
 import com.jmreader.data.JmRepository
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
-/** 列表卡片要显示的补充信息：点击量 / 爱心数 / 是否日文。都来自 `/album`。 */
+/** 列表卡片要显示的补充信息：点击量 / 爱心数 / 页数 / 是否日文。都来自 `/album`。 */
 data class AlbumMeta(
     val views: Int = 0,
     val likes: Int = 0,
+    val pages: Int = 0,
     val japanese: Boolean = false,
 )
 
@@ -216,6 +224,7 @@ internal fun ensureAlbumMeta(
                     metas[albumId] = AlbumMeta(
                         views = detail.viewCount,
                         likes = detail.likes,
+                        pages = detail.totalPhotos,
                         // 日文/日語是语言标签，生肉=未翻译的日文原版
                         japanese = detail.tags.any { tag ->
                             tag.contains("日語") || tag.contains("日文") || tag.contains("生肉")
@@ -223,6 +232,34 @@ internal fun ensureAlbumMeta(
                     )
                 }
         }
+    }
+}
+
+/**
+ * 通用触底加载：列表滚到接近底部时回调一次，[enabled] 为 false（加载中/没有更多/出错）时不触发。
+ */
+@Composable
+fun OnBottomReached(
+    gridState: LazyGridState,
+    buffer: Int = 6,
+    enabled: Boolean = true,
+    onLoadMore: () -> Unit,
+) {
+    val nearBottom by remember(gridState, buffer) {
+        derivedStateOf {
+            val info = gridState.layoutInfo
+            val total = info.totalItemsCount
+            if (total == 0) {
+                false
+            } else {
+                (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= total - 1 - buffer
+            }
+        }
+    }
+    LaunchedEffect(gridState, enabled) {
+        snapshotFlow { nearBottom }
+            .distinctUntilChanged()
+            .collect { reached -> if (reached && enabled) onLoadMore() }
     }
 }
 
@@ -252,13 +289,23 @@ fun ErrorState(
     }
 }
 
-/** 「觀看 6.1 萬 · ♥ 329 · 日文」 */
+/** 底部角标：「👁 6.1 萬 · ♥ 329」 */
 internal fun metaBadge(meta: AlbumMeta?): String? {
     if (meta == null) return null
     val parts = buildList {
         if (meta.views > 0) add("👁 ${formatCount(meta.views)}")
         if (meta.likes > 0) add("♥ ${formatCount(meta.likes)}")
-        if (meta.japanese) add("日文")
     }
     return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+}
+
+/** 右上角角标：「日文 · 296P」/「296P」/「日文」 */
+internal fun metaTopBadge(meta: AlbumMeta?): String? {
+    if (meta == null) return null
+    return when {
+        meta.japanese && meta.pages > 0 -> "日文 · ${meta.pages}P"
+        meta.pages > 0 -> "${meta.pages}P"
+        meta.japanese -> "日文"
+        else -> null
+    }
 }
