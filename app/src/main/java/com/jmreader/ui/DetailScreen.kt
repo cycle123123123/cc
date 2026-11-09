@@ -64,6 +64,7 @@ import com.jmreader.data.ContentFilter
 import com.jmreader.data.DownloadRepository
 import com.jmreader.data.ForumPage
 import com.jmreader.data.JmRepository
+import com.jmreader.data.ReadingHistory
 import com.jmreader.data.userMessage
 import kotlinx.coroutines.launch
 
@@ -95,6 +96,20 @@ fun DetailScreen(
     val scope = rememberCoroutineScope()
     val member by repo.auth.member.collectAsState()
     val loggedIn = member != null
+
+    // 續讀：優先取本作品的 history 記錄，last 只作兜底；記錄的章節必須還在目錄裡才啟用，
+    // 否則（章節下架 / cid 對不上 / 目錄還沒載入）一律降級成「開始閱讀」。
+    val readingHistory = remember { ReadingHistory.of(context) }
+    val history by readingHistory.history.collectAsState()
+    val lastRead by readingHistory.last.collectAsState()
+    val resume = remember(history, lastRead, chapters, albumId) {
+        val record = history.firstOrNull { it.albumId == albumId }
+            ?: lastRead?.takeIf { it.albumId == albumId }
+        record?.takeIf { rec -> chapters.any { it.id == rec.cid } }
+    }
+    val resumeIndex = remember(resume, chapters) {
+        resume?.let { rec -> chapters.indexOfFirst { it.id == rec.cid } } ?: -1
+    }
 
     // 分頁結構由話數決定：單話本沒有「目錄」頁；索引一律由 tabs 解析，不硬編碼。
     val hasCatalog = chapters.size > 1
@@ -285,6 +300,9 @@ fun DetailScreen(
                                     tagsToBlock = emptySet()
                                     showTagBlock = true
                                 },
+                                resumeChapter = resume,
+                                resumeChapterNumber = if (resumeIndex >= 0) resumeIndex + 1 else null,
+                                onContinue = resume?.let { rec -> { onRead(rec.cid, rec.title) } },
                             )
 
                             DetailStatsRow(
@@ -430,6 +448,7 @@ fun DetailScreen(
                                 ChapterRow(
                                     chapter = chapter,
                                     onRead = { onRead(chapter.id, chapter.title) },
+                                    isResume = resume != null && chapter.id == resume.cid,
                                     onDownload = {
                                         DownloadRepository.of(context).enqueue(chapter.id, album.id, chapter.title)
                                         Toast.makeText(context, "已加入下載", Toast.LENGTH_SHORT).show()
@@ -495,6 +514,7 @@ fun DetailScreen(
                             ChapterRow(
                                 chapter = chapter,
                                 onRead = { onRead(chapter.id, chapter.title) },
+                                isResume = resume != null && chapter.id == resume.cid,
                                 onDownload = {
                                     DownloadRepository.of(context).enqueue(chapter.id, album.id, chapter.title)
                                     Toast.makeText(context, "已加入下載", Toast.LENGTH_SHORT).show()

@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items
@@ -46,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jmreader.core.runCatchingCancellable
@@ -53,7 +53,6 @@ import com.jmreader.data.AlbumBrief
 import com.jmreader.data.FolderItem
 import com.jmreader.data.JmException
 import com.jmreader.data.JmRepository
-import com.jmreader.data.LastRead
 import com.jmreader.data.Member
 import com.jmreader.data.ReadingHistory
 import com.jmreader.data.userMessage
@@ -65,6 +64,9 @@ internal fun LibraryContent(
     member: Member,
     onOpen: (Long) -> Unit,
     accountVisible: Boolean,
+    onDownloads: () -> Unit,
+    onBlocks: () -> Unit,
+    onClearCache: () -> Unit,
     onCheckUpdate: () -> Unit,
 ) {
     var tab by remember { mutableIntStateOf(0) }
@@ -182,220 +184,201 @@ internal fun LibraryContent(
             .let { if (sortByName) it.sortedBy { album -> album.name } else it }
     }
 
-    Column(Modifier.fillMaxSize()) {
+    // 登入前後共用同一套骨架：帳號卡 → 工具與設定 → 內容區，
+    // 全部掛在同一個 LazyVerticalGrid 的全寬 item 上（左右 16dp、卡片間 16dp）。
+    if (tab != 2 && list.isNotEmpty()) {
+        OnBottomReached(
+            gridState = gridState,
+            enabled = !currentLoading && currentError == null && list.size < currentTotal,
+            onLoadMore = {
+                scope.launch {
+                    if (tab == 0) loadFavorites(folderId, false) else loadHistory(false)
+                }
+            },
+        )
+    }
+
+    LazyVerticalGrid(
+        state = gridState,
+        columns = GridCells.Fixed(3),
+        contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 72.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
         if (accountVisible) {
-            val cardShape = RoundedCornerShape(14.dp)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(cardShape)
-                    .background(IosCardWhite)
-                    .border(0.5.dp, Color(0x12000000), cardShape)
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(IosBlueSoft),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = member.username.take(1).uppercase().ifBlank { "J" },
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = IosBlue,
-                    )
-                }
-                Column(
-                    modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-                ) {
-                    Text(
-                        text = member.username.ifBlank { "已登入" },
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = IosLabelPrimary,
-                    )
-                    Text(
-                        text = "UID ${member.uid} · 收藏 ${member.totalFavorites} · Lv.${member.level}",
-                        fontSize = 12.sp,
-                        color = IosLabelSecondary,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                    Text(
-                        text = "v${com.jmreader.BuildConfig.VERSION_NAME} · 點此檢查更新",
-                        fontSize = 11.sp,
-                        color = IosBlue,
-                        modifier = Modifier
-                            .padding(top = 3.dp)
-                            .clickable(onClick = onCheckUpdate),
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(IosGroupedBg)
-                        .clickable { scope.launch { repo.logout() } }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                ) {
-                    Text(
-                        text = "登出",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                AccountCard(
+                    member = member,
+                    onLogout = { scope.launch { repo.logout() } },
+                )
             }
         }
 
-        IosSegmentedControl(
-            items = listOf("雲端收藏", "雲端歷史", "本地歷史"),
-            selectedIndex = tab,
-            onSelect = { tab = it },
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            SettingsGroup(
+                onDownloads = onDownloads,
+                onBlocks = onBlocks,
+                onClearCache = onClearCache,
+                onCheckUpdate = onCheckUpdate,
+                versionName = com.jmreader.BuildConfig.VERSION_NAME,
+            )
+        }
 
-        if (tab != 2) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (tab == 0) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            IosSegmentedControl(
+                items = listOf("雲端收藏", "雲端歷史", "本地歷史"),
+                selectedIndex = tab,
+                onSelect = { tab = it },
+            )
+        }
+
+        if (tab == 2) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                LocalHistoryHeader(
+                    count = localHistory.size,
+                    onClear = { showClearHistory = true },
+                )
+            }
+            localHistoryEntries(repo, localHistory, onOpen)
+        } else {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                LazyRow(
+                    contentPadding = PaddingValues(0.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (tab == 0) {
+                        item {
+                            IosFilterPill(
+                                selected = folderId.isBlank(),
+                                label = "全部",
+                                onClick = { folderId = "" },
+                            )
+                        }
+                        items(items = folders, key = { it.fid }) { folder ->
+                            IosFilterPill(
+                                selected = folderId == folder.fid,
+                                label = folder.name,
+                                onClick = { folderId = folder.fid },
+                            )
+                        }
+                        item {
+                            IosFilterPill(
+                                selected = false,
+                                label = "管理收藏夾",
+                                onClick = { showFolders = true },
+                            )
+                        }
+                    }
                     item {
                         IosFilterPill(
-                            selected = folderId.isBlank(),
-                            label = "全部",
-                            onClick = { folderId = "" },
-                        )
-                    }
-                    items(items = folders, key = { it.fid }) { folder ->
-                        IosFilterPill(
-                            selected = folderId == folder.fid,
-                            label = folder.name,
-                            onClick = { folderId = folder.fid },
+                            selected = searchOpen,
+                            label = if (searchOpen) "收起搜尋" else "🔍 篩選",
+                            onClick = {
+                                searchOpen = !searchOpen
+                                if (!searchOpen) query = ""
+                            },
                         )
                     }
                     item {
                         IosFilterPill(
-                            selected = false,
-                            label = "管理收藏夾",
-                            onClick = { showFolders = true },
+                            selected = sortByName,
+                            label = if (sortByName) "排序：名稱↓" else "排序：默認",
+                            onClick = { sortByName = !sortByName },
                         )
                     }
-                }
-                item {
-                    IosFilterPill(
-                        selected = searchOpen,
-                        label = if (searchOpen) "收起搜尋" else "🔍 篩選",
-                        onClick = {
-                            searchOpen = !searchOpen
-                            if (!searchOpen) query = ""
-                        },
-                    )
-                }
-                item {
-                    IosFilterPill(
-                        selected = sortByName,
-                        label = if (sortByName) "排序：名稱↓" else "排序：默認",
-                        onClick = { sortByName = !sortByName },
-                    )
                 }
             }
 
             if (searchOpen) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = {
-                        Text(
-                            if (tab == 0) "搜尋收藏（已載入 ${favorites.size} 筆）"
-                            else "搜尋歷史（已載入 ${historyItems.size} 筆）",
-                        )
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
-
-            if (list.isNotEmpty()) {
-                OnBottomReached(
-                    gridState = gridState,
-                    enabled = !currentLoading && currentError == null && list.size < currentTotal,
-                    onLoadMore = {
-                        scope.launch {
-                            if (tab == 0) loadFavorites(folderId, false) else loadHistory(false)
-                        }
-                    },
-                )
-            }
-
-            Box(Modifier.fillMaxSize()) {
-                when {
-                    currentLoading && shown.isEmpty() -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
-                    currentError != null && shown.isEmpty() -> Text(
-                        text = currentError,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                    shown.isEmpty() -> Text(
-                        text = when {
-                            query.isNotBlank() -> "沒有符合的結果"
-                            tab == 0 -> "收藏夾還沒有作品"
-                            else -> "還沒有閱讀記錄"
-                        },
-                        color = IosLabelSecondary,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                    else -> LazyVerticalGrid(
-                        state = gridState,
-                        columns = GridCells.Fixed(3),
-                        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.fillMaxSize(),
-                    ) {
-                        items(items = shown, key = { "${tab}_${it.id}" }) { album ->
-                            AlbumCard(
-                                repo = repo,
-                                album = album,
-                                onClick = { album.id.toLongOrNull()?.let(onOpen) },
-                                onLongClick = if (tab == 0) {
-                                    { moveTarget = album }
-                                } else {
-                                    null
-                                },
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        placeholder = {
+                            Text(
+                                if (tab == 0) "搜尋收藏（已載入 ${favorites.size} 筆）"
+                                else "搜尋歷史（已載入 ${historyItems.size} 筆）",
                             )
-                        }
-                        if (list.size < currentTotal || currentLoading) {
-                            item(span = { GridItemSpan(maxLineSpan) }) {
-                                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                    if (currentLoading) {
-                                        CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
-                                    } else {
-                                        Button(
-                                            onClick = {
-                                                scope.launch {
-                                                    if (tab == 0) loadFavorites(folderId, false) else loadHistory(false)
-                                                }
-                                            },
-                                            shape = CircleShape,
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = IosCardWhite,
-                                                contentColor = IosBlue,
-                                            ),
-                                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
-                                        ) {
-                                            Text(
-                                                "載入更多（${list.size}/$currentTotal）",
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.padding(horizontal = 12.dp),
-                                            )
-                                        }
+                        },
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
+            when {
+                currentLoading && shown.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = IosBlue)
+                    }
+                }
+                currentError != null && shown.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = currentError.orEmpty(),
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                    )
+                }
+                shown.isEmpty() -> item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = when {
+                                query.isNotBlank() -> "沒有符合的結果"
+                                tab == 0 -> "收藏夾還沒有作品"
+                                else -> "還沒有閱讀記錄"
+                            },
+                            fontSize = 14.sp,
+                            color = IosLabelSecondary,
+                        )
+                    }
+                }
+                else -> {
+                    items(items = shown, key = { "${tab}_${it.id}" }) { album ->
+                        AlbumCard(
+                            repo = repo,
+                            album = album,
+                            onClick = { album.id.toLongOrNull()?.let(onOpen) },
+                            onLongClick = if (tab == 0) {
+                                { moveTarget = album }
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                    if (list.size < currentTotal || currentLoading) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                if (currentLoading) {
+                                    CircularProgressIndicator(color = IosBlue, strokeWidth = 2.5.dp)
+                                } else {
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                if (tab == 0) loadFavorites(folderId, false) else loadHistory(false)
+                                            }
+                                        },
+                                        shape = CircleShape,
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = IosCardWhite,
+                                            contentColor = IosBlue,
+                                        ),
+                                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 1.dp),
+                                    ) {
+                                        Text(
+                                            "載入更多（${list.size}/$currentTotal）",
+                                            fontWeight = FontWeight.SemiBold,
+                                            modifier = Modifier.padding(horizontal = 12.dp),
+                                        )
                                     }
                                 }
                             }
@@ -403,16 +386,6 @@ internal fun LibraryContent(
                     }
                 }
             }
-        }
-
-        if (tab == 2) {
-            LocalHistoryTab(
-                repo = repo,
-                history = localHistory,
-                onOpen = onOpen,
-                onClear = { showClearHistory = true },
-                gridState = gridState,
-            )
         }
     }
 
@@ -566,30 +539,65 @@ internal fun LibraryContent(
     )
 }
 
-/** 「本地歷史」tab：3 列网格，没有分页，也不需要触底加载。 */
+/**
+ * 已登入的帳號卡：和未登入的登入提示卡同一套視覺
+ * （12dp 圓角白卡、40dp 圓形頭像位、16/12sp 兩行文字）。
+ */
 @Composable
-private fun LocalHistoryTab(
-    repo: JmRepository,
-    history: List<LastRead>,
-    onOpen: (Long) -> Unit,
-    onClear: () -> Unit,
-    gridState: LazyGridState,
+private fun AccountCard(
+    member: Member,
+    onLogout: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize()) {
-        LocalHistoryHeader(
-            count = history.size,
-            onClear = onClear,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp),
-        )
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Fixed(3),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 72.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxSize(),
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(IosCardWhite)
+            .border(0.5.dp, Color(0x12000000), shape)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(IosBlueSoft),
+            contentAlignment = Alignment.Center,
         ) {
-            localHistoryEntries(repo, history, onOpen)
+            Text(
+                text = member.username.take(1).uppercase().ifBlank { "J" },
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosBlue,
+            )
+        }
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(
+                text = member.username.ifBlank { "已登入" },
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosLabelPrimary,
+            )
+            Text(
+                text = "UID ${member.uid} · 收藏 ${member.totalFavorites} · Lv.${member.level}",
+                fontSize = 12.sp,
+                color = IosLabelSecondary,
+                modifier = Modifier.padding(top = 3.dp),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .clip(CircleShape)
+                .clickable(onClick = onLogout)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Text(
+                text = "登出",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = IosPink,
+            )
         }
     }
 }

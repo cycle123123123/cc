@@ -1,9 +1,7 @@
 package com.jmreader.ui
 
 import android.graphics.Bitmap
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -13,8 +11,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,52 +21,35 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,25 +61,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import com.jmreader.core.runCatchingCancellable
-import com.jmreader.core.JmConfig
 import com.jmreader.data.ChapterEntry
-import com.jmreader.data.ComicRead
-import com.jmreader.data.DownloadRepository
-import com.jmreader.data.JmRepository
 import com.jmreader.data.PageStore
-import com.jmreader.data.ReadingHistory
-import com.jmreader.data.SeriesParser
-import kotlinx.coroutines.launch
 
 @Composable
 internal fun ReaderBottomBar(
@@ -445,7 +410,7 @@ internal fun clampOffset(offset: Offset, size: IntSize, scale: Float): Offset {
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ReaderSettingsDialog(
     brightness: Float,
@@ -461,8 +426,9 @@ internal fun ReaderSettingsDialog(
     index: Int,
     total: Int,
     onJump: (Int) -> Unit,
-    bookmarks: Set<Int>,
-    onToggleBookmark: () -> Unit,
+    bookmark: Int?,
+    onAddBookmark: () -> Unit,
+    onRemoveBookmark: () -> Unit,
     onJumpBookmark: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -545,19 +511,21 @@ internal fun ReaderSettingsDialog(
                     valueRange = 0f..(total - 1).coerceAtLeast(1).toFloat(),
                 )
 
-                TextButton(onClick = onToggleBookmark) {
-                    Text(if (bookmarks.contains(index)) "移除目前頁書籤" else "加入目前頁書籤")
-                }
-
-                if (bookmarks.isNotEmpty()) {
-                    Text("書籤", style = MaterialTheme.typography.labelMedium)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        bookmarks.sorted().forEach { page ->
-                            AssistChip(
-                                onClick = { onJumpBookmark(page) },
-                                label = { Text("第 ${page + 1} 頁") },
-                            )
-                        }
+                val bookmarkPage = bookmark
+                if (bookmarkPage == null) {
+                    TextButton(onClick = onAddBookmark) { Text("當前頁加入書籤") }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "第 ${bookmarkPage + 1} 頁",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { onJumpBookmark(bookmarkPage) }) { Text("跳轉") }
+                        TextButton(onClick = onRemoveBookmark) { Text("移除") }
                     }
                 }
             }

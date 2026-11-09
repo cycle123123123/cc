@@ -63,6 +63,7 @@ import com.jmreader.data.ComicRead
 import com.jmreader.data.CommentItem
 import com.jmreader.data.ContentFilter
 import com.jmreader.data.JmRepository
+import com.jmreader.data.LastRead
 import com.jmreader.data.PageImage
 
 /** iOS App Store 风格四栏横向数据条（上下细线 + 竖向短分割线） */
@@ -141,6 +142,7 @@ internal fun ChapterRow(
     chapter: ChapterEntry,
     onRead: () -> Unit,
     onDownload: () -> Unit,
+    isResume: Boolean = false,
 ) {
     val shape = RoundedCornerShape(12.dp)
     Row(
@@ -148,11 +150,22 @@ internal fun ChapterRow(
             .fillMaxWidth()
             .clip(shape)
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), shape)
+            .border(0.5.dp, if (isResume) IosBlue.copy(alpha = 0.35f) else Color(0x12000000), shape)
             .clickable(onClick = onRead)
             .padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // 續讀行：左側藍色豎條 + 「續讀」小膠囊，和普通章節一眼區分
+        if (isResume) {
+            Box(
+                Modifier
+                    .padding(end = 10.dp)
+                    .width(3.dp)
+                    .height(26.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(IosBlue),
+            )
+        }
         Text(
             text = chapter.title,
             fontSize = 14.sp,
@@ -162,6 +175,22 @@ internal fun ChapterRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
+        if (isResume) {
+            Box(
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .clip(CircleShape)
+                    .background(IosBlueSoft)
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = "續讀",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = IosBlue,
+                )
+            }
+        }
         Box(
             modifier = Modifier
                 .padding(start = 8.dp)
@@ -309,9 +338,20 @@ internal fun Header(
     onFavorite: () -> Unit,
     onLike: () -> Unit,
     onBlockTags: () -> Unit,
+    resumeChapter: LastRead? = null,
+    resumeChapterNumber: Int? = null,
+    onContinue: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val coverShape = RoundedCornerShape(12.dp)
+    // 只有記錄落在當前目錄裡（DetailScreen 已校驗）才進入續讀態
+    val resuming = resumeChapter != null && onContinue != null
+    val readLabel = when {
+        !resuming -> "開始閱讀"
+        isSingleChapter -> "繼續閱讀"
+        resumeChapterNumber != null && resumeChapterNumber > 0 -> "繼續第${resumeChapterNumber}話"
+        else -> "繼續閱讀"
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -372,15 +412,17 @@ internal fun Header(
                     modifier = Modifier
                         .clip(CircleShape)
                         .background(IosBlue)
-                        .clickable(onClick = onReadFirst)
-                        .padding(horizontal = 20.dp, vertical = 7.dp),
+                        .clickable(onClick = onContinue ?: onReadFirst)
+                        .padding(horizontal = if (resuming) 16.dp else 20.dp, vertical = 7.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "開始閱讀",
+                        text = readLabel,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
 

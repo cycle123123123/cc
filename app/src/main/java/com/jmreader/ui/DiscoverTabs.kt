@@ -39,7 +39,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -103,10 +102,12 @@ internal fun CategoryTab(
             .onFailure { error = it.userMessage() }
     }
 
-    // 向下滚动（首行已移出）时自动收起筛选，往上回顶不自动展开
+    // 首行移出视口时自动收起筛选，滚回顶部（首行可见）时自动展开
     LaunchedEffect(gridState) {
-        snapshotFlow { gridState.firstVisibleItemIndex }
-            .collect { index -> if (index > 0) filtersOpen = false }
+        snapshotFlow { gridState.firstVisibleItemIndex == 0 }
+            .collect { atTop ->
+                if (filtersOpen != atTop) filtersOpen = atTop
+            }
     }
 
     suspend fun load(reset: Boolean) {
@@ -168,14 +169,6 @@ internal fun CategoryTab(
                 modifier = Modifier.size(32.dp),
             ) {
                 Icon(Icons.Filled.Refresh, contentDescription = "刷新", tint = IosBlue, modifier = Modifier.size(18.dp))
-            }
-            TextButton(onClick = { filtersOpen = !filtersOpen }) {
-                Text(
-                    text = if (filtersOpen) "收起篩選" else "展開篩選",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = IosBlue,
-                )
             }
         }
 

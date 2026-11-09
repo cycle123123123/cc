@@ -1,27 +1,10 @@
 package com.jmreader.ui
 
-import android.graphics.Bitmap
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculatePan
-import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -29,25 +12,14 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -55,28 +27,18 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import com.jmreader.core.runCatchingCancellable
@@ -107,30 +69,31 @@ fun ReaderScreen(
     val view = LocalView.current
     val scope = rememberCoroutineScope()
 
+    // 當前話的資料。read 本身不帶 key，用 loadedCid 標記它屬於哪一話：
+    // AppRoot 用同一個 slot 換掉 Screen.Reader 時，cid 變了但 state 會留下來，
+    // 只有 loadedCid == cid 才把 read 當成「當前畫面」，否則一律視為未載入。
     var read by remember { mutableStateOf<ComicRead?>(null) }
+    var loadedCid by remember { mutableStateOf<Long?>(null) }
     var chapters by remember { mutableStateOf<List<ChapterEntry>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
     var uiVisible by remember { mutableStateOf(true) }
     var zoomed by remember { mutableStateOf(false) }
     var shard by remember { mutableStateOf(repo.imageShard) }
-    var sourceMenuOpen by remember { mutableStateOf(false) }
     // 底欄「圖源」用单独的状态，让菜单贴着底栏弹出，而不是跑到屏幕右上角
     var bottomSourceMenu by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    // 進入閱讀器時的第一話沿用歷史進度，之後切話一律從第 0 頁開始
+    var initialRestored by remember { mutableStateOf(false) }
+    // 頁碼歸位之前不要寫進度，否則切話瞬間會把上一話的頁碼寫到新話身上
+    var positionReady by remember { mutableStateOf(false) }
     var brightness by remember { mutableStateOf(prefs.getFloat("brightness", -1f)) }
     var animate by remember { mutableStateOf(prefs.getBoolean("animate", true)) }
     var rtl by remember { mutableStateOf(prefs.getBoolean("rtl", false)) }
     var tapWhenZoomed by remember { mutableStateOf(prefs.getBoolean("tap_when_zoomed", false)) }
     var lockOrientation by remember { mutableStateOf(prefs.getBoolean("lock_orientation", true)) }
     val configuration = LocalConfiguration.current
-    var bookmarks by remember(cid) {
-        mutableStateOf(
-            prefs.getString("bookmarks_$cid", "").orEmpty()
-                .split(",")
-                .mapNotNull { it.toIntOrNull() }
-                .toSet(),
-        )
-    }
+    // 書籤只保留最近添加的一頁（null = 沒有書籤）
+    var bookmark by remember(cid) { mutableStateOf(readBookmark(prefs, cid)) }
     var mode by remember {
         mutableStateOf(
             if (prefs.getString("mode", "vertical") == "horizontal") ReaderMode.HORIZONTAL else ReaderMode.VERTICAL,
@@ -181,27 +144,53 @@ fun ReaderScreen(
     }
 
     LaunchedEffect(cid) {
+        // 切話先清空，避免上一話的圖片/頁碼/緩存串到新的一話
+        read = null
+        loadedCid = null
+        error = null
+        positionReady = false
         runCatchingCancellable { repo.comicRead(cid) }
-            .onSuccess { read = it }
+            .onSuccess {
+                read = it
+                loadedCid = cid
+            }
             .onFailure { throwable ->
                 // 断网时用本地下载元数据打开已下载章节
                 val local = DownloadRepository.of(context).localComicRead(cid)
-                if (local != null) read = local else error = throwable.message ?: "載入失敗"
+                if (local != null) {
+                    read = local
+                    loadedCid = cid
+                } else {
+                    error = throwable.message ?: "載入失敗"
+                }
             }
     }
 
     LaunchedEffect(albumId) {
-        runCatchingCancellable { repo.chapter(albumId) }
-            .onSuccess { chapters = SeriesParser.parse(it.series) }
+        // 目錄優先取 /album 的 series：它一定是數組，且和詳情頁的目錄同源。
+        // /chapter 的 series 在多話作品裡可能只是「總話數」（數字），
+        // 解析不出數組時 chapters 會是空列表 → 上一話/下一話永久禁用，点了没反应。
+        val fromAlbum = runCatchingCancellable { repo.seriesChapters(repo.album(albumId)) }
+            .getOrNull()
+            .orEmpty()
+        chapters = if (fromAlbum.isNotEmpty()) {
+            fromAlbum
+        } else {
+            runCatchingCancellable { SeriesParser.parse(repo.chapter(albumId).series) }
+                .getOrNull()
+                .orEmpty()
+        }
     }
 
-    val data = read
+    val data = read?.takeIf { loadedCid == cid }
     val images = data?.images ?: emptyList()
 
     val pagerState = rememberPagerState(initialPage = savedPage, pageCount = { read?.images?.size ?: 0 })
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = savedPage)
 
-    val store = remember(data?.id, data?.scrambleId, shard) {
+    // store 綁定當前 cid：換話時舊 store 必須立刻作廢，
+    // 否則它會用舊 cid 讀寫 PageCache（緩存鍵是 cid+頁碼），把上一話的圖當成新一話的圖。
+    val store = remember(cid, data?.id, data?.scrambleId, shard) {
         data?.let {
             PageStore(
                 repo = repo,
@@ -214,6 +203,22 @@ fun ReaderScreen(
     }
     DisposableEffect(store) {
         onDispose { store?.close() }
+    }
+
+    // 進入閱讀器沿用上次進度；切到相鄰話則從第 0 頁開始
+    LaunchedEffect(cid, data?.id) {
+        val comic = data ?: return@LaunchedEffect
+        zoomed = false
+        if (initialRestored) {
+            if (comic.images.isNotEmpty()) {
+                pagerState.scrollToPage(0)
+                listState.scrollToItem(0)
+            }
+        } else {
+            // 首次載入用的就是 rememberPagerState/rememberLazyListState 的初始頁（savedPage）
+            initialRestored = true
+        }
+        positionReady = true
     }
 
     val currentIndex by remember {
@@ -230,14 +235,17 @@ fun ReaderScreen(
         }
     }
 
-    // 書籤切換（設定彈窗與底欄快捷按鈕共用）
-    fun toggleBookmarkAt(page: Int) {
-        val updated = if (bookmarks.contains(page)) bookmarks - page else bookmarks + page
-        bookmarks = updated
-        prefs.edit().putString("bookmarks_$cid", updated.sorted().joinToString(",")).apply()
+    // 書籤只保留一條：page == null 表示移除
+    fun setBookmark(page: Int?) {
+        bookmark = page
+        val editor = prefs.edit()
+        if (page == null) editor.remove("bookmark_$cid") else editor.putInt("bookmark_$cid", page)
+        // 清掉舊版多值格式，避免下次被兼容邏輯復活
+        editor.remove("bookmarks_$cid")
+        editor.apply()
     }
 
-    // 圖源測速（頂欄菜單與底欄「圖源」共用）
+    // 圖源測速（底欄「圖源」菜單用）
     fun benchmarkSources() {
         val sample = images.firstOrNull()?.image.orEmpty()
         scope.launch {
@@ -259,9 +267,9 @@ fun ReaderScreen(
         }
     }
 
-    // 阅读进度
-    LaunchedEffect(data?.id, mode) {
-        if (data == null) return@LaunchedEffect
+    // 阅读进度（必須帶 cid：不然切話後舊協程會繼續把頁碼寫進上一話的 progress）
+    LaunchedEffect(cid, data?.id, mode, positionReady) {
+        if (data == null || !positionReady) return@LaunchedEffect
         snapshotFlow {
             if (mode == ReaderMode.VERTICAL) listState.firstVisibleItemIndex else pagerState.currentPage
         }.collect { index ->
@@ -271,7 +279,7 @@ fun ReaderScreen(
     }
 
     // 预取当前页和后 3 页（首次打开时就是 1-4 页）
-    LaunchedEffect(currentIndex, data?.id, mode) {
+    LaunchedEffect(currentIndex, data?.id, mode, cid) {
         val comic = data ?: return@LaunchedEffect
         val next = comic.images.drop(currentIndex).take(4).map { it.image to it.page }
         store?.prefetch(next)
@@ -285,7 +293,7 @@ fun ReaderScreen(
 
     // 快看到末尾时预取下一话的前 3 页
     val prefetchedChapters = remember { mutableSetOf<Long>() }
-    LaunchedEffect(currentIndex, data?.id) {
+    LaunchedEffect(currentIndex, data?.id, cid) {
         val comic = data ?: return@LaunchedEffect
         if (comic.images.size - currentIndex > 3) return@LaunchedEffect
         val index = chapters.indexOfFirst { it.id == cid }
@@ -300,7 +308,7 @@ fun ReaderScreen(
         ReaderKeyBus.active = true
         onDispose { ReaderKeyBus.active = false }
     }
-    LaunchedEffect(mode, data?.id) {
+    LaunchedEffect(mode, cid, data?.id) {
         ReaderKeyBus.events.collect { keyCode ->
             val total = data?.images?.size ?: return@collect
             if (total == 0) return@collect
@@ -414,45 +422,10 @@ fun ReaderScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
-                actions = {
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(Icons.Filled.Settings, contentDescription = "閱讀設定")
-                    }
-                    Box {
-                        IconButton(onClick = { sourceMenuOpen = true }) {
-                            Icon(Icons.Filled.Tune, contentDescription = "圖源")
-                        }
-                        DropdownMenu(
-                            expanded = sourceMenuOpen,
-                            onDismissRequest = { sourceMenuOpen = false },
-                            containerColor = Color(0xF21C1C1E),
-                        ) {
-                            SourceMenu(
-                                shard = shard,
-                                onPick = { value ->
-                                    if (value >= 0) repo.imageShard = value
-                                    shard = value
-                                    sourceMenuOpen = false
-                                },
-                                onBenchmark = {
-                                    sourceMenuOpen = false
-                                    benchmarkSources()
-                                },
-                            )
-                        }
-                    }
-                    IconButton(onClick = { toggleMode() }) {
-                        Icon(
-                            Icons.Filled.SwapVert,
-                            contentDescription = if (mode == ReaderMode.VERTICAL) "切換為橫向" else "切換為縱向",
-                        )
-                    }
-                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Black.copy(alpha = 0.78f),
                     titleContentColor = Color.White,
                     navigationIconContentColor = Color.White,
-                    actionIconContentColor = Color.White,
                 ),
             )
         }
@@ -470,8 +443,8 @@ fun ReaderScreen(
                 onJump = { jumpToPage(it) },
                 isVertical = mode == ReaderMode.VERTICAL,
                 onToggleMode = { toggleMode() },
-                isBookmarked = bookmarks.contains(currentIndex),
-                onToggleBookmark = { toggleBookmarkAt(currentIndex) },
+                isBookmarked = bookmark == currentIndex,
+                onToggleBookmark = { setBookmark(if (bookmark == currentIndex) null else currentIndex) },
                 onOpenSource = { bottomSourceMenu = true },
                 onOpenSettings = { showSettings = true },
             )
@@ -531,8 +504,9 @@ fun ReaderScreen(
                 index = currentIndex,
                 total = images.size,
                 onJump = { jumpToPage(it) },
-                bookmarks = bookmarks,
-                onToggleBookmark = { toggleBookmarkAt(currentIndex) },
+                bookmark = bookmark,
+                onAddBookmark = { setBookmark(currentIndex) },
+                onRemoveBookmark = { setBookmark(null) },
                 onJumpBookmark = { jumpToPage(it) },
                 onDismiss = { showSettings = false },
             )
@@ -540,7 +514,7 @@ fun ReaderScreen(
     }
 }
 
-/** 圖源菜单内容（顶栏图标与底栏「圖源」共用）。 */
+/** 圖源菜单内容（底欄「圖源」用）。 */
 @Composable
 private fun ColumnScope.SourceMenu(
     shard: Int,
@@ -567,4 +541,22 @@ private fun ColumnScope.SourceMenu(
             onClick = { onPick(index + 1) },
         )
     }
+}
+
+/**
+ * 讀取當前話唯一的一條書籤。
+ *
+ * 新格式是 `bookmark_$cid` 單值（Int 或字串）；舊版用 `bookmarks_$cid` 存逗號分隔的多值，
+ * 兼容時只取最後一個有效頁碼。
+ */
+private fun readBookmark(prefs: android.content.SharedPreferences, cid: Long): Int? {
+    val all = prefs.all
+    val raw = all["bookmark_$cid"] ?: all["bookmarks_$cid"] ?: return null
+    val pages = when (raw) {
+        is Int -> listOf(raw)
+        is Long -> listOf(raw.toInt())
+        is String -> raw.split(',').mapNotNull { it.trim().toIntOrNull() }
+        else -> emptyList()
+    }
+    return pages.filter { it >= 0 }.lastOrNull()
 }

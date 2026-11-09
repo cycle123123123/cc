@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -115,15 +116,6 @@ fun LibraryScreen(
                         tint = IosBlue,
                     )
                 }
-                IconButton(onClick = { openCacheDialog() }) {
-                    Icon(Icons.Filled.DeleteSweep, contentDescription = "清除快取", tint = IosBlue)
-                }
-                IconButton(onClick = onBlocks) {
-                    Icon(Icons.Filled.Block, contentDescription = "屏蔽管理", tint = IosBlue)
-                }
-                IconButton(onClick = onDownloads) {
-                    Icon(Icons.Filled.Download, contentDescription = "下載管理", tint = IosBlue)
-                }
             }
         }
 
@@ -139,7 +131,16 @@ fun LibraryScreen(
                     onLogin = { showLoginDialog = true },
                 )
             } else {
-                LibraryContent(repo, member!!, onOpen, accountVisible, onCheckUpdate)
+                LibraryContent(
+                    repo = repo,
+                    member = member!!,
+                    onOpen = onOpen,
+                    accountVisible = accountVisible,
+                    onDownloads = onDownloads,
+                    onBlocks = onBlocks,
+                    onClearCache = { openCacheDialog() },
+                    onCheckUpdate = onCheckUpdate,
+                )
             }
         }
     }
@@ -222,13 +223,13 @@ private fun LoggedOutLibrary(
                 onBlocks = onBlocks,
                 onClearCache = onClearCache,
                 onCheckUpdate = onCheckUpdate,
+                versionName = com.jmreader.BuildConfig.VERSION_NAME,
             )
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
             LocalHistoryHeader(
                 count = localHistory.size,
                 onClear = { showClearConfirm = true },
-                modifier = Modifier.padding(top = 4.dp),
             )
         }
         localHistoryEntries(repo, localHistory, onOpen)
@@ -247,14 +248,14 @@ private fun LoggedOutLibrary(
 
 @Composable
 private fun LoginPromptCard(onLogin: () -> Unit) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(12.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(IosCardWhite)
             .border(0.5.dp, Color(0x12000000), shape)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -302,12 +303,17 @@ private fun LoginPromptCard(onLogin: () -> Unit) {
     }
 }
 
+/**
+ * 「工具與設定」分組：未登入 / 已登入共用，四項入口保持一致。
+ * [versionName] 只作為「檢查更新」行的右側附註，不影響點擊行為。
+ */
 @Composable
-private fun SettingsGroup(
+internal fun SettingsGroup(
     onDownloads: () -> Unit,
     onBlocks: () -> Unit,
     onClearCache: () -> Unit,
     onCheckUpdate: () -> Unit,
+    versionName: String? = null,
 ) {
     Column {
         Text(
@@ -331,7 +337,13 @@ private fun SettingsGroup(
             SettingsDivider()
             SettingRow(Icons.Filled.DeleteSweep, "清除快取", IosPink, onClearCache)
             SettingsDivider()
-            SettingRow(Icons.Filled.Refresh, "檢查更新", IosBlue, onCheckUpdate)
+            SettingRow(
+                icon = Icons.Filled.Refresh,
+                label = "檢查更新",
+                tint = IosBlue,
+                onClick = onCheckUpdate,
+                trailing = versionName?.let { "v$it" },
+            )
         }
     }
 }
@@ -342,12 +354,14 @@ private fun SettingRow(
     label: String,
     tint: Color,
     onClick: () -> Unit,
+    trailing: String? = null,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 13.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
@@ -357,6 +371,14 @@ private fun SettingRow(
             color = IosLabelPrimary,
             modifier = Modifier.weight(1f).padding(start = 12.dp),
         )
+        if (trailing != null) {
+            Text(
+                text = trailing,
+                fontSize = 13.sp,
+                color = IosLabelSecondary,
+                modifier = Modifier.padding(end = 6.dp),
+            )
+        }
         Text("›", fontSize = 18.sp, color = IosLabelSecondary)
     }
 }

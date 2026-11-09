@@ -78,7 +78,7 @@ internal fun LoginForm(repo: JmRepository, compact: Boolean = false) {
         verticalArrangement = if (compact) Arrangement.Top else Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val shape = RoundedCornerShape(16.dp)
+        val shape = RoundedCornerShape(12.dp)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
