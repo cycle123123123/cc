@@ -70,7 +70,6 @@ internal fun LibraryContent(
 ) {
     var tab by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
-    var sortByName by remember { mutableStateOf(false) }
     val gridState = rememberLazyGridState()
     var searchOpen by remember { mutableStateOf(false) }
 
@@ -177,10 +176,8 @@ internal fun LibraryContent(
     val currentError = if (tab == 0) favoritesError else historyError
     val currentTotal = if (tab == 0) favoritesTotal else historyTotal
 
-    val shown = remember(list, query, sortByName) {
-        list
-            .filter { query.isBlank() || it.name.contains(query, true) || it.author.contains(query, true) }
-            .let { if (sortByName) it.sortedBy { album -> album.name } else it }
+    val shown = remember(list, query) {
+        list.filter { query.isBlank() || it.name.contains(query, true) || it.author.contains(query, true) }
     }
 
     // 登入前後共用同一套骨架：帳號卡 → 工具與設定 → 內容區，
@@ -244,14 +241,6 @@ internal fun LibraryContent(
                     contentPadding = PaddingValues(0.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    // 排序放最前面，收藏夾很多時也不會被擠出螢幕（收藏/歷史兩頁都有）
-                    item {
-                        IosFilterPill(
-                            selected = sortByName,
-                            label = if (sortByName) "排序：名稱↓" else "排序：默認",
-                            onClick = { sortByName = !sortByName },
-                        )
-                    }
                     if (tab == 0) {
                         item {
                             IosFilterPill(
