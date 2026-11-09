@@ -36,4 +36,17 @@ class UpdateCheckerTest {
         assertFalse(UpdateChecker.isNewer("", "0.2.1"))
         assertFalse(UpdateChecker.isNewer("abc", "0.2.1"))
     }
+
+    @Test
+    fun `double digit patch can cross`() {
+        assertTrue(UpdateChecker.isNewer("0.4.10", "0.4.9"))
+        assertFalse(UpdateChecker.isNewer("0.4.9", "0.4.10"))
+    }
+
+    @Test
+    fun `partial numeric segments are ignored`() {
+        // "1.x.2" 里的 x 解析不出来，被丢弃 → 退化成 1.2
+        assertTrue(UpdateChecker.isNewer("1.2", "1.1"))
+        assertFalse(UpdateChecker.isNewer("1.x.2", "1.2"))
+    }
 }
