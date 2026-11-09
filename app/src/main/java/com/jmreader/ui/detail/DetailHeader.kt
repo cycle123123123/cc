@@ -134,6 +134,7 @@ internal fun DetailStat(label: String, value: String, modifier: Modifier = Modif
     DetailStatCell(top = label, value = value, sub = "", modifier = modifier)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun Header(
     repo: JmRepository,
@@ -212,9 +213,11 @@ internal fun Header(
             Spacer(Modifier.height(4.dp))
 
             // iOS App Store 主操作栏：「閱讀」蓝色胶囊按钮 + 收藏/点赞圆按钮
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            // 单话本会多一个「下载」，按钮总宽度可能超过封面右侧的可用宽度，
+            // 用 FlowRow 让放不下的按钮换行，而不是被裁到屏幕外。
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Box(
                     modifier = Modifier
