@@ -10,6 +10,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -44,22 +45,20 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosLabelSecondary
 import kotlin.math.abs
-import kotlin.math.roundToInt
 
 /**
  * iOS 26 风格的悬浮玻璃底栏：
@@ -80,6 +79,7 @@ internal fun GlassBottomBar(
     val shape = RoundedCornerShape(percent = 50)
     val density = LocalDensity.current
 
+    // 用「第几个 tab」作为动画单位，避免 px/dp 混算
     val lens = remember { Animatable(selected.ordinal.toFloat()) }
     LaunchedEffect(selected) {
         lens.animateTo(
@@ -88,9 +88,10 @@ internal fun GlassBottomBar(
         )
     }
 
-    // 读 value 让动画期间每帧重组，velocity 才能驱动拉伸
     val progress = lens.value
-    val velocity = lens.velocity
+    val velocityDp = with(density) { lens.velocity.toDp().value }
+    // 速度 -> 拉伸量（dp），停下自然回落到基础宽度
+    val stretch = (abs(velocityDp) * 0.02f).coerceIn(0f, 20f)
 
     BoxWithConstraints(
         modifier = modifier
@@ -99,19 +100,13 @@ internal fun GlassBottomBar(
             .navigationBarsPadding()
             .padding(bottom = BottomBarMetrics.BottomMargin),
     ) {
-        val barWidthPx = constraints.maxWidth.toFloat()
-        val itemWidthPx = barWidthPx / tabs.size
-        val baseLensPx = with(density) { BottomBarMetrics.LensWidth.toPx() }
-        val barHeightPx = with(density) { BottomBarMetrics.Height.toPx() }
-
-        // 速度 -> 拉伸量（px）；停下后自然回到基础宽度
-        val stretch = (abs(velocity) * 0.06f).coerceIn(0f, 56f)
-        val lensWidthPx = baseLensPx + stretch
-        val lensHeightPx = (barHeightPx - with(density) { 12.dp.toPx() } - stretch * 0.12f)
-            .coerceAtLeast(with(density) { 40.dp.toPx() })
-        val lensX = (itemWidthPx * progress - stretch / 2f)
-            .coerceIn(0f, (barWidthPx - lensWidthPx).coerceAtLeast(0f))
-        val lensY = (barHeightPx - lensHeightPx) / 2f
+        val itemWidth: Dp = maxWidth / tabs.size
+        val lensWidth: Dp = BottomBarMetrics.LensWidth + stretch.dp
+        val lensHeight: Dp = BottomBarMetrics.Height - 14.dp
+        // 镜片中心对齐当前 item 的中心
+        val itemCenter = itemWidth * progress + itemWidth / 2
+        val lensX = itemCenter - lensWidth / 2
+        val lensY = (BottomBarMetrics.Height - lensHeight) / 2
 
         Box(
             modifier = Modifier
@@ -137,7 +132,7 @@ internal fun GlassBottomBar(
             Box(
                 Modifier
                     .matchParentSize()
-                    .background(Color.White.copy(alpha = if (source.image == null) 0.88f else 0.60f)),
+                    .background(Color.White.copy(alpha = if (source.image == null) 0.88f else 0.62f)),
             )
             // 高光描边
             Box(
@@ -149,14 +144,11 @@ internal fun GlassBottomBar(
             // 选中镜片
             Box(
                 Modifier
-                    .offset { IntOffset(lensX.roundToInt(), lensY.roundToInt()) }
-                    .size(
-                        width = with(density) { lensWidthPx.toDp() },
-                        height = with(density) { lensHeightPx.toDp() },
-                    )
+                    .offset(x = lensX, y = lensY)
+                    .size(width = lensWidth, height = lensHeight)
                     .clip(RoundedCornerShape(percent = 50))
-                    .background(IosBlue.copy(alpha = 0.13f))
-                    .border(0.5.dp, IosBlue.copy(alpha = 0.20f), RoundedCornerShape(percent = 50)),
+                    .background(IosBlue.copy(alpha = 0.14f))
+                    .border(0.75.dp, IosBlue.copy(alpha = 0.22f), RoundedCornerShape(percent = 50)),
             )
 
             Row(Modifier.fillMaxSize()) {
@@ -179,7 +171,6 @@ private fun BoxScope.GlassBackdrop(image: ImageBitmap?) {
     val blurModifier = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         Modifier.blur(16.dp)
     } else {
-        // 1/4 采样本身就足够糊，旧系统不再叠加昂贵的模糊
         Modifier
     }
     Image(
@@ -210,12 +201,17 @@ private fun RowScope.GlassTabItem(
         animationSpec = spring(dampingRatio = 0.6f, stiffness = 600f),
         label = "tabScale",
     )
+    val interaction = remember { MutableInteractionSource() }
 
     Column(
         modifier = Modifier
             .weight(1f)
             .fillMaxHeight()
-            .clickable(onClick = onClick),
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
