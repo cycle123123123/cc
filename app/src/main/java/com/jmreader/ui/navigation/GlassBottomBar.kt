@@ -10,6 +10,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,7 +38,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -51,14 +55,19 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosLabelSecondary
+import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /**
  * iOS 26 风格的悬浮玻璃底栏：
@@ -79,9 +88,16 @@ internal fun GlassBottomBar(
     val shape = RoundedCornerShape(percent = 50)
     val density = LocalDensity.current
 
+    val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
+    var dragging by remember { mutableStateOf(false) }
+    var lastHapticIndex by remember { mutableStateOf(selected.ordinal) }
+
+
     // 用「第几个 tab」作为动画单位，避免 px/dp 混算
     val lens = remember { Animatable(selected.ordinal.toFloat()) }
     LaunchedEffect(selected) {
+        if (dragging) return@LaunchedEffect
         lens.animateTo(
             targetValue = selected.ordinal.toFloat(),
             animationSpec = spring(dampingRatio = 0.55f, stiffness = 500f),
@@ -116,6 +132,41 @@ internal fun GlassBottomBar(
                     val bounds = coords.boundsInWindow()
                     source.barTopInWindow = bounds.top
                     source.barHeightPx = bounds.height
+                }
+                .pointerInput(itemWidth, tabs.size) {
+                    val itemPx = itemWidth.toPx()
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            dragging = true
+                            scope.launch { lens.stop() }
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            val next = (lens.value + dragAmount / itemPx)
+                                .coerceIn(0f, (tabs.size - 1).toFloat())
+                            scope.launch { lens.snapTo(next) }
+                            val near = next.roundToInt()
+                            if (near != lastHapticIndex) {
+                                lastHapticIndex = near
+                                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                        },
+                        onDragEnd = {
+                            dragging = false
+                            val target = lens.value.roundToInt().coerceIn(0, tabs.size - 1)
+                            lastHapticIndex = target
+                            onSelect(tabs[target].first)
+                        },
+                        onDragCancel = {
+                            dragging = false
+                            scope.launch {
+                                lens.animateTo(
+                                    selected.ordinal.toFloat(),
+                                    spring(dampingRatio = 0.55f, stiffness = 500f),
+                                )
+                            }
+                        },
+                    )
                 }
                 .shadow(
                     elevation = 18.dp,
