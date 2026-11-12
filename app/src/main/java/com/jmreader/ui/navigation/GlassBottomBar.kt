@@ -155,6 +155,14 @@ internal fun GlassBottomBar(
                             dragging = false
                             val target = lens.value.roundToInt().coerceIn(0, tabs.size - 1)
                             lastHapticIndex = target
+                            // 无论是否换了 tab，都要把镜片吸附到目标格，
+                            // 否则停在两格之间时 selected 没变化，镜片会卡住。
+                            scope.launch {
+                                lens.animateTo(
+                                    target.toFloat(),
+                                    spring(dampingRatio = 0.55f, stiffness = 500f),
+                                )
+                            }
                             onSelect(tabs[target].first)
                         },
                         onDragCancel = {
