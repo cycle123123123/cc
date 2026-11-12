@@ -1,5 +1,7 @@
 package com.jmreader.ui.components
 
+import com.jmreader.ui.navigation.BottomBarMetrics
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -57,7 +59,7 @@ fun AlbumGrid(
     showMeta: Boolean = true,
     showTopBadge: Boolean = showMeta,
     compact: Boolean = false,
-    contentPadding: PaddingValues = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
+    contentPadding: PaddingValues = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = BottomBarMetrics.ContentInset),
     header: LazyGridScope.() -> Unit = {},
 ) {
     val container = LocalAppContainer.current

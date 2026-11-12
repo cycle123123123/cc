@@ -5,16 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,8 +17,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import kotlinx.coroutines.launch
 import com.jmreader.ui.search.AuthorWorksScreen
 import com.jmreader.ui.library.BlocksScreen
@@ -35,10 +29,6 @@ import com.jmreader.ui.discover.DiscoverScreen
 import com.jmreader.ui.library.DownloadsScreen
 import com.jmreader.ui.home.HomeScreen
 import com.jmreader.ui.home.HomeState
-import com.jmreader.ui.theme.IosBlue
-import com.jmreader.ui.theme.IosCardWhite
-import com.jmreader.ui.theme.IosLabelSecondary
-import com.jmreader.ui.theme.IosSeparator
 import com.jmreader.ui.library.LibraryScreen
 import com.jmreader.ui.reader.ReaderScreen
 import com.jmreader.ui.search.SearchScreen
@@ -104,78 +94,53 @@ fun AppRoot(repo: JmRepository) {
         if (overlays.isNotEmpty()) pop() else tab = RootTab.HOME
     }
 
-    Scaffold(
-        bottomBar = {
-            if (overlays.isEmpty()) {
-                androidx.compose.foundation.layout.Column {
-                    androidx.compose.material3.HorizontalDivider(
-                        thickness = 0.5.dp,
-                        color = IosSeparator,
+    val backdrop = rememberBackdropSource()
+
+    Box(Modifier.fillMaxSize()) {
+        Scaffold(bottomBar = {}) { padding ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .onGloballyPositioned { backdrop.contentTopInWindow = it.positionInWindow().y }
+                    .backdropSource(backdrop),
+            ) {
+                when (tab) {
+                    RootTab.HOME -> HomeScreen(
+                        repo = repo,
+                        state = homeState,
+                        onOpen = { push(Screen.Detail(it)) },
+                        onContinue = { item -> push(Screen.Reader(item.albumId, item.cid, item.title)) },
+                        onSearch = { push(Screen.Search()) },
                     )
-                    NavigationBar(
-                        containerColor = IosCardWhite,
-                        tonalElevation = 0.dp,
-                    ) {
-                        val itemColors = androidx.compose.material3.NavigationBarItemDefaults.colors(
-                            selectedIconColor = IosBlue,
-                            selectedTextColor = IosBlue,
-                            indicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                            unselectedIconColor = IosLabelSecondary,
-                            unselectedTextColor = IosLabelSecondary,
-                        )
-                        NavigationBarItem(
-                            selected = tab == RootTab.HOME,
-                            onClick = { tab = RootTab.HOME },
-                            icon = { Icon(Icons.Filled.Home, contentDescription = "首頁") },
-                            label = { Text("首頁") },
-                            colors = itemColors,
-                        )
-                        NavigationBarItem(
-                            selected = tab == RootTab.DISCOVER,
-                            onClick = { tab = RootTab.DISCOVER },
-                            icon = { Icon(Icons.Filled.Explore, contentDescription = "發現") },
-                            label = { Text("發現") },
-                            colors = itemColors,
-                        )
-                        NavigationBarItem(
-                            selected = tab == RootTab.ME,
-                            onClick = { tab = RootTab.ME },
-                            icon = { Icon(Icons.Filled.Person, contentDescription = "我的") },
-                            label = { Text("我的") },
-                            colors = itemColors,
-                        )
-                    }
+
+                    RootTab.DISCOVER -> DiscoverScreen(
+                        repo = repo,
+                        onOpen = { push(Screen.Detail(it)) },
+                        onSearchTag = { push(Screen.Search(it)) },
+                    )
+
+                    RootTab.ME -> LibraryScreen(
+                        repo = repo,
+                        onOpen = { push(Screen.Detail(it)) },
+                        onDownloads = { push(Screen.Downloads) },
+                        onBlocks = { push(Screen.Blocks) },
+                        onCheckUpdate = { checkUpdate(true) },
+                    )
                 }
             }
-        },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding)) {
-            when (tab) {
-                RootTab.HOME -> HomeScreen(
-                    repo = repo,
-                    state = homeState,
-                    onOpen = { push(Screen.Detail(it)) },
-                    onContinue = { item -> push(Screen.Reader(item.albumId, item.cid, item.title)) },
-                    onSearch = { push(Screen.Search()) },
-                )
+        }
 
-                RootTab.DISCOVER -> DiscoverScreen(
-                    repo = repo,
-                    onOpen = { push(Screen.Detail(it)) },
-                    onSearchTag = { push(Screen.Search(it)) },
-                )
-
-                RootTab.ME -> LibraryScreen(
-                    repo = repo,
-                    onOpen = { push(Screen.Detail(it)) },
-                    onDownloads = { push(Screen.Downloads) },
-                    onBlocks = { push(Screen.Blocks) },
-                    onCheckUpdate = { checkUpdate(true) },
-                )
-            }
+        // 悬浮玻璃底栏：单独一层盖在内容之上，采样层里不含它自己
+        if (overlays.isEmpty()) {
+            GlassBottomBar(
+                selected = tab,
+                onSelect = { tab = it },
+                source = backdrop,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
-
     overlays.lastOrNull()?.let { current ->
         Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             when (current) {

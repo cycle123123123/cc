@@ -1,5 +1,7 @@
 package com.jmreader.ui.library
 
+import com.jmreader.ui.navigation.BottomBarMetrics
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -198,7 +200,7 @@ private fun LoggedOutLibrary(
         state = gridState,
         applyBlockFilter = false,
         showMeta = false,
-        contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 72.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = BottomBarMetrics.ContentInset),
         header = {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 LoginPromptCard(onLogin = onLogin)

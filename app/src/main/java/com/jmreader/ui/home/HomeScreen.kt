@@ -1,5 +1,7 @@
 package com.jmreader.ui.home
 
+import com.jmreader.ui.navigation.BottomBarMetrics
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -229,7 +231,7 @@ fun HomeScreen(
                     hasMore = pager.hasMore,
                     onLoadMore = { scope.launch { pager.loadMore() } },
                     compact = true,
-                    contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 72.dp),
+                    contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = BottomBarMetrics.ContentInset),
                 ) {
                     // 首页所有非网格内容都作为整行 header：更新横幅 / 继续阅读 / 已屏蔽 / 分区横滑 / 最新上架标题
                     update?.let { setting ->
