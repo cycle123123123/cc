@@ -18,6 +18,6 @@ object BottomBarMetrics {
     /** 列表底部要留出的空间：底栏高度 + 外边距 + 安全余量。 */
     val ContentInset = 96.dp
 
-    /** 采样缩放倍数：1/2 分辨率，GPU 模糊过渡细腻且成本极低。 */
-    const val CaptureScale = 2f
+    /** 1:1 零拷贝 GPU 图层录制，保证边缘折射与轻磨砂锐利通透。 */
+    const val CaptureScale = 1f
 }

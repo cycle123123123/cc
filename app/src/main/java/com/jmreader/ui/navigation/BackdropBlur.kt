@@ -28,8 +28,8 @@ import kotlin.math.roundToInt
 /**
  * 底栏背后的「真实内容」零拷贝 GPU 采样器。
  *
- * 使用 [GraphicsLayer] 录制底栏正下方的 1/2 分辨率条带，
- * 底栏直接通过 `drawLayer` 绘制该图层并叠加 `Modifier.blur`：
+ * 使用 [GraphicsLayer] 录制底栏正下方的 1:1 条带，
+ * 底栏直接通过 `drawLayer` 绘制该图层并叠加轻磨砂 + AGSL 边缘折射：
  * - 不做 `toImageBitmap()` GPU→CPU 读回与 Bitmap 分配；
  * - 不使用定时器轮询，仅在列表滚动、切页或内容重绘时按需录制；
  * - Android 12 以下自动关闭录制，退化为高可读性的磨砂半透白胶囊。
@@ -97,7 +97,7 @@ fun rememberBackdropSource(enabled: Boolean = true): BackdropSource {
 }
 
 /**
- * 记录内容层坐标，并在内容重绘/滚动时按 1/2 分辨率精确录制底栏正下方区域。
+ * 记录内容层坐标，并在内容重绘/滚动时精确录制底栏正下方区域。
  */
 @Composable
 fun Modifier.backdropSource(source: BackdropSource): Modifier {
@@ -143,7 +143,13 @@ fun Modifier.backdropSource(source: BackdropSource): Modifier {
             val height = (barH / s).roundToInt().coerceAtLeast(1)
 
             layer.record(IntSize(width, height)) {
-                scale(1f / s, 1f / s, pivot = Offset.Zero) {
+                if (s != 1f) {
+                    scale(1f / s, 1f / s, pivot = Offset.Zero) {
+                        translate(-left, -top) {
+                            this@drawWithContent.drawContent()
+                        }
+                    }
+                } else {
                     translate(-left, -top) {
                         this@drawWithContent.drawContent()
                     }
