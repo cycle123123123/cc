@@ -4,6 +4,7 @@ import android.graphics.RenderEffect as AndroidRenderEffect
 import android.graphics.RuntimeShader
 import android.graphics.Shader
 import android.os.Build
+import android.os.SystemClock
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -46,10 +47,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,7 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosLabelPrimary
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -88,6 +91,12 @@ private data class NavTabSpec(
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
 )
+
+/** 绘制期使用的 RenderEffect 缓存：刻意不是快照状态，避免在图形层里写 Compose state。 */
+private class RenderEffectCache {
+    var size: Size = Size.Zero
+    var effect: ComposeRenderEffect? = null
+}
 
 private val NAV_TABS = listOf(
     NavTabSpec(RootTab.HOME, "首頁", Icons.Filled.Home, Icons.Outlined.Home),
@@ -177,6 +186,7 @@ internal fun GlassBottomBar(
     var dragging by remember { mutableStateOf(false) }
     var committed by remember { mutableIntStateOf(selected.ordinal) }
     var dragStretchTarget by remember { mutableFloatStateOf(0f) }
+    val lastDragMs = remember { mutableLongStateOf(0L) }
 
     // 动画单位是「第几个 tab」(0f..2f)，计算拉伸时再乘以每格 dp 宽度还原线速度。
     val lensPos = remember { Animatable(selected.ordinal.toFloat()) }
@@ -189,11 +199,15 @@ internal fun GlassBottomBar(
         )
     }
 
-    // 手指拖拽中途停顿 50ms 后，拉伸量平滑回落为 0。
-    LaunchedEffect(dragStretchTarget, dragging) {
-        if (dragging && dragStretchTarget > 0f) {
-            delay(50)
-            dragStretchTarget = 0f
+    // 手指停住 ~70ms 后拉伸平滑回落。用时间戳判断，而不是 LaunchedEffect(dragStretchTarget)：
+    // 拉伸打满 20dp 后目标值不再变化，靠 key 重启的计时会把持续快拖误判成「停顿」。
+    LaunchedEffect(dragging) {
+        if (!dragging) return@LaunchedEffect
+        while (isActive) {
+            withFrameNanos { }
+            if (SystemClock.uptimeMillis() - lastDragMs.longValue >= 70L) {
+                dragStretchTarget = 0f
+            }
         }
     }
 
@@ -257,19 +271,25 @@ internal fun GlassBottomBar(
                     source.barTopInWindow = bounds.top
                     source.barWidthPx = bounds.width
                     source.barHeightPx = bounds.height
-                    if (changed) source.requestCapture()
+                    if (changed) source.requestCapture(force = true)
                 }
                 .pointerInput(itemWidth, NAV_TABS.size) {
                     val itemPx = itemWidth.toPx()
                     detectHorizontalDragGestures(
                         onDragStart = {
                             dragging = true
-                            committed = selected.ordinal
+                            // pointerInput 的协程不随重组重启，读 selected 会拿到首帧的旧值
+                            // （在「發現/我的」起手拖拽会把 committed 重置成 0），
+                            // 所以直接用镜片当前落点作为「已提交页」。
+                            committed = lensPos.value.roundToInt()
+                                .coerceIn(0, NAV_TABS.size - 1)
                             dragStretchTarget = 0f
+                            lastDragMs.longValue = SystemClock.uptimeMillis()
                             scope.launch { lensPos.stop() }
                         },
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
+                            lastDragMs.longValue = SystemClock.uptimeMillis()
                             val dragDp = with(density) { dragAmount.toDp().value }
                             dragStretchTarget = (abs(dragDp) * 1.5f)
                                 .coerceIn(0f, BottomBarMetrics.LensMaxStretch.value)
@@ -360,16 +380,24 @@ internal fun GlassBottomBar(
                     ),
             )
 
-            // 选中镜片：纯中性透明玻璃浮块（拖拽时更通透，静止时柔和磨砂白）
-            val lensFill = if (dragging) {
-                Brush.verticalGradient(
+            // 选中镜片：纯中性透明玻璃浮块（拖拽时更通透，静止时柔和磨砂白）。
+            // 采样不可用（API < 31 或首帧）时是白叠白、几乎看不见，改用浅冷灰浮块保证识别度。
+            val lensFill = when {
+                !isBlurred -> Brush.verticalGradient(
+                    listOf(
+                        Color(0xFF9AA3AF).copy(alpha = 0.34f),
+                        Color(0xFF9AA3AF).copy(alpha = 0.22f),
+                    ),
+                )
+
+                dragging -> Brush.verticalGradient(
                     listOf(
                         Color.White.copy(alpha = 0.42f),
                         Color.White.copy(alpha = 0.20f),
                     ),
                 )
-            } else {
-                Brush.verticalGradient(
+
+                else -> Brush.verticalGradient(
                     listOf(
                         Color.White.copy(alpha = 0.68f),
                         Color.White.copy(alpha = 0.42f),
@@ -431,8 +459,8 @@ private fun BoxScope.GlassBackdrop(source: BackdropSource) {
             null
         }
     }
-    var cachedSize by remember { mutableStateOf(Size.Zero) }
-    var cachedEffect by remember { mutableStateOf<ComposeRenderEffect?>(null) }
+    // RenderEffect 只跟图层尺寸有关；用普通对象缓存，避免在绘制期写快照状态触发额外重组。
+    val effectCache = remember { RenderEffectCache() }
 
     Box(
         modifier = Modifier
@@ -443,15 +471,15 @@ private fun BoxScope.GlassBackdrop(source: BackdropSource) {
                 val w = size.width
                 val h = size.height
                 if (w > 0f && h > 0f) {
-                    if (cachedEffect == null || cachedSize != size) {
-                        cachedSize = size
+                    if (effectCache.effect == null || effectCache.size != size) {
+                        effectCache.size = size
                         val blurPx = 7.dp.toPx()
                         val blur = AndroidRenderEffect.createBlurEffect(
                             blurPx,
                             blurPx,
                             Shader.TileMode.CLAMP,
                         )
-                        cachedEffect = if (
+                        effectCache.effect = if (
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && shader != null
                         ) {
                             shader.setFloatUniform("size", w, h)
@@ -459,14 +487,14 @@ private fun BoxScope.GlassBackdrop(source: BackdropSource) {
                             shader.setFloatUniform("refractionHeight", 13.dp.toPx())
                             shader.setFloatUniform("refractionAmount", -18.dp.toPx())
                             shader.setFloatUniform("depthEffect", 0.25f)
-                            shader.setFloatUniform("chromaticAberration", 0.14f)
+                            shader.setFloatUniform("chromaticAberration", 0f)
                             val refract = AndroidRenderEffect.createRuntimeShaderEffect(shader, "content")
                             AndroidRenderEffect.createChainEffect(refract, blur).asComposeRenderEffect()
                         } else {
                             blur.asComposeRenderEffect()
                         }
                     }
-                    renderEffect = cachedEffect
+                    renderEffect = effectCache.effect
                 }
             }
             .drawBehind {

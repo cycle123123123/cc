@@ -18,6 +18,9 @@ object BottomBarMetrics {
     /** 列表底部要留出的空间：底栏高度 + 外边距 + 安全余量。 */
     val ContentInset = 96.dp
 
-    /** 1:1 零拷贝 GPU 图层录制，保证边缘折射与轻磨砂锐利通透。 */
-    const val CaptureScale = 1f
+    /** 1/2 分辨率录制：模糊后看不出差别，但重绘成本只有 1:1 的四分之一。 */
+    const val CaptureScale = 2f
+
+    /** 兜底采样的节流间隔（毫秒）：12.5fps，够跟手又不会每帧重录。 */
+    const val CaptureThrottleMs = 80L
 }

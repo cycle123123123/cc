@@ -98,7 +98,7 @@ fun AppRoot(repo: JmRepository) {
     LaunchedEffect(tab, overlays.isEmpty()) {
         if (overlays.isEmpty()) {
             withFrameNanos { }
-            backdrop.requestCapture()
+            backdrop.requestCapture(force = true)
         }
     }
 
