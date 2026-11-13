@@ -25,10 +25,12 @@ import com.jmreader.ui.search.AuthorWorksScreen
 import com.jmreader.ui.library.BlocksScreen
 import com.jmreader.ui.detail.DetailScreen
 import com.jmreader.ui.discover.DiscoverScreen
+import com.jmreader.ui.discover.DiscoverState
 import com.jmreader.ui.library.DownloadsScreen
 import com.jmreader.ui.home.HomeScreen
 import com.jmreader.ui.home.HomeState
 import com.jmreader.ui.library.LibraryScreen
+import com.jmreader.ui.library.LibraryState
 import com.jmreader.ui.reader.ReaderScreen
 import com.jmreader.ui.search.SearchScreen
 import com.jmreader.data.update.UpdateCheckResult
@@ -42,6 +44,8 @@ fun AppRoot(repo: JmRepository) {
     var tab by remember { mutableStateOf(RootTab.HOME) }
     val overlays = remember { mutableStateListOf<Screen>() }
     val homeState = remember { HomeState() }
+    val discoverState = remember { DiscoverState() }
+    val libraryState = remember { LibraryState() }
     val scope = rememberCoroutineScope()
     val container = LocalAppContainer.current
     val toaster = rememberToaster()
@@ -121,12 +125,14 @@ fun AppRoot(repo: JmRepository) {
 
                     RootTab.DISCOVER -> DiscoverScreen(
                         repo = repo,
+                        state = discoverState,
                         onOpen = { push(Screen.Detail(it)) },
                         onSearchTag = { push(Screen.Search(it)) },
                     )
 
                     RootTab.ME -> LibraryScreen(
                         repo = repo,
+                        state = libraryState,
                         onOpen = { push(Screen.Detail(it)) },
                         onDownloads = { push(Screen.Downloads) },
                         onBlocks = { push(Screen.Blocks) },

@@ -69,6 +69,7 @@ import com.jmreader.core.runCatchingCancellable
 import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
+import com.jmreader.ui.common.RefreshPolicy
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,7 +102,7 @@ fun HomeScreen(
     val loading = pager.loading
     val error = pager.error
     val update = state.update
-    var sections by remember { mutableStateOf<List<PromoteSection>>(emptyList()) }
+    var sections by state.sections
     var refreshing by remember { mutableStateOf(false) }
 
     val blockFilter = container.contentFilter
@@ -122,13 +123,20 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
-        // loaded 为 true 或上次已失败时不再自动重拉（与原 loaded 语义一致）
-        if (!pager.loaded && pager.error == null) {
+        // 首次进入拉第一页；再次进入时只有数据过期才静默刷新（旧列表继续显示）
+        val firstLoad = !pager.loaded && pager.error == null
+        val stale = RefreshPolicy.isStale(
+            state.loadedAt,
+            System.currentTimeMillis(),
+            RefreshPolicy.ListTtlMs,
+        )
+        if (firstLoad || (stale && pager.items.isNotEmpty())) {
             if (pager.items.isEmpty()) {
                 repo.cachedLatest()?.let { state.cached = it }
             }
             launch { runCatchingCancellable { repo.optimizeHost() } }
             pager.refresh()
+            if (pager.error == null) state.loadedAt = System.currentTimeMillis()
         }
     }
 
@@ -197,6 +205,7 @@ fun HomeScreen(
                     refreshing = true
                     runCatchingCancellable { repo.promote() }.onSuccess { sections = it }
                     pager.refresh()
+                    if (pager.error == null) state.loadedAt = System.currentTimeMillis()
                     refreshing = false
                 }
             },
@@ -212,7 +221,12 @@ fun HomeScreen(
                 ) {
                     Text(error, color = MaterialTheme.colorScheme.error)
                     Button(
-                        onClick = { scope.launch { pager.refresh() } },
+                        onClick = {
+                            scope.launch {
+                                pager.refresh()
+                                if (pager.error == null) state.loadedAt = System.currentTimeMillis()
+                            }
+                        },
                         shape = CircleShape,
                         modifier = Modifier.padding(top = 12.dp),
                     ) {

@@ -61,7 +61,8 @@ JmRepository ──► HostManager（线路 + /setting 元信息）
    ▼
 DTO（kotlinx.serialization）∈ data/model
    ▼
-屏幕状态：AlbumQueryState / HomeState / DetailState + PagedList
+屏幕状态：AlbumQueryState / HomeState / DiscoverState / LibraryState / DetailState + PagedList
+（HomeState / DiscoverState / LibraryState 挂在 AppRoot 保活；切回 tab 按 RefreshPolicy 的 TTL 决定是否静默刷新）
 ```
 
 阅读：

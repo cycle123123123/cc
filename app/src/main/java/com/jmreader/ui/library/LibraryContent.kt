@@ -51,6 +51,7 @@ import com.jmreader.ui.components.IosFilterPill
 import com.jmreader.ui.components.IosSegmentedControl
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
+import com.jmreader.ui.common.RefreshPolicy
 import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.theme.IosBlue
@@ -69,6 +70,7 @@ import com.jmreader.BuildConfig
 @Composable
 internal fun LibraryContent(
     repo: JmRepository,
+    state: LibraryState,
     member: Member,
     onOpen: (Long) -> Unit,
     onDownloads: () -> Unit,
@@ -76,42 +78,53 @@ internal fun LibraryContent(
     onClearCache: () -> Unit,
     onCheckUpdate: () -> Unit,
 ) {
-    var tab by remember { mutableIntStateOf(0) }
-    var query by remember { mutableStateOf("") }
-    val gridState = rememberLazyGridState()
-    var searchOpen by remember { mutableStateOf(false) }
+    var tab by state.tab
+    var query by state.query
+    val gridState = state.gridState
+    var searchOpen by state.searchOpen
 
     // 云端收藏夹列表（分页之外的数据，仍由页面维护）
-    var folders by remember { mutableStateOf<List<FolderItem>>(emptyList()) }
-    var folderId by remember { mutableStateOf("") }
-    var loadedFolder by remember { mutableStateOf<String?>(null) }
+    var folders by state.folders
+    var folderId by state.folderId
+    var loadedFolder by state.loadedFolder
 
-    // 云端收藏 / 云端历史各一条分页流水线。
+    // 云端收藏 / 云端历史各一条分页流水线，实例挂在 state 上，切 tab 不重建。
     // fetch 在调用时才读 folderId，切换收藏夹后拿到的是新值。
-    val favoritesPaged = remember {
-        PagedList<AlbumBrief>(keyOf = { it.id }) { page ->
+    val favoritesPaged = remember(repo) {
+        state.favoritesPaged ?: PagedList<AlbumBrief>(keyOf = { it.id }) { page ->
             val call = runCatchingCancellable { repo.favorites(page, folderId) }
             call.exceptionOrNull()?.let { if (it is JmException.Auth) repo.auth.clearMember() }
             val result = call.getOrThrow()
             folders = result.folderList
             PageResult(result.list, result.total.toIntOrNull() ?: result.list.size)
-        }
+        }.also { state.favoritesPaged = it }
     }
 
-    val historyPaged = remember {
-        PagedList<AlbumBrief>(keyOf = { it.id }) { page ->
+    val historyPaged = remember(repo) {
+        state.historyPaged ?: PagedList<AlbumBrief>(keyOf = { it.id }) { page ->
             val call = runCatchingCancellable { repo.history(page) }
             call.exceptionOrNull()?.let { if (it is JmException.Auth) repo.auth.clearMember() }
             val result = call.getOrThrow()
             PageResult(result.list, result.total)
-        }
+        }.also { state.historyPaged = it }
     }
 
-    var showFolders by remember { mutableStateOf(false) }
-    var newFolderName by remember { mutableStateOf("") }
-    var renameTarget by remember { mutableStateOf<FolderItem?>(null) }
-    var renameText by remember { mutableStateOf("") }
-    var moveTarget by remember { mutableStateOf<AlbumBrief?>(null) }
+    // 收藏/历史的写操作与过期刷新都走这两个入口，顺带更新保鲜时间戳
+    suspend fun refreshFavorites() {
+        favoritesPaged.refresh()
+        if (favoritesPaged.error == null) state.favoritesAt = System.currentTimeMillis()
+    }
+
+    suspend fun refreshHistory() {
+        historyPaged.refresh()
+        if (historyPaged.error == null) state.historyAt = System.currentTimeMillis()
+    }
+
+    var showFolders by state.showFolders
+    var newFolderName by state.newFolderName
+    var renameTarget by state.renameTarget
+    var renameText by state.renameText
+    var moveTarget by state.moveTarget
     val scope = rememberCoroutineScope()
     val container = LocalAppContainer.current
     val toast = rememberToaster()
@@ -119,24 +132,51 @@ internal fun LibraryContent(
     // 本地閱讀歷史（第三個 tab）
     val readingHistory = container.readingHistory
     val localHistory by readingHistory.history.collectAsState()
-    var showClearHistory by remember { mutableStateOf(false) }
+    var showClearHistory by state.showClearHistory
+    // 换账号（含登出后再登录）时清空上一个账号的数据，避免看到别人的收藏
+    LaunchedEffect(member.uid) {
+        if (state.uid != member.uid) {
+            state.uid = member.uid
+            state.favoritesPaged?.reset()
+            state.historyPaged?.reset()
+            state.favoritesAt = 0L
+            state.historyAt = 0L
+            state.folders.value = emptyList()
+            state.loadedFolder.value = null
+            state.scrolledTab = -1
+        }
+    }
 
+    // 只在「收藏夹变了 / 首次进入 / 过了保鲜期」时请求，切回本页不重复拉
     LaunchedEffect(member.uid, folderId, tab) {
-        if (tab == 0 && (loadedFolder != folderId || !favoritesPaged.loaded)) {
+        val stale = RefreshPolicy.isStale(
+            state.favoritesAt,
+            System.currentTimeMillis(),
+            RefreshPolicy.LibraryTtlMs,
+        )
+        if (tab == 0 && (loadedFolder != folderId || !favoritesPaged.loaded || stale)) {
             loadedFolder = folderId
-            favoritesPaged.refresh()
+            refreshFavorites()
         }
     }
 
     LaunchedEffect(member.uid, tab) {
-        if (tab == 1 && !historyPaged.loaded) {
-            historyPaged.refresh()
+        val stale = RefreshPolicy.isStale(
+            state.historyAt,
+            System.currentTimeMillis(),
+            RefreshPolicy.LibraryTtlMs,
+        )
+        if (tab == 1 && (!historyPaged.loaded || stale)) {
+            refreshHistory()
         }
     }
 
-    // 三個 tab 共用 gridState，切換時回到頂部，避免位置錯亂
+    // 三個 tab 共用 gridState；只在真正切换内部 tab 时回到顶部
     LaunchedEffect(tab) {
-        gridState.scrollToItem(0)
+        if (state.scrolledTab != tab) {
+            state.scrolledTab = tab
+            gridState.scrollToItem(0)
+        }
     }
 
     // 本地歷史 tab 不分頁；雲端兩個 tab 各自走 PagedList
@@ -322,7 +362,7 @@ internal fun LibraryContent(
                                     runCatchingCancellable { repo.addFavoriteFolder(name) }
                                         .onSuccess {
                                             newFolderName = ""
-                                            favoritesPaged.refresh()
+                                            refreshFavorites()
                                         }
                                         .onFailure {
                                             toast(it.userMessage())
@@ -349,7 +389,7 @@ internal fun LibraryContent(
                                         runCatchingCancellable { repo.deleteFavoriteFolder(folder.fid) }
                                             .onSuccess {
                                                 if (folderId == folder.fid) folderId = ""
-                                                favoritesPaged.refresh()
+                                                refreshFavorites()
                                             }
                                             .onFailure {
                                                 toast(it.userMessage())
@@ -387,7 +427,7 @@ internal fun LibraryContent(
                             runCatchingCancellable { repo.renameFavoriteFolder(folder.fid, name) }
                                 .onSuccess {
                                     renameTarget = null
-                                    favoritesPaged.refresh()
+                                    refreshFavorites()
                                 }
                                 .onFailure {
                                     toast(it.userMessage())
@@ -421,7 +461,7 @@ internal fun LibraryContent(
                                         runCatchingCancellable { repo.moveFavorite(folder.fid, aid) }
                                             .onSuccess {
                                                 toast("已移動到 ${folder.name}")
-                                                favoritesPaged.refresh()
+                                                refreshFavorites()
                                             }
                                             .onFailure {
                                                 toast(it.userMessage())

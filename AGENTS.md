@@ -37,7 +37,8 @@ gradle :app:assembleRelease   # R8 开启；产物 app/build/outputs/apk/release
 
 ## 架构要点
 - `core/` 纯 JVM（签名、AES、分条算法、可取消请求）；`data/` 拆成 `JmRepository`（线路/会话/缓存/业务）、`JmHttp`（签名+信封解密）、`PageLoader`（取页/解码/还原）、`PageCache`（磁盘 200MB）、`PageStore`（位图 48MB）、`ContentFilter`、`UpdateChecker`。
-- `ui/AppRoot`：3 个底部 tab + overlay 栈，**只渲染栈顶**；`SearchState` / `AuthorWorksState` 挂在 `Screen` 实例上以保留列表与滚动位置。没有 ViewModel。
+- `ui/AppRoot`：3 个底部 tab + overlay 栈，**只渲染栈顶**；`SearchState` / `AuthorWorksState` 挂在 `Screen` 实例上，`HomeState` / `DiscoverState` / `LibraryState` 挂在 `AppRoot` 上，切 tab 复用列表、筛选与滚动位置。没有 ViewModel。
+- 切回 tab 是否重拉由 `ui/common/RefreshPolicy` 决定：列表 10 分钟、收藏/历史 5 分钟；过期时静默刷新（旧列表继续显示），未过期一个请求都不发。
 - 主题在 `ui/Theme.kt`（当前**强制浅色**；阅读器自带黑底，不依赖主题）。
 - 大屏文件已拆分：`DetailScreen`+`DetailSections`、`ReaderScreen`+`ReaderSections`、`DiscoverScreen`+`DiscoverTabs`、`LibraryScreen`+`LibraryContent`+`LibraryLogin`。新增 UI 尽量放对应子文件。
 

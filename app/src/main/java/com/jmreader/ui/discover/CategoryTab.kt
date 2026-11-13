@@ -46,6 +46,7 @@ import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.userMessage
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
+import com.jmreader.ui.common.RefreshPolicy
 import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.ui.components.ErrorState
 import com.jmreader.ui.components.IosFilterPill
@@ -56,19 +57,20 @@ import com.jmreader.ui.theme.IosLabelSecondary
 @Composable
 internal fun CategoryTab(
     repo: JmRepository,
+    state: CategoryState,
     onOpen: (Long) -> Unit,
 ) {
-    var categories by remember { mutableStateOf<List<CategoryNode>>(emptyList()) }
-    var slug by remember { mutableStateOf("") }
-    var subSlug by remember { mutableStateOf("") }
-    var order by remember { mutableStateOf("") }
-    var filtersOpen by remember { mutableStateOf(true) }
-    var loadError by remember { mutableStateOf<String?>(null) }
-    val gridState = rememberLazyGridState()
+    var categories by state.categories
+    var slug by state.slug
+    var subSlug by state.subSlug
+    var order by state.order
+    var filtersOpen by state.filtersOpen
+    var loadError by state.loadError
+    val gridState = state.gridState
     val scope = rememberCoroutineScope()
 
     val pager = remember(repo) {
-        PagedList<AlbumBrief>(
+        state.paged ?: PagedList<AlbumBrief>(
             keyOf = { it.id },
             fetch = { page ->
                 val cValue = if (subSlug.isNotBlank()) "${slug}_$subSlug" else slug
@@ -79,18 +81,34 @@ internal fun CategoryTab(
                     PageResult(result.content, result.total)
                 }
             },
-        )
+        ).also { state.paged = it }
     }
     val albums = pager.items
     val total = pager.total
     val loading = pager.loading
     val error = pager.error
 
+    // 手动刷新（按钮/失败重试）：立即请求并刷新保鲜时间戳
+    suspend fun refreshNow() {
+        pager.refresh()
+        if (pager.error == null) {
+            state.loadedAt = System.currentTimeMillis()
+            state.lastFilterKey = "$slug|$subSlug|$order"
+        }
+    }
+
     LaunchedEffect(Unit) {
+        val stale = RefreshPolicy.isStale(
+            state.categoriesAt,
+            System.currentTimeMillis(),
+            RefreshPolicy.ListTtlMs,
+        )
+        if (categories.isNotEmpty() && !stale) return@LaunchedEffect
         runCatchingCancellable { repo.categories() }
             .onSuccess { response ->
                 categories = response.categories.filter { it.slug.isNotBlank() }
-                slug = categories.firstOrNull()?.slug.orEmpty()
+                state.categoriesAt = System.currentTimeMillis()
+                if (slug.isBlank()) slug = categories.firstOrNull()?.slug.orEmpty()
             }
             .onFailure { loadError = it.userMessage() }
     }
@@ -103,12 +121,29 @@ internal fun CategoryTab(
             }
     }
 
+    // 只在真的切换主分类时清空子分类；从别的 tab 切回来时保留用户的选择
     LaunchedEffect(slug) {
-        subSlug = ""
+        if (state.lastSlugForSub != slug) {
+            state.lastSlugForSub = slug
+            subSlug = ""
+        }
     }
 
+    // 只有筛选条件真的变了、首次进入、或数据过期时才请求；
+    // 单纯从别的 tab 切回来不重复拉取。
     LaunchedEffect(slug, subSlug, order) {
-        if (slug.isNotBlank()) pager.refresh()
+        if (slug.isBlank()) return@LaunchedEffect
+        val key = "$slug|$subSlug|$order"
+        val stale = RefreshPolicy.isStale(
+            state.loadedAt,
+            System.currentTimeMillis(),
+            RefreshPolicy.ListTtlMs,
+        )
+        val filterChanged = state.lastFilterKey != key
+        if (!filterChanged && pager.loaded && !stale) return@LaunchedEffect
+        state.lastFilterKey = key
+        pager.refresh()
+        if (pager.error == null) state.loadedAt = System.currentTimeMillis()
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -133,7 +168,7 @@ internal fun CategoryTab(
                 modifier = Modifier.weight(1f),
             )
             IconButton(
-                onClick = { scope.launch { pager.refresh() } },
+                onClick = { scope.launch { refreshNow() } },
                 enabled = !loading,
                 modifier = Modifier.size(32.dp),
             ) {
@@ -149,7 +184,7 @@ internal fun CategoryTab(
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { scope.launch { pager.refresh() } }
+                    .clickable { scope.launch { refreshNow() } }
                     .padding(horizontal = 16.dp, vertical = 4.dp),
             )
         }
@@ -222,7 +257,7 @@ internal fun CategoryTab(
                 failure != null && albums.isEmpty() -> ErrorState(
                     message = failure,
                     modifier = Modifier.align(Alignment.Center),
-                    onRetry = { scope.launch { pager.refresh() } },
+                    onRetry = { scope.launch { refreshNow() } },
                 )
 
                 else -> AlbumGrid(

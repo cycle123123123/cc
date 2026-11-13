@@ -32,6 +32,7 @@ import com.jmreader.data.model.AlbumBrief
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.userMessage
 import com.jmreader.ui.components.AlbumGrid
+import com.jmreader.ui.common.RefreshPolicy
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosBlueSoft
 import com.jmreader.ui.theme.IosLabelPrimary
@@ -40,11 +41,12 @@ import com.jmreader.ui.theme.IosLabelSecondary
 @Composable
 internal fun RecommendTab(
     repo: JmRepository,
+    state: RecommendState,
     onOpen: (Long) -> Unit,
 ) {
-    var albums by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var albums by state.albums
+    var loading by state.loading
+    var error by state.error
     val scope = rememberCoroutineScope()
 
     fun load() {
@@ -53,7 +55,10 @@ internal fun RecommendTab(
         scope.launch {
             try {
                 runCatchingCancellable { repo.randomRecommend() }
-                    .onSuccess { albums = it }
+                    .onSuccess {
+                        albums = it
+                        state.loadedAt = System.currentTimeMillis()
+                    }
                     .onFailure { error = it.userMessage() }
             } finally {
                 loading = false
@@ -61,7 +66,18 @@ internal fun RecommendTab(
         }
     }
 
-    LaunchedEffect(Unit) { load() }
+    LaunchedEffect(Unit) {
+        val stale = RefreshPolicy.isStale(
+            state.loadedAt,
+            System.currentTimeMillis(),
+            RefreshPolicy.ListTtlMs,
+        )
+        if (albums.isNotEmpty() && !stale) {
+            loading = false
+            return@LaunchedEffect
+        }
+        load()
+    }
 
     Column(Modifier.fillMaxSize()) {
         Row(

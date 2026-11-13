@@ -27,38 +27,61 @@ import com.jmreader.data.model.userMessage
 import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.ui.components.ErrorState
 import com.jmreader.ui.components.IosFilterPill
+import com.jmreader.ui.common.RefreshPolicy
 import com.jmreader.ui.theme.IosBlue
 
 @Composable
 internal fun WeekTab(
     repo: JmRepository,
+    state: WeekState,
     onOpen: (Long) -> Unit,
 ) {
-    var options by remember { mutableStateOf<WeekOptions?>(null) }
-    var type by remember { mutableStateOf("") }
-    var period by remember { mutableStateOf("") }
-    var albums by remember { mutableStateOf<List<AlbumBrief>>(emptyList()) }
-    var loading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var reloadKey by remember { mutableIntStateOf(0) }
+    var options by state.options
+    var type by state.type
+    var period by state.period
+    var albums by state.albums
+    var loading by state.loading
+    var error by state.error
+    var reloadKey by state.reloadKey
 
     LaunchedEffect(Unit) {
+        val stale = RefreshPolicy.isStale(
+            state.optionsAt,
+            System.currentTimeMillis(),
+            RefreshPolicy.ListTtlMs,
+        )
+        if (options != null && !stale) return@LaunchedEffect
         runCatchingCancellable { repo.week() }
             .onSuccess { week ->
                 options = week
-                type = week.type.firstOrNull { it.title.isNotBlank() }?.id.orEmpty()
-                period = week.categories.firstOrNull()?.id.orEmpty()
+                state.optionsAt = System.currentTimeMillis()
+                if (type.isBlank()) {
+                    type = week.type.firstOrNull { it.title.isNotBlank() }?.id.orEmpty()
+                }
+                if (period.isBlank()) period = week.categories.firstOrNull()?.id.orEmpty()
             }
-            .onFailure { error = it.userMessage() }
+            .onFailure { if (options == null) error = it.userMessage() }
     }
 
+    // 期数/类型没变、数据也没过期时，切回 tab 不重复请求
     LaunchedEffect(type, period, reloadKey) {
         if (period.isBlank()) return@LaunchedEffect
+        val key = "$type|$period|$reloadKey"
+        val stale = RefreshPolicy.isStale(
+            state.loadedAt,
+            System.currentTimeMillis(),
+            RefreshPolicy.ListTtlMs,
+        )
+        if (state.lastRequestKey == key && !stale) return@LaunchedEffect
+        state.lastRequestKey = key
         loading = true
         error = null
         try {
             runCatchingCancellable { repo.weekList(type, period, 1) }
-                .onSuccess { albums = it.list }
+                .onSuccess {
+                    albums = it.list
+                    state.loadedAt = System.currentTimeMillis()
+                }
                 .onFailure { error = it.userMessage() }
         } finally {
             loading = false
@@ -98,8 +121,8 @@ internal fun WeekTab(
 
         Box(Modifier.fillMaxSize()) {
             when {
-                loading -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
-                error != null -> ErrorState(
+                loading && albums.isEmpty() -> CircularProgressIndicator(color = IosBlue, modifier = Modifier.align(Alignment.Center))
+                error != null && albums.isEmpty() -> ErrorState(
                     message = error!!,
                     modifier = Modifier.align(Alignment.Center),
                     onRetry = { reloadKey++ },

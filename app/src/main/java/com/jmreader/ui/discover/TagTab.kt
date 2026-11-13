@@ -34,6 +34,7 @@ import com.jmreader.data.JmRepository
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.CategoryBlock
 import com.jmreader.ui.navigation.BottomBarMetrics
+import com.jmreader.ui.common.RefreshPolicy
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosGroupedBg
@@ -41,13 +42,26 @@ import com.jmreader.ui.theme.IosLabelPrimary
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun TagTab(repo: JmRepository, onSearchTag: (String) -> Unit) {
-    var blocks by remember { mutableStateOf<List<CategoryBlock>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+internal fun TagTab(repo: JmRepository, state: TagState, onSearchTag: (String) -> Unit) {
+    var blocks by state.blocks
+    var loading by state.loading
 
     LaunchedEffect(Unit) {
+        val stale = RefreshPolicy.isStale(
+            state.loadedAt,
+            System.currentTimeMillis(),
+            RefreshPolicy.ListTtlMs,
+        )
+        if (blocks.isNotEmpty() && !stale) {
+            loading = false
+            return@LaunchedEffect
+        }
+        loading = blocks.isEmpty()
         runCatchingCancellable { repo.categories() }
-            .onSuccess { blocks = it.blocks }
+            .onSuccess {
+                blocks = it.blocks
+                state.loadedAt = System.currentTimeMillis()
+            }
         loading = false
     }
 

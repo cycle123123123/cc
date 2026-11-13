@@ -33,11 +33,12 @@ import com.jmreader.data.JmRepository
 @Composable
 fun DiscoverScreen(
     repo: JmRepository,
+    state: DiscoverState,
     onOpen: (Long) -> Unit,
     onSearchTag: (String) -> Unit,
     onBack: (() -> Unit)? = null,
 ) {
-    var tab by remember { mutableIntStateOf(0) }
+    var tab by state.tabIndex
 
     Column(
         modifier = Modifier
@@ -77,10 +78,10 @@ fun DiscoverScreen(
         }
 
         when (tab) {
-            0 -> CategoryTab(repo, onOpen)
-            1 -> TagTab(repo, onSearchTag)
-            2 -> WeekTab(repo, onOpen)
-            else -> RecommendTab(repo, onOpen)
+            0 -> CategoryTab(repo, state.category, onOpen)
+            1 -> TagTab(repo, state.tag, onSearchTag)
+            2 -> WeekTab(repo, state.week, onOpen)
+            else -> RecommendTab(repo, state.recommend, onOpen)
         }
     }
 }

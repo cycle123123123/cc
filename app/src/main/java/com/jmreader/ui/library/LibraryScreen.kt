@@ -58,6 +58,7 @@ import com.jmreader.BuildConfig
 @Composable
 fun LibraryScreen(
     repo: JmRepository,
+    state: LibraryState,
     onOpen: (Long) -> Unit,
     onDownloads: () -> Unit,
     onBlocks: () -> Unit,
@@ -118,6 +119,7 @@ fun LibraryScreen(
             } else {
                 LibraryContent(
                     repo = repo,
+                    state = state,
                     member = member!!,
                     onOpen = onOpen,
                     onDownloads = onDownloads,
