@@ -6,7 +6,7 @@ import javax.crypto.spec.SecretKeySpec
 import okio.ByteString.Companion.decodeBase64
 
 /**
- * 官方客户端 v2.1.12 的请求签名与响应解密。
+ * 官方客户端 v2.1.13 的请求签名与响应解密。
  * 详见 docs/API.md §3、§4。
  *
  * 只依赖 JVM + okio，便于在 JVM 单元测试里直接验证。

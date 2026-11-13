@@ -42,7 +42,7 @@ gradle :app:assembleRelease   # R8 开启；产物 app/build/outputs/apk/release
 - 大屏文件已拆分：`DetailScreen`+`DetailSections`、`ReaderScreen`+`ReaderSections`、`DiscoverScreen`+`DiscoverTabs`、`LibraryScreen`+`LibraryContent`+`LibraryLogin`。新增 UI 尽量放对应子文件。
 
 ## 协议易错点（细节见 docs/API.md）
-- 请求头 `Token=md5(ts+"185Hcomic3PAPP7R")`、`Tokenparam="{ts},2.1.12"`；响应 AES-ECB，key 依次尝试两个 secret。
+- 请求头 `Token=md5(ts+"185Hcomic3PAPP7R")`、`Tokenparam="{ts},2.1.13"`；响应 AES-ECB，key 依次尝试两个 secret。
 - 搜索分类用 `c=<slug>`（`category` 会被忽略）；排序用 `o=mv|tf`（`o=mp` 服务端 500）；`order=` 无效。
 - 周榜期数用 `id`（不是 `category`）；`hanman` 与 `manga` 返回相同内容且标题为空；没有日榜/月榜接口。
 - `total_views` 只在 `/album` 返回，列表接口没有——卡片可见时按需补（并发 2）。

@@ -31,7 +31,7 @@ except ImportError:
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-VERSION = "2.1.12"
+VERSION = "2.1.13"
 TOKEN_SECRET = "185Hcomic3PAPP7R"
 CONTENT_SECRET = "18comicAPPContent"
 HOST_LIST_KEY = "diosfjckwpqpdfjkvnqQjsik"

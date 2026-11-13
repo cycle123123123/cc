@@ -101,7 +101,7 @@ ui/      theme / components / common / navigation
 
 ## 协议实现
 
-- 请求头 `Token = md5(ts + secret)`、`Tokenparam = "{ts},2.1.12"`，另有 `Token-time` 等
+- 请求头 `Token = md5(ts + secret)`、`Tokenparam = "{ts},2.1.13"`，另有 `Token-time` 等
 - 响应体 AES-ECB 加密，密钥依次尝试两个内置 secret
 - 图片为纵向分条乱序，条数由 `md5(aid + 文件名)` 末位决定，需在客户端还原
 

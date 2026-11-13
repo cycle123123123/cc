@@ -18,7 +18,7 @@ class JmCryptoTest {
     @Test
     fun `token is md5 of timestamp plus secret`() {
         assertEquals("880c64833265ad47a928afcf1b1220f5", JmCrypto.token(1700000000L))
-        assertEquals("1700000000,2.1.12", JmCrypto.tokenParam(1700000000L))
+        assertEquals("1700000000,2.1.13", JmCrypto.tokenParam(1700000000L))
     }
 
     @Test

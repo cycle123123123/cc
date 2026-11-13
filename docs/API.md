@@ -1,6 +1,6 @@
-# JMComic3 客户端协议参考（实测 v2.1.12）
+# JMComic3 客户端协议参考（实测 v2.1.13）
 
-本文档基于对官方 APK `JMComic3v2.1.12.apk` 的静态分析，并对线上接口做了实测验证。
+本文档基于对官方 APK `JMComic3v2.1.13.apk` 的静态分析，并对线上接口做了实测验证。
 所有结论均可复现，参考实现见 `tools/jm_probe.py`。
 
 > 说明：接口非公开、随时可能变更。本项目只做协议记录，不保证长期有效。
@@ -14,7 +14,7 @@
 | 框架 | Capacitor（WebView 壳） |
 | appId | `com.a7m3p9xv.t6qk2z8.app`（可任意改） |
 | 前端 | React SPA，整包内置于 `assets/public` |
-| 版本号 | `2.1.12`，参与签名计算，升级后需同步 |
+| 版本号 | `2.1.13`，参与签名计算，升级后需同步 |
 | 原生插件 | app / filesystem / preferences + 音量控制 |
 
 **结论**：官方 App 的性能瓶颈来自 WebView + 巨型 React 树 + 无原生图片缓存，
@@ -61,7 +61,7 @@ https://rup4a04-c03.tos-cn-beijing.bytepluses.com.cn/newsvr-2025.txt
 每个请求都要带两个头，值由**当前 Unix 秒级时间戳**和固定密钥算出：
 
 ```
-Tokenparam: {ts},{VERSION}                  // 例: 1794022248,2.1.12
+Tokenparam: {ts},{VERSION}                  // 例: 1794022248,2.1.13
 Token:      md5("{ts}{TOKEN_SECRET}")       // 小写 hex
 ```
 
@@ -69,7 +69,7 @@ Token:      md5("{ts}{TOKEN_SECRET}")       // 小写 hex
 
 ```
 TOKEN_SECRET = "185Hcomic3PAPP7R"
-VERSION      = "2.1.12"
+VERSION      = "2.1.13"
 ```
 
 实现要点：`ts` 必须和后面解密响应时用的 `ts` **完全一致**。

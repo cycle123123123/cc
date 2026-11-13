@@ -8,7 +8,7 @@
 object JmConfig {
 
     /** 参与 Token 签名与请求头，官方升级后需要同步。 */
-    const val APP_VERSION = "2.1.12"
+    const val APP_VERSION = "2.1.13"
 
     /** 客户端声明适配的协议版本，用于更新提示。 */
     const val PROTOCOL_VERSION = APP_VERSION
