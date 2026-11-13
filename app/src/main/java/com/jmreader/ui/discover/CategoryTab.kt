@@ -49,6 +49,7 @@ import com.jmreader.ui.common.PagedList
 import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.ui.components.ErrorState
 import com.jmreader.ui.components.IosFilterPill
+import com.jmreader.ui.navigation.BottomBarMetrics
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosLabelSecondary
 
@@ -234,7 +235,7 @@ internal fun CategoryTab(
                     error = error,
                     hasMore = pager.hasMore,
                     onLoadMore = { scope.launch { pager.loadMore() } },
-                    contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = 72.dp),
+                    contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = BottomBarMetrics.ContentInset),
                 )
             }
         }

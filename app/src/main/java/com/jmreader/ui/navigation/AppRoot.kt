@@ -17,10 +17,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
 import kotlinx.coroutines.launch
 import com.jmreader.ui.search.AuthorWorksScreen
 import com.jmreader.ui.library.BlocksScreen
@@ -94,7 +93,14 @@ fun AppRoot(repo: JmRepository) {
         if (overlays.isNotEmpty()) pop() else tab = RootTab.HOME
     }
 
-    val backdrop = rememberBackdropSource()
+    val backdrop = rememberBackdropSource(enabled = overlays.isEmpty())
+
+    LaunchedEffect(tab, overlays.isEmpty()) {
+        if (overlays.isEmpty()) {
+            withFrameNanos { }
+            backdrop.requestCapture()
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(bottomBar = {}) { padding ->
@@ -102,7 +108,6 @@ fun AppRoot(repo: JmRepository) {
                 Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .onGloballyPositioned { backdrop.contentTopInWindow = it.positionInWindow().y }
                     .backdropSource(backdrop),
             ) {
                 when (tab) {

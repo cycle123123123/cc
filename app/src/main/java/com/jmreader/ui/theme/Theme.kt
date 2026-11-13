@@ -102,7 +102,7 @@ fun JmTheme(content: @Composable () -> Unit) {
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
             window.statusBarColor = IosGroupedBg.toArgb()
-            window.navigationBarColor = IosCardWhite.toArgb()
+            window.navigationBarColor = IosGroupedBg.toArgb()
             val controller = WindowCompat.getInsetsController(window, view)
             controller.isAppearanceLightStatusBars = true
             controller.isAppearanceLightNavigationBars = true

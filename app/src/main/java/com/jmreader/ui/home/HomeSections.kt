@@ -41,6 +41,7 @@ import coil.compose.AsyncImage
 import com.jmreader.core.JmConfig
 import com.jmreader.data.JmRepository
 import com.jmreader.data.local.LastRead
+import com.jmreader.ui.navigation.BottomBarMetrics
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosBlueSoft
 import com.jmreader.ui.theme.IosCardWhite
@@ -63,7 +64,7 @@ internal fun SkeletonGrid() {
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
-        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 72.dp),
+        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = BottomBarMetrics.ContentInset),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier.fillMaxSize(),

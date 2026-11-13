@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.jmreader.data.JmRepository
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.CategoryBlock
+import com.jmreader.ui.navigation.BottomBarMetrics
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosGroupedBg
@@ -58,7 +59,7 @@ internal fun TagTab(repo: JmRepository, onSearchTag: (String) -> Unit) {
     }
 
     LazyColumn(
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 72.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = BottomBarMetrics.ContentInset),
         verticalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
