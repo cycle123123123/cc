@@ -43,7 +43,7 @@ internal fun VerticalPage(
     page: Int,
     onTap: () -> Unit,
 ) {
-    val bitmap by produceState<Bitmap?>(initialValue = store.cached(url), url) {
+    val bitmap by produceState<Bitmap?>(initialValue = store.cached(page), page) {
         if (value == null) value = store.load(url, page)
     }
 
@@ -51,7 +51,7 @@ internal fun VerticalPage(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 240.dp)
-            .pointerInput(url) { detectTapGestures(onTap = { onTap() }) },
+            .pointerInput(page) { detectTapGestures(onTap = { onTap() }) },
         contentAlignment = Alignment.Center,
     ) {
         val image = bitmap
@@ -84,7 +84,7 @@ internal fun HorizontalPage(
     animate: Boolean,
     pageOffset: Float,
 ) {
-    val bitmap by produceState<Bitmap?>(initialValue = store.cached(url), url) {
+    val bitmap by produceState<Bitmap?>(initialValue = store.cached(page), page) {
         if (value == null) value = store.load(url, page)
     }
 

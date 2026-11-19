@@ -167,20 +167,21 @@ fun ReaderScreen(
         loadedCid = null
         error = null
         positionReady = false
+
+        // 已下載的章節先用本地元數據秒開（斷網也能進），再嘗試用線上資料刷新
+        val local = container.downloads.localComicRead(cid)
+        if (local != null) {
+            read = local
+            loadedCid = cid
+        }
+
         runCatchingCancellable { repo.comicRead(cid) }
             .onSuccess {
                 read = it
                 loadedCid = cid
             }
             .onFailure { throwable ->
-                // 断网时用本地下载元数据打开已下载章节
-                val local = container.downloads.localComicRead(cid)
-                if (local != null) {
-                    read = local
-                    loadedCid = cid
-                } else {
-                    error = throwable.message ?: "載入失敗"
-                }
+                if (local == null) error = throwable.message ?: "載入失敗"
             }
     }
 

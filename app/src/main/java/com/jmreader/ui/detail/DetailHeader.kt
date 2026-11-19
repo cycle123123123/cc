@@ -63,6 +63,7 @@ import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosPink
 import com.jmreader.ui.theme.IosSeparator
 import com.jmreader.ui.theme.IosHairline
+import com.jmreader.ui.theme.JmPalette
 
 /** iOS App Store 风格四栏横向数据条（上下细线 + 竖向短分割线） */
 @Composable
@@ -307,7 +308,13 @@ internal fun Header(
                     modifier = Modifier
                         .size(34.dp)
                         .clip(CircleShape)
-                        .background(if (album.liked) Color(0xFFFFE5EA) else IosFillGray)
+                        .background(
+                        when {
+                            !album.liked -> IosFillGray
+                            JmPalette.dark -> IosPink.copy(alpha = 0.18f)
+                            else -> Color(0xFFFFE5EA)
+                        },
+                    )
                         .clickable(onClick = onLike),
                     contentAlignment = Alignment.Center,
                 ) {

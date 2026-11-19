@@ -33,9 +33,13 @@ object ThemeMode {
  * 由 [JmTheme] 在組合開始處寫入當前模式，各頁面原樣使用常量即可跟著切換。
  */
 object JmPalette {
-    @Volatile
-    var dark: Boolean = false
-        internal set
+    private val darkState = androidx.compose.runtime.mutableStateOf(false)
+
+    internal fun update(value: Boolean) {
+        if (darkState.value != value) darkState.value = value
+    }
+
+    val dark: Boolean get() = darkState.value
 
     val blue get() = if (dark) Color(0xFF0A84FF) else Color(0xFF007AFF)
     val blueSoft get() = if (dark) Color(0xFF16324F) else Color(0xFFE8F2FF)
@@ -161,13 +165,14 @@ private fun iosTypography() = Typography(
 fun JmTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { AppPrefs.of(context) }
-    val dark = when (prefs.themeMode) {
+    val mode = prefs.themeModeState.intValue
+    val dark = when (mode) {
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
         else -> isSystemInDarkTheme()
     }
     // 供常量 getter 讀取；必須在內容組合之前寫入
-    JmPalette.dark = dark
+    JmPalette.update(dark)
 
     val view = LocalView.current
     val colorScheme = remember(dark) { if (dark) darkColors() else lightColors() }

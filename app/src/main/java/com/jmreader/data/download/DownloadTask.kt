@@ -11,6 +11,8 @@ data class DownloadTask(
     val totalPages: Int,
     val scrambleId: Long = 0,
     val completed: Int = 0,
+    /** 每页原图文件名（按页序，不含扩展名）；离线还原分条时用，旧任务为空。 */
+    val keys: List<String> = emptyList(),
     val status: String = STATUS_PENDING,
     val updatedAt: Long = 0,
 ) {

@@ -1,6 +1,5 @@
 package com.jmreader.ui.library
 
-import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,7 +60,6 @@ internal fun SettingsGroup(
     onCheckUpdate: () -> Unit,
     versionName: String? = null,
 ) {
-    val context = LocalContext.current
     val prefs = LocalAppContainer.current.appPrefs
     var showThemeDialog by remember { mutableStateOf(false) }
     Column {
@@ -114,7 +111,6 @@ internal fun SettingsGroup(
                 onSelect = { mode ->
                     prefs.themeMode = mode
                     showThemeDialog = false
-                    (context as? Activity)?.recreate()
                 },
                 onDismiss = { showThemeDialog = false },
             )

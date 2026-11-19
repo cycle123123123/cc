@@ -26,6 +26,8 @@ import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosRaised
+import com.jmreader.ui.theme.IosSearchBg
+import com.jmreader.ui.theme.IosHairline
 
 /** iOS 风格胶囊筛选项（无边框、无打勾图标、紧凑圆润） */
 @Composable
@@ -43,7 +45,7 @@ fun IosFilterPill(
             .background(bg)
             .then(
                 if (!selected) {
-                    Modifier.border(0.5.dp, Color(0x18000000), CircleShape)
+                    Modifier.border(0.5.dp, IosHairline, CircleShape)
                 } else {
                     Modifier
                 },
@@ -74,7 +76,7 @@ fun IosSegmentedControl(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .background(Color(0xFFE3E3E8))
+            .background(IosSearchBg)
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {

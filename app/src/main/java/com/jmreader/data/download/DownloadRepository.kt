@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.Json
 import com.jmreader.data.model.ComicRead
 import com.jmreader.data.model.PageImage
@@ -37,6 +39,9 @@ class DownloadRepository private constructor(private val context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val jobs = ConcurrentHashMap<Long, Job>()
+
+    /** 「下載全部」時限流：最多同時下 2 話，其餘排隊等許可。 */
+    private val chapterGate = Semaphore(MAX_PARALLEL_CHAPTERS)
 
     private val api by lazy { JmRepository.of(context) }
 
@@ -92,10 +97,11 @@ class DownloadRepository private constructor(private val context: Context) {
         refresh()
     }
 
-    fun enqueue(cid: Long, albumId: Long, title: String) {
+    /** 加入下载队列；已在下载或已完成时返回 false（方便「下載全部」统计真实数量）。 */
+    fun enqueue(cid: Long, albumId: Long, title: String): Boolean {
         val existing = get(cid)
-        if (existing?.isDone == true) return
-        if (jobs[cid]?.isActive == true) return
+        if (existing?.isDone == true) return false
+        if (jobs[cid]?.isActive == true) return false
 
         save(
             DownloadTask(
@@ -105,10 +111,12 @@ class DownloadRepository private constructor(private val context: Context) {
                 totalPages = existing?.totalPages ?: 0,
                 scrambleId = existing?.scrambleId ?: 0,
                 completed = existing?.completed ?: 0,
+                keys = existing?.keys ?: emptyList(),
                 status = DownloadTask.STATUS_PENDING,
             ),
         )
         start(cid, albumId, title)
+        return true
     }
 
     fun pause(cid: Long) {
@@ -132,14 +140,22 @@ class DownloadRepository private constructor(private val context: Context) {
             scrambleId = task.scrambleId,
             totalPage = task.totalPages,
             name = task.title,
-            images = (1..task.totalPages).map { PageImage(it, "") },
+            // 分条还原依赖原图文件名（md5(aid+文件名)），离线时必须还原来文件名；
+            // 旧任务没存 keys，用 5 位页号兜底（站点文件名就是 00001 这种）。
+            images = (1..task.totalPages).map { page ->
+                val key = task.keys.getOrNull(page - 1)
+                    ?: page.toString().padStart(5, '0')
+                PageImage(page, "local://$cid/$key")
+            },
         )
     }
 
     private fun start(cid: Long, albumId: Long, title: String) {
         jobs[cid] = scope.launch {
             try {
-                downloadChapter(cid, albumId, title)
+                chapterGate.withPermit {
+                    downloadChapter(cid, albumId, title)
+                }
             } catch (_: CancellationException) {
                 get(cid)?.let { save(it.copy(status = DownloadTask.STATUS_PAUSED)) }
             } catch (_: Throwable) {
@@ -152,6 +168,8 @@ class DownloadRepository private constructor(private val context: Context) {
 
     private suspend fun downloadChapter(cid: Long, albumId: Long, title: String) {
         val comic = api.comicRead(cid)
+        // 记下每页原图文件名：离线打开时要用它算分条数
+        val keys = comic.images.sortedBy { it.page }.map { imageKey(it.image) }
         var task = DownloadTask(
             cid = cid,
             albumId = albumId,
@@ -159,6 +177,7 @@ class DownloadRepository private constructor(private val context: Context) {
             totalPages = comic.totalPage.coerceAtLeast(comic.images.size),
             scrambleId = comic.scrambleId,
             completed = comic.images.count { pageFile(cid, it.page) != null },
+            keys = keys,
             status = DownloadTask.STATUS_RUNNING,
         )
         save(task)
@@ -174,8 +193,11 @@ class DownloadRepository private constructor(private val context: Context) {
             save(task)
         }
 
-        save(task.copy(completed = task.totalPages, status = DownloadTask.STATUS_DONE))
+        save(task.copy(completed = task.totalPages, status = DownloadTask.STATUS_DONE, keys = keys))
     }
+
+    private fun imageKey(url: String): String =
+        url.substringBefore('?').substringAfterLast('/').substringBeforeLast('.')
 
     /** 进程重启后，把上次没跑完的任务标成暂停，避免永远卡在“下載中”。 */
     private fun resetStaleTasks() {
@@ -190,6 +212,9 @@ class DownloadRepository private constructor(private val context: Context) {
 
     companion object {
         private const val META = "meta.json"
+
+        /** 同時下載的章節數上限，避免「下載全部」一次起幾十個協程。 */
+        private const val MAX_PARALLEL_CHAPTERS = 2
 
         @Volatile
         private var instance: DownloadRepository? = null

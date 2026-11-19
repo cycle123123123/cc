@@ -39,14 +39,16 @@ class PageStore(
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
     }
 
-    fun cached(url: String): Bitmap? = cache.get(url)
+    fun cached(page: Int): Bitmap? = cache.get(pageKey(page))
 
     suspend fun load(url: String, page: Int): Bitmap? {
-        cache.get(url)?.let { return it }
+        // 緩存 key 必須用頁碼：離線閱讀時 url 全是空串，用 url 當 key 會讓整話都顯示第 1 頁
+        val key = pageKey(page)
+        cache.get(key)?.let { return it }
 
         val job = mutex.withLock {
-            cache.get(url)?.let { return it }
-            inflight[url] ?: scope.async {
+            cache.get(key)?.let { return it }
+            inflight[key] ?: scope.async {
                 runCatching {
                     repo.loadPage(
                         cid = cid,
@@ -57,42 +59,45 @@ class PageStore(
                         targetWidth = targetWidth,
                     )
                 }.getOrNull()
-            }.also { inflight[url] = it }
+            }.also { inflight[key] = it }
         }
 
         val bitmap = try {
             job.await()
         } finally {
-            // 被取消时也要清掉 inflight，否则后续同一 URL 会拿到已取消的 Deferred
-            mutex.withLock { inflight.remove(url) }
+            // 被取消时也要清掉 inflight，否则后续同一页会拿到已取消的 Deferred
+            mutex.withLock { inflight.remove(key) }
         }
-        if (bitmap != null) cache.put(url, bitmap)
+        if (bitmap != null) cache.put(key, bitmap)
         return bitmap
     }
 
     fun prefetch(pages: List<Pair<String, Int>>) {
         // 只保留当前窗口内的预取，快速翻页时把已经翻过去的任务取消掉
-        val wanted = pages.mapTo(HashSet()) { it.first }
-        for ((url, job) in prefetchJobs.toMap()) {
-            if (url !in wanted && !job.isCompleted) {
+        val wanted = pages.mapTo(HashSet()) { pageKey(it.second) }
+        for ((key, job) in prefetchJobs.toMap()) {
+            if (key !in wanted && !job.isCompleted) {
                 job.cancel()
-                prefetchJobs.remove(url)
+                prefetchJobs.remove(key)
             }
         }
 
         for ((url, page) in pages) {
-            if (cache.get(url) != null) continue
-            if (prefetchJobs[url]?.isActive == true) continue
+            val key = pageKey(page)
+            if (cache.get(key) != null) continue
+            if (prefetchJobs[key]?.isActive == true) continue
 
             val job = scope.launch {
                 prefetchGate.withPermit {
                     runCatching { load(url, page) }
                 }
             }
-            prefetchJobs[url] = job
-            job.invokeOnCompletion { prefetchJobs.remove(url) }
+            prefetchJobs[key] = job
+            job.invokeOnCompletion { prefetchJobs.remove(key) }
         }
     }
+
+    private fun pageKey(page: Int): String = "p$page"
 
     fun close() {
         scope.cancel()

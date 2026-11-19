@@ -40,6 +40,9 @@ import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelPrimary
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.TextButton
+import com.jmreader.ui.theme.IosLabelSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -234,6 +237,26 @@ fun DetailScreen(
                     }
 
                     if (hasCatalog && currentTab == catalogIndex) {
+                        if (chapters.isNotEmpty()) {
+                            item(key = "catalog_header") {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "全部 ${chapters.size} 話",
+                                        fontSize = 13.sp,
+                                        color = IosLabelSecondary,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            val count = state.enqueueAllDownloads()
+                                            toast(if (count > 0) "已加入 $count 話下載" else "章節已全部下載或排隊中")
+                                        },
+                                    ) {
+                                        Text("下載全部", color = IosBlue, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
                         chapterItems(
                             chapters = chapters,
                             resumeCid = resume?.cid,

@@ -94,8 +94,16 @@ class AppPrefs private constructor(context: Context) {
 
     /** 0 = 跟隨系統，1 = 淺色，2 = 深色（見 `ThemeMode`）。 */
     var themeMode: Int
-        get() = prefs.getInt("theme_mode", 0)
-        set(value) = prefs.edit().putInt("theme_mode", value).apply()
+        get() = themeModeState.intValue
+        set(value) {
+            themeModeState.intValue = value
+            prefs.edit().putInt("theme_mode", value).apply()
+        }
+
+    /** 供主题实时切换读取的快照状态（改它就会重组，不需要 recreate）。 */
+    val themeModeState = androidx.compose.runtime.mutableIntStateOf(
+        prefs.getInt("theme_mode", 0),
+    )
 
     companion object {
         @Volatile
