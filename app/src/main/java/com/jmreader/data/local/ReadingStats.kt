@@ -18,6 +18,7 @@ data class DayStat(
 )
 
 /** 对外暴露的统计快照（界面只需要读）。 */
+@Serializable
 data class ReadingStatsSnapshot(
     val totalSeconds: Long = 0L,
     val totalPages: Int = 0,
@@ -75,6 +76,18 @@ class ReadingStats private constructor(context: Context) {
     fun reset() {
         _state.value = ReadingStatsSnapshot()
         runCatching { prefs.edit().clear().apply() }
+    }
+
+    /** 从备份恢复（整体替换）。 */
+    fun restore(snapshot: ReadingStatsSnapshot) {
+        val persisted = Persisted(
+            totalSeconds = snapshot.totalSeconds.coerceAtLeast(0),
+            totalPages = snapshot.totalPages.coerceAtLeast(0),
+            albumIds = snapshot.albumIds.toList().takeLast(MAX_ALBUMS),
+            days = snapshot.days.sortedBy { it.day }.takeLast(MAX_DAYS),
+        )
+        _state.value = persisted.toSnapshot()
+        persist(persisted)
     }
 
     private fun persist(value: Persisted) {

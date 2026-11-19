@@ -32,6 +32,14 @@ class SearchHistory private constructor(context: Context) {
         persist(emptyList())
     }
 
+    /** 从备份恢复搜索历史（去重、最多 10 条）。 */
+    fun restore(items: List<String>) {
+        val cleaned = items.mapNotNull { it.trim().takeIf(String::isNotEmpty) }
+            .distinct()
+            .take(MAX)
+        persist(cleaned)
+    }
+
     private fun persist(value: List<String>) {
         runCatching {
             prefs.edit()

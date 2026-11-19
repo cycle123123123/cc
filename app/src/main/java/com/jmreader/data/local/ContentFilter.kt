@@ -149,7 +149,6 @@ class ContentFilter private constructor(context: Context) {
     fun setHideFavoritedAuthors(value: Boolean) =
         save(_rules.value.copy(hideFavoritedAuthors = value))
 
-    /** 收藏/取消收藏时同步本地去重集合。 */
     fun recordFavorite(id: String, author: String, add: Boolean) {
         val albums = _rules.value.favoritedAlbums.toMutableSet()
         val authors = _rules.value.favoritedAuthors.toMutableSet()
@@ -161,6 +160,9 @@ class ContentFilter private constructor(context: Context) {
         }
         save(_rules.value.copy(favoritedAlbums = albums.toList(), favoritedAuthors = authors.toList()))
     }
+
+    /** 从备份恢复整份屏蔽规则（相等于一次带持久化的 save）。 */
+    fun restore(rules: BlockRules) = save(rules)
 
     /**
      * 翻页拉取收藏，生成「已收藏作品 / 作者」去重集合。

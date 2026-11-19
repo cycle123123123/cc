@@ -70,6 +70,31 @@ class ReadingHistory private constructor(context: Context) {
         _history.value = emptyList()
     }
 
+    /** 导出用的只读快照。 */
+    fun snapshot(): List<LastRead> = _history.value
+
+    /** 从备份恢复：按时间倒序去重，最多保留 100 条，并同步「最近一次阅读」。 */
+    fun restore(items: List<LastRead>) {
+        val cleaned = items
+            .filter { it.albumId > 0 && it.cid > 0 }
+            .sortedByDescending { it.updatedAt }
+            .distinctBy { it.albumId }
+            .take(MAX_ITEMS)
+        _history.value = cleaned
+        persistHistory(cleaned)
+        val latest = cleaned.firstOrNull()
+        _last.value = latest
+        runCatching {
+            val editor = prefs.edit()
+            if (latest != null) {
+                editor.putString(KEY_LAST, json.encodeToString(LastRead.serializer(), latest))
+            } else {
+                editor.remove(KEY_LAST)
+            }
+            editor.apply()
+        }
+    }
+
     private fun persistHistory(items: List<LastRead>) {
         runCatching {
             prefs.edit().putString(KEY_HISTORY, json.encodeToString(listSerializer, items)).apply()

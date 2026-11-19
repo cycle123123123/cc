@@ -1,5 +1,7 @@
 package com.jmreader.ui.library
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,11 +14,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -33,10 +37,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jmreader.data.local.BackupManager
 import com.jmreader.ui.common.LocalAppContainer
+import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
@@ -44,6 +51,7 @@ import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosPink
 import com.jmreader.ui.theme.IosSeparator
 import com.jmreader.ui.theme.ThemeMode
+import kotlinx.coroutines.launch
 import com.jmreader.ui.theme.IosHairline
 
 /**
@@ -60,8 +68,68 @@ internal fun SettingsGroup(
     onCheckUpdate: () -> Unit,
     versionName: String? = null,
 ) {
-    val prefs = LocalAppContainer.current.appPrefs
+    val context = LocalContext.current
+    val container = LocalAppContainer.current
+    val prefs = container.appPrefs
+    val toast = rememberToaster()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showBackupDialog by remember { mutableStateOf(false) }
+
+    // 备份额外状态：SAF 选择路径后异步读写，避免主线程做大文件 IO
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = runCatching {
+                val text = BackupManager.encode(
+                    BackupManager.collect(
+                        history = container.readingHistory,
+                        filter = container.contentFilter,
+                        stats = container.readingStats,
+                        search = container.searchHistory,
+                        reader = container.readerPrefs,
+                    ),
+                )
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use {
+                        it.write(text.toByteArray(Charsets.UTF_8))
+                    } ?: error("無法寫入備份檔")
+                }
+            }
+            toast(result.fold({ "已匯出備份" }, { "匯出失敗：${it.message ?: "未知錯誤"}" }))
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val result = runCatching {
+                val text = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.bufferedReader()
+                        ?.use { it.readText() } ?: error("無法讀取備份檔")
+                }
+                val data = BackupManager.decode(text)
+                BackupManager.apply(
+                    data = data,
+                    history = container.readingHistory,
+                    filter = container.contentFilter,
+                    stats = container.readingStats,
+                    search = container.searchHistory,
+                    reader = container.readerPrefs,
+                )
+            }
+            toast(
+                result.fold(
+                    onSuccess = { "已恢復 $it 條數據" },
+                    onFailure = { "恢復失敗：${it.message ?: "格式不正確"}" },
+                ),
+            )
+        }
+    }
     Column {
         Text(
             text = "工具與設定",
@@ -94,6 +162,25 @@ internal fun SettingsGroup(
                 trailing = themeModeLabel(prefs.themeMode),
             )
             SettingsDivider()
+            SettingRow(
+                icon = Icons.Filled.Lock,
+                label = "隱私防窺",
+                tint = IosBlue,
+                onClick = {
+                    val next = !prefs.privacySecure
+                    prefs.privacySecure = next
+                    toast(if (next) "已開啟：後台縮略圖與截屏將被隱藏" else "已關閉隱私防窺")
+                },
+                trailing = if (prefs.privacySecure) "開啟" else "關閉",
+            )
+            SettingsDivider()
+            SettingRow(
+                icon = Icons.Filled.Backup,
+                label = "備份與恢復",
+                tint = IosBlue,
+                onClick = { showBackupDialog = true },
+            )
+            SettingsDivider()
             SettingRow(Icons.Filled.DeleteSweep, "清除快取", IosPink, onClearCache)
             SettingsDivider()
             SettingRow(
@@ -115,6 +202,44 @@ internal fun SettingsGroup(
                 onDismiss = { showThemeDialog = false },
             )
         }
+
+        if (showBackupDialog) {
+            AlertDialog(
+                onDismissRequest = { showBackupDialog = false },
+                title = { Text("備份與恢復") },
+                text = {
+                    Column {
+                        Text(
+                            text = "僅包含本機閱讀歷史、屏蔽規則、閱讀統計、搜索歷史、閱讀進度與書籤；不含帳號或 Cookie。",
+                            fontSize = 13.sp,
+                            color = IosLabelSecondary,
+                            lineHeight = 18.sp,
+                        )
+                        TextButton(
+                            onClick = {
+                                showBackupDialog = false
+                                exportLauncher.launch(backupFileName())
+                            },
+                        ) {
+                            Text("匯出本機備份", color = IosBlue)
+                        }
+                        TextButton(
+                            onClick = {
+                                showBackupDialog = false
+                                importLauncher.launch(arrayOf("application/json"))
+                            },
+                        ) {
+                            Text("從備份檔恢復", color = IosBlue)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showBackupDialog = false }) {
+                        Text("取消", color = IosBlue)
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -122,6 +247,13 @@ private fun themeModeLabel(mode: Int): String = when (mode) {
     ThemeMode.LIGHT -> "淺色"
     ThemeMode.DARK -> "深色"
     else -> "跟隨系統"
+}
+
+/** 備份檔默認名：jmreader_backup_yyyyMMdd.json */
+private fun backupFileName(): String {
+    val stamp = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US)
+        .format(java.util.Date())
+    return "jmreader_backup_$stamp.json"
 }
 
 @Composable

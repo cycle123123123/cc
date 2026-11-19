@@ -65,8 +65,41 @@ class ReaderPrefs private constructor(context: Context) {
     fun saveBookmark(cid: Long, page: Int?) {
         val editor = prefs.edit()
         if (page == null) editor.remove("bookmark_$cid") else editor.putInt("bookmark_$cid", page)
-        // 清掉舊版多值格式，避免被兼容逻辑复活
+        // 清掉舊版多值格式，避免被兼容逻辑復活
         editor.remove("bookmarks_$cid")
+        editor.apply()
+    }
+
+    /** 备份用：所有阅读进度（key = cid 字符串）。 */
+    fun exportProgress(): Map<String, Int> = prefs.all.entries
+        .mapNotNull { (key, value) ->
+            if (!key.startsWith("progress_")) return@mapNotNull null
+            val cid = key.removePrefix("progress_").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            (value as? Int)?.let { cid to it }
+        }
+        .toMap()
+
+    /** 备份用：所有书签。 */
+    fun exportBookmarks(): Map<String, Int> = prefs.all.entries
+        .mapNotNull { (key, value) ->
+            if (!key.startsWith("bookmark_")) return@mapNotNull null
+            val cid = key.removePrefix("bookmark_").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            (value as? Int)?.let { cid to it }
+        }
+        .toMap()
+
+    /** 从备份恢复进度与书签（不覆盖其它阅读设置）。 */
+    fun restoreProgress(progress: Map<String, Int>, bookmarks: Map<String, Int>) {
+        val editor = prefs.edit()
+        prefs.all.keys
+            .filter { it.startsWith("progress_") || it.startsWith("bookmark_") || it.startsWith("bookmarks_") }
+            .forEach { editor.remove(it) }
+        progress.forEach { (cid, page) ->
+            cid.toLongOrNull()?.let { editor.putInt("progress_$it", page.coerceAtLeast(0)) }
+        }
+        bookmarks.forEach { (cid, page) ->
+            cid.toLongOrNull()?.let { editor.putInt("bookmark_$it", page.coerceAtLeast(0)) }
+        }
         editor.apply()
     }
 
@@ -99,6 +132,18 @@ class AppPrefs private constructor(context: Context) {
             themeModeState.intValue = value
             prefs.edit().putInt("theme_mode", value).apply()
         }
+
+    /** 後台多任務隱私防窺（FLAG_SECURE：隱藏多任務縮略圖 / 禁止截屏）。 */
+    var privacySecure: Boolean
+        get() = privacySecureState.value
+        set(value) {
+            privacySecureState.value = value
+            prefs.edit().putBoolean("privacy_secure", value).apply()
+        }
+
+    val privacySecureState = androidx.compose.runtime.mutableStateOf(
+        prefs.getBoolean("privacy_secure", false),
+    )
 
     /** 供主题实时切换读取的快照状态（改它就会重组，不需要 recreate）。 */
     val themeModeState = androidx.compose.runtime.mutableIntStateOf(
