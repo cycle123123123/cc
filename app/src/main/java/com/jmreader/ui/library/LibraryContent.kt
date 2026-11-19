@@ -83,7 +83,8 @@ internal fun LibraryContent(
 ) {
     var tab by state.tab
     var query by state.query
-    val gridState = state.gridState
+    // 三个子 tab 各自一份 LazyGridState：切 tab 保留各自滚动位置，不再强制回顶部
+    val gridState = state.gridStates[tab.coerceIn(0, state.gridStates.lastIndex)]
     var searchOpen by state.searchOpen
 
     // 云端收藏夹列表（分页之外的数据，仍由页面维护）
@@ -147,7 +148,6 @@ internal fun LibraryContent(
             state.historyAt = 0L
             state.folders.value = emptyList()
             state.loadedFolder.value = null
-            state.scrolledTab = -1
         }
     }
 
@@ -175,13 +175,7 @@ internal fun LibraryContent(
         }
     }
 
-    // 三個 tab 共用 gridState；只在真正切换内部 tab 时回到顶部
-    LaunchedEffect(tab) {
-        if (state.scrolledTab != tab) {
-            state.scrolledTab = tab
-            gridState.scrollToItem(0)
-        }
-    }
+    // 三個 tab 各自的滚动位置由 gridStates 保留，无需再手动 scrollToItem(0)
 
     // 本地歷史 tab 不分頁；雲端兩個 tab 各自走 PagedList
     val cloudTab = tab != 2

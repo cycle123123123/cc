@@ -136,14 +136,14 @@ fun StatsScreen(onBack: () -> Unit) {
                                     .padding(top = 16.dp)
                                     .height(112.dp),
                                 verticalAlignment = Alignment.Bottom,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
                                 activeWeek.forEach { day ->
                                     DayColumn(
                                         day = day,
                                         isToday = day.day == today,
                                         fraction = if (maxPages == 0) 0f else day.pages.toFloat() / maxPages,
-                                        modifier = Modifier.weight(1f),
+                                        modifier = Modifier.width(36.dp),
                                     )
                                 }
                             }
@@ -224,7 +224,7 @@ private fun DayColumn(
         ) {
             Box(
                 Modifier
-                    .fillMaxWidth(0.62f)
+                    .width(20.dp)
                     .height(72.dp * fraction.coerceIn(0.06f, 1f))
                     .clip(RoundedCornerShape(6.dp))
                     .background(if (isToday) IosBlue else IosBlue.copy(alpha = 0.45f)),
