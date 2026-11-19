@@ -63,9 +63,15 @@ fun DetailScreen(
 
     var detailTab by remember { mutableIntStateOf(0) }
     var reloadKey by remember { mutableIntStateOf(0) }
+    var chaptersReversed by remember(albumId) { mutableStateOf(false) }
+
+    // 章节行实时联动下载状态（已下载 / 下载中）
+    val downloadTasks by container.downloads.tasks.collectAsState()
+    val taskByCid = remember(downloadTasks) { downloadTasks.associateBy { it.cid } }
 
     val detail = state.detail
     val chapters = state.chapters
+    val displayChapters = if (chaptersReversed) chapters.asReversed() else chapters
     val forum = state.forum
 
     val member by repo.auth.member.collectAsState()
@@ -210,9 +216,12 @@ fun DetailScreen(
 
                         if (hasCatalog && chapters.isNotEmpty()) {
                             chapterPreviewSection(
-                                chapters = chapters,
+                                chapters = displayChapters,
                                 resumeCid = resume?.cid,
+                                taskByCid = taskByCid,
+                                reversed = chaptersReversed,
                                 onRead = { chapter -> onRead(chapter.id, chapter.title) },
+                                onToggleOrder = { chaptersReversed = !chaptersReversed },
                                 onDownloadAll = {
                                     val count = state.enqueueAllDownloads()
                                     toast(if (count > 0) "已加入 $count 話下載" else "沒有可下載的章節")
@@ -246,6 +255,13 @@ fun DetailScreen(
                                         color = IosLabelSecondary,
                                         modifier = Modifier.weight(1f),
                                     )
+                                    TextButton(onClick = { chaptersReversed = !chaptersReversed }) {
+                                        Text(
+                                            text = if (chaptersReversed) "倒序 ↓" else "正序 ↑",
+                                            color = IosLabelSecondary,
+                                            fontSize = 12.sp,
+                                        )
+                                    }
                                     TextButton(
                                         onClick = {
                                             val count = state.enqueueAllDownloads()
@@ -258,8 +274,9 @@ fun DetailScreen(
                             }
                         }
                         chapterItems(
-                            chapters = chapters,
+                            chapters = displayChapters,
                             resumeCid = resume?.cid,
+                            taskByCid = taskByCid,
                             onRead = { chapter -> onRead(chapter.id, chapter.title) },
                             onDownload = { chapter ->
                                 state.enqueueDownload(chapter)

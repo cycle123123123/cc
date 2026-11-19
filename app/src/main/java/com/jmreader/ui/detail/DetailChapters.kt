@@ -30,10 +30,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jmreader.data.model.ChapterEntry
+import com.jmreader.data.download.DownloadTask
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosBlueSoft
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
+import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosHairline
 
 @Composable
@@ -42,6 +44,7 @@ internal fun ChapterRow(
     onRead: () -> Unit,
     onDownload: () -> Unit,
     isResume: Boolean = false,
+    task: DownloadTask? = null,
 ) {
     val shape = RoundedCornerShape(12.dp)
     Row(
@@ -105,13 +108,39 @@ internal fun ChapterRow(
                 color = IosBlue,
             )
         }
-        IconButton(onClick = onDownload) {
-            Icon(
-                Icons.Filled.Download,
-                contentDescription = "下載",
-                tint = IosBlue,
-                modifier = Modifier.size(20.dp),
+        when {
+            task?.isDone == true -> Box(
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .clip(CircleShape)
+                    .background(IosBlueSoft)
+                    .clickable(onClick = onRead)
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            ) {
+                Text(
+                    text = "✓ 已下載",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = IosBlue,
+                )
+            }
+
+            task != null && (task.isRunning || task.status == DownloadTask.STATUS_PENDING) -> Text(
+                text = if (task.totalPages > 0) "${(task.progress * 100).toInt()}%" else "等待中",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                color = IosBlue,
+                modifier = Modifier.padding(horizontal = 10.dp),
             )
+
+            else -> IconButton(onClick = onDownload) {
+                Icon(
+                    Icons.Filled.Download,
+                    contentDescription = "下載",
+                    tint = IosBlue,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }
@@ -121,6 +150,7 @@ internal fun LazyListScope.chapterItems(
     chapters: List<ChapterEntry>,
     resumeCid: Long?,
     preview: Boolean = false,
+    taskByCid: Map<Long, DownloadTask> = emptyMap(),
     onRead: (ChapterEntry) -> Unit,
     onDownload: (ChapterEntry) -> Unit,
 ) {
@@ -130,6 +160,7 @@ internal fun LazyListScope.chapterItems(
             onRead = { onRead(chapter) },
             isResume = resumeCid != null && chapter.id == resumeCid,
             onDownload = { onDownload(chapter) },
+            task = taskByCid[chapter.id],
         )
     }
 }
@@ -138,9 +169,12 @@ internal fun LazyListScope.chapterItems(
 internal fun LazyListScope.chapterPreviewSection(
     chapters: List<ChapterEntry>,
     resumeCid: Long?,
+    taskByCid: Map<Long, DownloadTask> = emptyMap(),
+    reversed: Boolean = false,
     onRead: (ChapterEntry) -> Unit,
     onDownload: (ChapterEntry) -> Unit,
     onDownloadAll: () -> Unit,
+    onToggleOrder: () -> Unit,
     onViewAll: () -> Unit,
 ) {
     item {
@@ -153,6 +187,9 @@ internal fun LazyListScope.chapterPreviewSection(
                 modifier = Modifier.weight(1f).padding(top = 4.dp),
             )
             if (chapters.isNotEmpty()) {
+                TextButton(onClick = onToggleOrder) {
+                    Text(if (reversed) "倒序 ↓" else "正序 ↑", color = IosLabelSecondary, fontSize = 12.sp)
+                }
                 TextButton(onClick = onDownloadAll) {
                     Text("下載全部", color = IosBlue, fontSize = 12.sp)
                 }
@@ -163,6 +200,7 @@ internal fun LazyListScope.chapterPreviewSection(
         chapters = chapters.take(5),
         resumeCid = resumeCid,
         preview = true,
+        taskByCid = taskByCid,
         onRead = onRead,
         onDownload = onDownload,
     )
