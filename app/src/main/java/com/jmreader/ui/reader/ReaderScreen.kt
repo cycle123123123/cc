@@ -56,6 +56,33 @@ import com.jmreader.core.JmConfig
 import com.jmreader.data.JmRepository
 import com.jmreader.core.runCatchingCancellable
 
+import android.graphics.Bitmap
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.jmreader.ui.theme.IosBlue
+
 private enum class ReaderMode { VERTICAL, HORIZONTAL }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -96,6 +123,11 @@ fun ReaderScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var uiVisible by remember { mutableStateOf(true) }
     var zoomed by remember { mutableStateOf(false) }
+    // 条漫整体缩放：1f..3f，切话/切模式归位
+    var vScale by remember(cid) { mutableFloatStateOf(1f) }
+    var vOffsetX by remember(cid) { mutableFloatStateOf(0f) }
+    var viewportWidth by remember { mutableIntStateOf(0) }
+    var saveTarget by remember { mutableStateOf<Pair<Bitmap, Int>?>(null) }
     var shard by remember { mutableStateOf(repo.imageShard) }
     // 底欄「圖源」用单独的状态，让菜单贴着底栏弹出，而不是跑到屏幕右上角
     var bottomSourceMenu by remember { mutableStateOf(false) }
@@ -345,12 +377,44 @@ fun ReaderScreen(
         }
     }
 
+    // 竖向缩放与统一的「zoomed」状态保持一致（横向由页面自己回调）
+    LaunchedEffect(mode, vScale) {
+        if (mode == ReaderMode.VERTICAL) zoomed = vScale > 1.01f
+    }
+
     fun toggleMode() {
         val index = currentIndex
         mode = if (mode == ReaderMode.VERTICAL) ReaderMode.HORIZONTAL else ReaderMode.VERTICAL
         readerPrefs.vertical = (mode == ReaderMode.VERTICAL)
+        // 切模式时把条漫缩放归位，避免横向页继承 2x 缩放
+        vScale = 1f
+        vOffsetX = 0f
+        zoomed = false
         scope.launch {
             if (mode == ReaderMode.VERTICAL) listState.scrollToItem(index) else pagerState.scrollToPage(index)
+        }
+    }
+
+    fun clampVerticalX(value: Float, scale: Float): Float {
+        val max = viewportWidth * (scale - 1f) / 2f
+        return if (max <= 0f) 0f else value.coerceIn(-max, max)
+    }
+
+    /** 双击缩放：以双击点的横坐标为中心，平滑放大/还原。 */
+    fun zoomVerticalTo(target: Float, focusX: Float) {
+        val startScale = vScale
+        val startOffset = vOffsetX
+        val targetOffset = if (target <= 1.01f) {
+            0f
+        } else {
+            val max = viewportWidth * (target - 1f) / 2f
+            (-(focusX - viewportWidth / 2f) * (target - 1f)).coerceIn(-max, max)
+        }
+        scope.launch {
+            animate(0f, 1f, animationSpec = tween(220)) { t, _ ->
+                vScale = startScale + (target - startScale) * t
+                vOffsetX = startOffset + (targetOffset - startOffset) * t
+            }
         }
     }
 
@@ -367,14 +431,60 @@ fun ReaderScreen(
             else -> {
                 val pageStore = store
                 if (mode == ReaderMode.VERTICAL) {
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                        items(items = images, key = { it.page }) { page ->
-                            VerticalPage(
-                                store = pageStore,
-                                url = page.image,
-                                page = page.page,
-                                onTap = { uiVisible = !uiVisible },
-                            )
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .onSizeChanged { viewportWidth = it.width }
+                            .graphicsLayer {
+                                scaleX = vScale
+                                scaleY = vScale
+                                translationX = vOffsetX
+                            }
+                            .pointerInput(cid) {
+                                // 只在双指时消费；单指继续交给 LazyColumn 滚动
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false)
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        if (event.changes.size >= 2) {
+                                            val next = (vScale * event.calculateZoom()).coerceIn(1f, 3f)
+                                            vScale = next
+                                            vOffsetX = if (next <= 1.01f) {
+                                                0f
+                                            } else {
+                                                clampVerticalX(vOffsetX + event.calculatePan().x, next)
+                                            }
+                                            event.changes.forEach { it.consume() }
+                                        }
+                                    } while (event.changes.any { it.pressed })
+                                }
+                            },
+                    ) {
+                        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                            items(items = images, key = { it.page }) { page ->
+                                VerticalPage(
+                                    store = pageStore,
+                                    url = page.image,
+                                    page = page.page,
+                                    onTap = { uiVisible = !uiVisible },
+                                    onDoubleTap = { offset ->
+                                        if (vScale > 1.01f) zoomVerticalTo(1f, offset.x)
+                                        else zoomVerticalTo(2f, offset.x)
+                                    },
+                                    onLongPress = { bitmap -> saveTarget = bitmap to page.page },
+                                )
+                            }
+                            if (chapters.size > 1) {
+                                item(key = "footer_next") {
+                                    val index = chapters.indexOfFirst { it.id == cid }
+                                    val next = chapters.getOrNull(index + 1)
+                                    VerticalNextChapterFooter(
+                                        nextTitle = next?.title,
+                                        hasChapters = true,
+                                        onNext = next?.let { chapter -> { onOpenChapter(chapter.id, chapter.title) } },
+                                    )
+                                }
+                            }
                         }
                     }
                 } else {
@@ -413,6 +523,7 @@ fun ReaderScreen(
                                     }
                                 },
                                 onZoomChanged = { zoomed = it },
+                                onLongPress = { bitmap -> saveTarget = bitmap to page.page },
                                 animate = animate,
                                 pageOffset = (pagerState.currentPage - index) + pagerState.currentPageOffsetFraction,
                             )
@@ -456,6 +567,29 @@ fun ReaderScreen(
                 onOpenSource = { bottomSourceMenu = true },
                 onOpenSettings = { showSettings = true },
             )
+        }
+
+        // 全屏沉浸时的迷你页码胶囊（右下角）
+        if (!uiVisible && images.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(end = 12.dp, bottom = 10.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.52f))
+                    .padding(horizontal = 9.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = buildString {
+                        if (bookmark == currentIndex) append("★ ")
+                        append("${currentIndex + 1} / ${images.size}")
+                    },
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 11.sp,
+                )
+            }
         }
 
         // 底欄「圖源」的菜單錨點：貼著底欄向上展開
@@ -517,6 +651,73 @@ fun ReaderScreen(
                 onRemoveBookmark = { setBookmark(null) },
                 onJumpBookmark = { jumpToPage(it) },
                 onDismiss = { showSettings = false },
+            )
+        }
+
+        saveTarget?.let { (bitmap, page) ->
+            AlertDialog(
+                onDismissRequest = { saveTarget = null },
+                title = { Text("保存圖片") },
+                text = { Text("保存第 $page 頁到相冊（Pictures/JMReader）？") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            saveTarget = null
+                            scope.launch {
+                                val result = savePageToGallery(context, bitmap, cid, page)
+                                toast(
+                                    result.fold(
+                                        onSuccess = { "已保存到相冊 Pictures/JMReader" },
+                                        onFailure = { "保存失敗：${it.message ?: "未知錯誤"}" },
+                                    ),
+                                )
+                            }
+                        },
+                    ) {
+                        Text("保存", color = IosBlue)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { saveTarget = null }) { Text("取消") }
+                },
+            )
+        }
+    }
+}
+
+/** 条漫末尾的「下一话」衔接条；最后一话时提示一下。 */
+@Composable
+private fun VerticalNextChapterFooter(
+    nextTitle: String?,
+    hasChapters: Boolean,
+    onNext: (() -> Unit)?,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 20.dp)
+            .height(72.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (onNext != null) Color(0xFF1F1F22) else Color.Transparent)
+            .then(
+                if (onNext != null) Modifier.clickable(onClick = onNext) else Modifier,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        when {
+            nextTitle != null -> Text(
+                text = "下一話：$nextTitle →",
+                color = Color.White,
+                fontSize = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+
+            hasChapters -> Text(
+                text = "已是最後一話",
+                color = Color.White.copy(alpha = 0.45f),
+                fontSize = 13.sp,
             )
         }
     }
