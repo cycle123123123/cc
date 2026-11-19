@@ -22,11 +22,14 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -193,7 +196,7 @@ internal fun SettingsGroup(
         }
 
         if (showThemeDialog) {
-            ThemeModeDialog(
+            ThemeModeSheet(
                 current = prefs.themeMode,
                 onSelect = { mode ->
                     prefs.themeMode = mode
@@ -204,40 +207,16 @@ internal fun SettingsGroup(
         }
 
         if (showBackupDialog) {
-            AlertDialog(
-                onDismissRequest = { showBackupDialog = false },
-                title = { Text("備份與恢復") },
-                text = {
-                    Column {
-                        Text(
-                            text = "僅包含本機閱讀歷史、屏蔽規則、閱讀統計、搜索歷史、閱讀進度與書籤；不含帳號或 Cookie。",
-                            fontSize = 13.sp,
-                            color = IosLabelSecondary,
-                            lineHeight = 18.sp,
-                        )
-                        TextButton(
-                            onClick = {
-                                showBackupDialog = false
-                                exportLauncher.launch(backupFileName())
-                            },
-                        ) {
-                            Text("匯出本機備份", color = IosBlue)
-                        }
-                        TextButton(
-                            onClick = {
-                                showBackupDialog = false
-                                importLauncher.launch(arrayOf("application/json"))
-                            },
-                        ) {
-                            Text("從備份檔恢復", color = IosBlue)
-                        }
-                    }
+            BackupActionSheet(
+                onExport = {
+                    showBackupDialog = false
+                    exportLauncher.launch(backupFileName())
                 },
-                confirmButton = {
-                    TextButton(onClick = { showBackupDialog = false }) {
-                        Text("取消", color = IosBlue)
-                    }
+                onImport = {
+                    showBackupDialog = false
+                    importLauncher.launch(arrayOf("application/json"))
                 },
+                onDismiss = { showBackupDialog = false },
             )
         }
     }
@@ -256,26 +235,111 @@ private fun backupFileName(): String {
     return "jmreader_backup_$stamp.json"
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ThemeModeDialog(
+private fun ThemeModeSheet(
     current: Int,
     onSelect: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    val sheetShape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = { Text("深色模式") },
-        text = {
-            Column {
+        containerColor = IosCardWhite,
+        shape = sheetShape,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = IosSeparator) },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, bottom = 20.dp),
+        ) {
+            Text(
+                text = "深色模式",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosLabelPrimary,
+                modifier = Modifier.padding(start = 4.dp, bottom = 12.dp),
+            )
+            val cardShape = RoundedCornerShape(14.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(cardShape)
+                    .background(IosCardWhite)
+                    .border(0.5.dp, IosHairline, cardShape),
+            ) {
                 ThemeModeOption("跟隨系統", ThemeMode.SYSTEM, current, onSelect)
+                HorizontalDivider(thickness = 0.5.dp, color = IosSeparator, modifier = Modifier.padding(start = 14.dp))
                 ThemeModeOption("淺色", ThemeMode.LIGHT, current, onSelect)
+                HorizontalDivider(thickness = 0.5.dp, color = IosSeparator, modifier = Modifier.padding(start = 14.dp))
                 ThemeModeOption("深色", ThemeMode.DARK, current, onSelect)
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("取消", color = IosBlue) }
-        },
-    )
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.End).padding(top = 8.dp),
+            ) {
+                Text("取消", color = IosBlue, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BackupActionSheet(
+    onExport: () -> Unit,
+    onImport: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetShape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = IosCardWhite,
+        shape = sheetShape,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = IosSeparator) },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = 16.dp, end = 16.dp, bottom = 20.dp),
+        ) {
+            Text(
+                text = "備份與恢復",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosLabelPrimary,
+                modifier = Modifier.padding(start = 4.dp),
+            )
+            Text(
+                text = "僅包含本機閱讀歷史、屏蔽規則、閱讀統計、搜索歷史、閱讀進度與書籤；不含帳號或 Cookie。",
+                fontSize = 12.sp,
+                color = IosLabelSecondary,
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 12.dp),
+            )
+            val cardShape = RoundedCornerShape(14.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(cardShape)
+                    .background(IosCardWhite)
+                    .border(0.5.dp, IosHairline, cardShape),
+            ) {
+                SettingRow(Icons.Filled.Backup, "匯出本機備份", IosBlue, onExport)
+                HorizontalDivider(thickness = 0.5.dp, color = IosSeparator, modifier = Modifier.padding(start = 46.dp))
+                SettingRow(Icons.Filled.Refresh, "從備份檔恢復", IosBlue, onImport)
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.End).padding(top = 8.dp),
+            ) {
+                Text("取消", color = IosBlue, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
 }
 
 @Composable
@@ -283,9 +347,8 @@ private fun ThemeModeOption(label: String, mode: Int, current: Int, onSelect: (I
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
             .clickable { onSelect(mode) }
-            .padding(vertical = 12.dp, horizontal = 4.dp),
+            .padding(vertical = 13.dp, horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

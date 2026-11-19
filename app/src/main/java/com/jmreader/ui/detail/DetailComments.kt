@@ -20,19 +20,18 @@ import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.CommentItem
+import com.jmreader.ui.components.IosTextField
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
@@ -74,12 +73,12 @@ internal fun CommentComposer(
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
+            IosTextField(
                 value = commentText,
                 onValueChange = onCommentTextChange,
-                placeholder = { Text(if (loggedIn) "撰寫評論…" else "登入後可發表評論") },
+                placeholder = if (loggedIn) "撰寫評論…" else "登入後可發表評論",
                 enabled = loggedIn && !posting,
-                shape = RoundedCornerShape(10.dp),
+                singleLine = false,
                 modifier = Modifier.weight(1f),
             )
             Button(

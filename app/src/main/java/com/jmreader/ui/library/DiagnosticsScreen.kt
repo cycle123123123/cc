@@ -13,17 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -32,7 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -40,7 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.jmreader.BuildConfig
 import com.jmreader.app.CrashLogger
 import com.jmreader.ui.common.rememberToaster
-import com.jmreader.ui.theme.IosBlue
+import com.jmreader.ui.components.IosNavigationBar
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelPrimary
@@ -55,7 +47,6 @@ import com.jmreader.ui.theme.IosHairline
  * 診斷日誌頁：崩潰堆棧只存在本機，這裡負責看數量、一鍵分享、清除。
  * 沒有後端上報，卸載即清空。
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiagnosticsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -84,24 +75,7 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
 
     Scaffold(
         containerColor = IosGroupedBg,
-        topBar = {
-            TopAppBar(
-                title = { Text("診斷日誌", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = IosBlue,
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = IosGroupedBg,
-                    titleContentColor = IosLabelPrimary,
-                ),
-            )
-        },
+        topBar = { IosNavigationBar(title = "診斷日誌", onBack = onBack) },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),

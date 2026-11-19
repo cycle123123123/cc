@@ -2,27 +2,21 @@ package com.jmreader.ui.reader
 
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -52,7 +46,6 @@ import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.navigation.Screen
 import com.jmreader.data.model.SeriesParser
-import com.jmreader.core.JmConfig
 import com.jmreader.data.JmRepository
 import com.jmreader.core.runCatchingCancellable
 
@@ -85,7 +78,6 @@ import com.jmreader.ui.theme.IosBlue
 
 private enum class ReaderMode { VERTICAL, HORIZONTAL }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReaderScreen(
     repo: JmRepository,
@@ -441,7 +433,7 @@ fun ReaderScreen(
                                 translationX = vOffsetX
                             }
                             .pointerInput(cid) {
-                                // 只在双指时消费；单指继续交给 LazyColumn 滚动
+                                // 双指时捏合缩放与平移；单指处于放大态时也允许左右平移看边角对白
                                 awaitEachGesture {
                                     awaitFirstDown(requireUnconsumed = false)
                                     do {
@@ -455,6 +447,11 @@ fun ReaderScreen(
                                                 clampVerticalX(vOffsetX + event.calculatePan().x, next)
                                             }
                                             event.changes.forEach { it.consume() }
+                                        } else if (event.changes.size == 1 && vScale > 1.01f) {
+                                            val dx = event.calculatePan().x
+                                            if (dx != 0f) {
+                                                vOffsetX = clampVerticalX(vOffsetX + dx, vScale)
+                                            }
                                         }
                                     } while (event.changes.any { it.pressed })
                                 }
@@ -477,7 +474,7 @@ fun ReaderScreen(
                             if (chapters.size > 1) {
                                 item(key = "footer_next") {
                                     val index = chapters.indexOfFirst { it.id == cid }
-                                    val next = chapters.getOrNull(index + 1)
+                                    val next = if (index >= 0) chapters.getOrNull(index + 1) else null
                                     VerticalNextChapterFooter(
                                         nextTitle = next?.title,
                                         hasChapters = true,
@@ -533,23 +530,32 @@ fun ReaderScreen(
             }
         }
 
-        AnimatedVisibility(visible = uiVisible, modifier = Modifier.align(Alignment.TopCenter)) {
-            TopAppBar(
-                title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.78f),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White,
-                ),
+        val sourceLabel = when (shard) {
+            0 -> "自動"
+            5 -> "最優"
+            else -> "圖源 $shard"
+        }
+
+        AnimatedVisibility(
+            visible = uiVisible,
+            enter = slideInVertically { -it } + fadeIn(),
+            exit = slideOutVertically { -it } + fadeOut(),
+            modifier = Modifier.align(Alignment.TopCenter),
+        ) {
+            ReaderTopBar(
+                title = title,
+                sourceLabel = sourceLabel,
+                onBack = onBack,
+                onOpenSource = { bottomSourceMenu = true },
             )
         }
 
-        AnimatedVisibility(visible = uiVisible, modifier = Modifier.align(Alignment.BottomCenter)) {
+        AnimatedVisibility(
+            visible = uiVisible,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
             val seriesIndex = chapters.indexOfFirst { it.id == cid }
             ReaderBottomBar(
                 index = currentIndex,
@@ -592,28 +598,20 @@ fun ReaderScreen(
             }
         }
 
-        // 底欄「圖源」的菜單錨點：貼著底欄向上展開
-        if (uiVisible) {
-            Box(Modifier.align(Alignment.BottomCenter)) {
-                DropdownMenu(
-                    expanded = bottomSourceMenu,
-                    onDismissRequest = { bottomSourceMenu = false },
-                    containerColor = Color(0xF21C1C1E),
-                ) {
-                    SourceMenu(
-                        shard = shard,
-                        onPick = { value ->
-                            if (value >= 0) repo.imageShard = value
-                            shard = value
-                            bottomSourceMenu = false
-                        },
-                        onBenchmark = {
-                            bottomSourceMenu = false
-                            benchmarkSources()
-                        },
-                    )
-                }
-            }
+        if (bottomSourceMenu) {
+            ReaderSourceSheet(
+                shard = shard,
+                onPick = { value ->
+                    if (value >= 0) repo.imageShard = value
+                    shard = value
+                    bottomSourceMenu = false
+                },
+                onBenchmark = {
+                    bottomSourceMenu = false
+                    benchmarkSources()
+                },
+                onDismiss = { bottomSourceMenu = false },
+            )
         }
 
         if (showSettings) {
@@ -720,35 +718,6 @@ private fun VerticalNextChapterFooter(
                 fontSize = 13.sp,
             )
         }
-    }
-}
-
-/** 圖源菜单内容（底欄「圖源」用）。 */
-@Composable
-private fun ColumnScope.SourceMenu(
-    shard: Int,
-    onPick: (Int) -> Unit,
-    onBenchmark: () -> Unit,
-) {
-    DropdownMenuItem(
-        text = { Text(if (shard == 0) "✓ 自動" else "自動", color = Color.White) },
-        onClick = { onPick(0) },
-    )
-    DropdownMenuItem(
-        text = { Text(if (shard == 5) "✓ 測速最優" else "測速最優", color = Color.White) },
-        onClick = onBenchmark,
-    )
-    JmConfig.IMAGE_SHARDS.forEachIndexed { index, _ ->
-        DropdownMenuItem(
-            text = {
-                Text(
-                    if (shard == index + 1) "✓ 圖源 ${index + 1}"
-                    else "圖源 ${index + 1}",
-                    color = Color.White,
-                )
-            },
-            onClick = { onPick(index + 1) },
-        )
     }
 }
 

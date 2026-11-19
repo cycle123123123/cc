@@ -1,5 +1,6 @@
 package com.jmreader.ui.detail
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,37 +15,55 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.core.graphics.drawable.toBitmap
 import coil.compose.AsyncImage
+import coil.imageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import com.jmreader.core.formatCount
 import com.jmreader.data.JmRepository
 import com.jmreader.data.local.LastRead
@@ -52,17 +71,21 @@ import com.jmreader.data.model.AlbumBrief
 import com.jmreader.data.model.AlbumDetail
 import com.jmreader.data.model.ChapterEntry
 import com.jmreader.ui.common.formatEpochSeconds
+import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.components.AlbumCard
+import com.jmreader.ui.reader.ZoomablePage
+import com.jmreader.ui.reader.savePageToGallery
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosBlueSoft
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosFillGray
 import com.jmreader.ui.theme.IosGroupedBg
+import com.jmreader.ui.theme.IosHairline
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosPink
 import com.jmreader.ui.theme.IosSeparator
-import com.jmreader.ui.theme.IosHairline
+import kotlinx.coroutines.launch
 import com.jmreader.ui.theme.JmPalette
 
 /** iOS App Store 风格四栏横向数据条（上下细线 + 竖向短分割线） */
@@ -154,6 +177,8 @@ internal fun Header(
     onContinue: (() -> Unit)? = null,
 ) {
     val coverShape = RoundedCornerShape(12.dp)
+    val coverUrl = repo.coverUrl(album.id.toString())
+    var showCoverViewer by remember(album.id) { mutableStateOf(false) }
     // 只有記錄落在當前目錄裡（DetailScreen 已校驗）才進入續讀態
     val resuming = resumeChapter != null && onContinue != null
     val readLabel = when {
@@ -167,7 +192,7 @@ internal fun Header(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         AsyncImage(
-            model = repo.coverUrl(album.id.toString()),
+            model = coverUrl,
             contentDescription = album.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -176,7 +201,8 @@ internal fun Header(
                 .shadow(4.dp, coverShape, clip = false)
                 .clip(coverShape)
                 .background(IosFillGray)
-                .border(0.5.dp, Color(0x18000000), coverShape),
+                .border(0.5.dp, IosHairline, coverShape)
+                .clickable { showCoverViewer = true },
         )
         Column(
             modifier = Modifier.weight(1f),
@@ -325,6 +351,14 @@ internal fun Header(
                         tint = if (album.liked) IosPink else IosLabelSecondary,
                     )
                 }
+    }
+
+    if (showCoverViewer) {
+        CoverViewerDialog(
+            coverUrl = coverUrl,
+            albumId = album.id,
+            onDismiss = { showCoverViewer = false },
+        )
     }
 }
 
@@ -530,6 +564,112 @@ internal fun SameAuthorSection(
                         },
                         compact = true,
                     )
+                }
+            }
+        }
+    }
+}
+
+/** 封面全屏高清预览器：双指/双击缩放 + 一键或长按保存到相册。 */
+@Composable
+private fun CoverViewerDialog(
+    coverUrl: String,
+    albumId: Long,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val toast = rememberToaster()
+    val scope = rememberCoroutineScope()
+    var bitmap by remember(coverUrl) { mutableStateOf<Bitmap?>(null) }
+    var failed by remember(coverUrl) { mutableStateOf(false) }
+
+    LaunchedEffect(coverUrl) {
+        failed = false
+        val req = ImageRequest.Builder(context)
+            .data(coverUrl)
+            .allowHardware(false)
+            .build()
+        val res = context.imageLoader.execute(req)
+        val bmp = (res as? SuccessResult)?.drawable?.toBitmap()
+        if (bmp != null) bitmap = bmp else failed = true
+    }
+
+    fun saveCover(bmp: Bitmap) {
+        scope.launch {
+            val res = savePageToGallery(context, bmp, albumId, 0)
+            toast(
+                res.fold(
+                    onSuccess = { "已保存封面到相冊 Pictures/JMReader" },
+                    onFailure = { "保存失敗：${it.message ?: "未知錯誤"}" },
+                ),
+            )
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            when {
+                bitmap != null -> ZoomablePage(
+                    bitmap = bitmap!!,
+                    description = "作品封面",
+                    onTap = {},
+                    onZoomChanged = {},
+                    onLongPress = ::saveCover,
+                )
+
+                failed -> Text(
+                    text = "封面載入失敗",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 14.sp,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+
+                else -> CircularProgressIndicator(
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xCC1C1C1E))
+                    .border(0.5.dp, Color.White.copy(alpha = 0.20f), CircleShape)
+                    .padding(start = 16.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "JM$albumId 封面",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f),
+                )
+                bitmap?.let { bmp ->
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(Color(0x330A84FF))
+                            .clickable { saveCover(bmp) }
+                            .padding(horizontal = 12.dp, vertical = 5.dp),
+                    ) {
+                        Text(
+                            text = "保存",
+                            color = Color(0xFF0A84FF),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "關閉", tint = Color.White)
                 }
             }
         }

@@ -15,28 +15,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jmreader.data.local.DayStat
 import com.jmreader.data.local.ReadingStats
 import com.jmreader.ui.common.LocalAppContainer
+import com.jmreader.ui.components.IosNavigationBar
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosGroupedBg
@@ -46,7 +39,6 @@ import com.jmreader.ui.theme.IosSeparator
 import com.jmreader.ui.theme.IosHairline
 
 /** 「閱讀統計」頁：全部數字都來自本機 [ReadingStats]，不上傳。 */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen(onBack: () -> Unit) {
     val container = LocalAppContainer.current
@@ -66,24 +58,7 @@ fun StatsScreen(onBack: () -> Unit) {
 
     Scaffold(
         containerColor = IosGroupedBg,
-        topBar = {
-            TopAppBar(
-                title = { Text("閱讀統計", fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
-                            tint = IosBlue,
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = IosGroupedBg,
-                    titleContentColor = IosLabelPrimary,
-                ),
-            )
-        },
+        topBar = { IosNavigationBar(title = "閱讀統計", onBack = onBack) },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),

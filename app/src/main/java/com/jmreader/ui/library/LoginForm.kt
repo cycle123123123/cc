@@ -15,10 +15,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,6 +35,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import com.jmreader.ui.components.IosSwitch
+import com.jmreader.ui.components.IosTextField
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
@@ -113,20 +113,16 @@ internal fun LoginForm(repo: JmRepository, compact: Boolean = false) {
                 color = IosLabelSecondary,
                 modifier = Modifier.padding(top = if (compact) 0.dp else 4.dp),
             )
-            OutlinedTextField(
+            IosTextField(
                 value = username,
                 onValueChange = { username = it },
-                label = { Text("帳號") },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
+                placeholder = "帳號",
                 modifier = Modifier.fillMaxWidth().padding(top = if (compact) 12.dp else 18.dp),
             )
-            OutlinedTextField(
+            IosTextField(
                 value = password,
                 onValueChange = { password = it },
-                label = { Text("密碼") },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
+                placeholder = "密碼",
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Password,
@@ -136,11 +132,12 @@ internal fun LoginForm(repo: JmRepository, compact: Boolean = false) {
                 modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
             )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Checkbox(checked = remember, onCheckedChange = { remember = it })
-                Text("記住密碼（自動登入）", fontSize = 13.sp, color = IosLabelPrimary)
+                Text("記住密碼（自動登入）", fontSize = 14.sp, color = IosLabelPrimary)
+                IosSwitch(checked = remember, onCheckedChange = { remember = it })
             }
             if (error != null) {
                 Text(

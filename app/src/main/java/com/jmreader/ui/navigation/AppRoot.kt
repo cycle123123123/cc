@@ -1,14 +1,24 @@
 package com.jmreader.ui.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -160,63 +170,88 @@ fun AppRoot(repo: JmRepository) {
             )
         }
     }
-    overlays.lastOrNull()?.let { current ->
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            when (current) {
-                is Screen.Search -> SearchScreen(
-                    repo = repo,
-                    state = current.state,
-                    onBack = { pop() },
-                    onOpen = { push(Screen.Detail(it)) },
-                    initialQuery = current.query,
-                )
+    var prevDepth by remember { mutableIntStateOf(0) }
+    val currentOverlay = overlays.lastOrNull()
+    val currentDepth = overlays.size
 
-                is Screen.AuthorWorks -> AuthorWorksScreen(
-                    repo = repo,
-                    authorName = current.name,
-                    state = current.state,
-                    onBack = { pop() },
-                    onOpen = { push(Screen.Detail(it)) },
-                )
-
-                is Screen.Detail -> DetailScreen(
-                    repo = repo,
-                    albumId = current.id,
-                    onBack = { pop() },
-                    onRead = { cid, title -> push(Screen.Reader(current.id, cid, title)) },
-                    onOpenAuthor = { name -> push(Screen.AuthorWorks(name)) },
-                    onSearchTag = { tag -> push(Screen.Search(tag)) },
-                    onOpenAlbum = { id -> push(Screen.Detail(id)) },
-                )
-
-                is Screen.Reader -> key(current.cid) {
-                    // 換話時整塊重建：章節、頁碼、圖片緩存、書籤全部按新 cid 重新初始化，
-                    // 避免沿用上一話的滾動位置（曾出現「第 3 話第 40 頁 → 第 4 話第 40 頁」）。
-                    ReaderScreen(
+    AnimatedContent(
+        targetState = currentOverlay,
+        transitionSpec = {
+            if (currentDepth >= prevDepth && targetState != null) {
+                (slideInHorizontally(spring(dampingRatio = 0.88f, stiffness = 420f)) { it / 4 } +
+                    fadeIn(tween(180))) togetherWith
+                    (slideOutHorizontally(tween(180)) { -it / 10 } + fadeOut(tween(150)))
+            } else {
+                (slideInHorizontally(tween(180)) { -it / 10 } + fadeIn(tween(150))) togetherWith
+                    (slideOutHorizontally(spring(dampingRatio = 0.88f, stiffness = 420f)) { it / 3 } +
+                        fadeOut(tween(160)))
+            }
+        },
+        label = "overlayNav",
+    ) { current ->
+        if (current == null) {
+            Spacer(Modifier)
+        } else {
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                when (current) {
+                    is Screen.Search -> SearchScreen(
                         repo = repo,
-                        albumId = current.aid,
-                        cid = current.cid,
-                        title = current.title,
+                        state = current.state,
                         onBack = { pop() },
-                        onOpenChapter = { newCid, newTitle ->
-                            overlays[overlays.lastIndex] = Screen.Reader(current.aid, newCid, newTitle)
-                        },
+                        onOpen = { push(Screen.Detail(it)) },
+                        initialQuery = current.query,
                     )
+
+                    is Screen.AuthorWorks -> AuthorWorksScreen(
+                        repo = repo,
+                        authorName = current.name,
+                        state = current.state,
+                        onBack = { pop() },
+                        onOpen = { push(Screen.Detail(it)) },
+                    )
+
+                    is Screen.Detail -> DetailScreen(
+                        repo = repo,
+                        albumId = current.id,
+                        onBack = { pop() },
+                        onRead = { cid, title -> push(Screen.Reader(current.id, cid, title)) },
+                        onOpenAuthor = { name -> push(Screen.AuthorWorks(name)) },
+                        onSearchTag = { tag -> push(Screen.Search(tag)) },
+                        onOpenAlbum = { id -> push(Screen.Detail(id)) },
+                    )
+
+                    is Screen.Reader -> key(current.cid) {
+                        // 換話時整塊重建：章節、頁碼、圖片緩存、書籤全部按新 cid 重新初始化，
+                        // 避免沿用上一話的滾動位置（曾出現「第 3 話第 40 頁 → 第 4 話第 40 頁」）。
+                        ReaderScreen(
+                            repo = repo,
+                            albumId = current.aid,
+                            cid = current.cid,
+                            title = current.title,
+                            onBack = { pop() },
+                            onOpenChapter = { newCid, newTitle ->
+                                if (overlays.isNotEmpty()) {
+                                    overlays[overlays.lastIndex] = Screen.Reader(current.aid, newCid, newTitle)
+                                }
+                            },
+                        )
+                    }
+
+                    Screen.Downloads -> DownloadsScreen(
+                        onBack = { pop() },
+                        onRead = { task -> push(Screen.Reader(task.albumId, task.cid, task.title)) },
+                    )
+
+                    Screen.Blocks -> BlocksScreen(repo = repo, onBack = { pop() })
+
+                    Screen.Stats -> StatsScreen(onBack = { pop() })
+
+                    Screen.Diagnostics -> DiagnosticsScreen(onBack = { pop() })
                 }
-
-                Screen.Downloads -> DownloadsScreen(
-                    onBack = { pop() },
-                    onRead = { task -> push(Screen.Reader(task.albumId, task.cid, task.title)) },
-                )
-
-                Screen.Blocks -> BlocksScreen(repo = repo, onBack = { pop() })
-
-                Screen.Stats -> StatsScreen(onBack = { pop() })
-
-                Screen.Diagnostics -> DiagnosticsScreen(onBack = { pop() })
             }
         }
     }
+    SideEffect { prevDepth = currentDepth }
 
     update?.let { info ->
         UpdateDialog(
