@@ -16,8 +16,11 @@ import com.jmreader.ui.common.PagedList
 class LibraryState {
     val tab = mutableIntStateOf(0)
     val query = mutableStateOf("")
-    /** 云端收藏 / 云端历史 / 本地历史 各自保留滚动位置，切 tab 不互相影响。 */
-    val gridStates = List(3) { LazyGridState() }
+    /**
+     * 三个子 tab 共用同一个滚动状态：切换时不发任何 scroll 指令，
+     * 位置保持当前像素偏移（列表变短时由 LazyGrid 自动夹紧）。
+     */
+    val gridState = LazyGridState()
     val searchOpen = mutableStateOf(false)
 
     val folders = mutableStateOf<List<FolderItem>>(emptyList())

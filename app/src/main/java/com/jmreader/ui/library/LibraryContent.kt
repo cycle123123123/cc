@@ -83,8 +83,8 @@ internal fun LibraryContent(
 ) {
     var tab by state.tab
     var query by state.query
-    // 三个子 tab 各自一份 LazyGridState：切 tab 保留各自滚动位置，不再强制回顶部
-    val gridState = state.gridStates[tab.coerceIn(0, state.gridStates.lastIndex)]
+    // 三个子 tab 共用一个滚动状态：切换时**不发** scrollToItem，位置原地不动
+    val gridState = state.gridState
     var searchOpen by state.searchOpen
 
     // 云端收藏夹列表（分页之外的数据，仍由页面维护）
