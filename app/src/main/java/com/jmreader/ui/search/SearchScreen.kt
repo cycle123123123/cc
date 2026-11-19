@@ -1,5 +1,7 @@
 package com.jmreader.ui.search
 
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,13 +35,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -80,6 +85,21 @@ fun SearchScreen(
     val searchHistory = container.searchHistory
     val recent by searchHistory.keywords.collectAsState()
     val blockRules by container.contentFilter.rules.collectAsState()
+
+    // 剪贴板车号：只在进入页面时读一次，识别到才提示，不打扰
+    val context = LocalContext.current
+    var clipboardId by remember { mutableStateOf<Long?>(null) }
+    var clipboardDismissed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        val raw = clipboard?.primaryClip
+            ?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(context)
+            ?.toString()
+        val id = raw?.let(::extractJmId)
+        if (id != null && id != parseJmId(state.query)) clipboardId = id
+    }
 
     // 状态类拿不到 repo：首次进入时懒创建，之后挂在 state 上，从详情返回复用同一份列表。
     val paged = remember(state, repo) {
@@ -208,6 +228,30 @@ fun SearchScreen(
             TextButton(onClick = onBack) {
                 Text("取消", color = IosBlue, fontWeight = FontWeight.Medium)
             }
+        }
+
+        // 车号直达：搜索框里输入 4~7 位数字（可带 JM 前缀）就置顶一张卡片
+        parseJmId(state.query)?.let { directId ->
+            DirectIdCard(
+                id = directId,
+                onOpen = {
+                    searchHistory.add("JM$directId")
+                    onOpen(directId)
+                },
+            )
+        }
+
+        // 剪贴板识别到车号时的轻量提示
+        val clipId = clipboardId
+        if (clipId != null && !clipboardDismissed && clipId != parseJmId(state.query)) {
+            ClipboardIdHint(
+                id = clipId,
+                onOpen = {
+                    searchHistory.add("JM$clipId")
+                    onOpen(clipId)
+                },
+                onDismiss = { clipboardDismissed = true },
+            )
         }
 
         if (state.searched) {
@@ -380,5 +424,81 @@ fun SearchScreen(
                 )
             }
         }
+    }
+}
+
+/** 「直達作品 JMxxxx」置顶卡片。 */
+@Composable
+private fun DirectIdCard(id: Long, onOpen: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)
+            .clip(shape)
+            .background(IosCardWhite)
+            .border(0.5.dp, IosHairline, shape)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "直達作品 JM$id",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = IosLabelPrimary,
+            )
+            Text(
+                text = "不必搜尋，直接打開這個車號",
+                fontSize = 12.sp,
+                color = IosLabelSecondary,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(IosBlue)
+                .clickable(onClick = onOpen)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        ) {
+            Text(
+                text = "立即打開 ›",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+            )
+        }
+    }
+}
+
+/** 剪贴板车号的轻量提示条，点右侧 × 可关闭。 */
+@Composable
+private fun ClipboardIdHint(id: Long, onOpen: () -> Unit, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(IosSearchBg)
+            .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "剪貼簿檢測到 JM$id · 點此打開",
+            fontSize = 12.sp,
+            color = IosBlue,
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onOpen),
+        )
+        Icon(
+            Icons.Filled.Close,
+            contentDescription = "關閉提示",
+            tint = IosLabelSecondary,
+            modifier = Modifier
+                .size(16.dp)
+                .clickable(onClick = onDismiss),
+        )
     }
 }
