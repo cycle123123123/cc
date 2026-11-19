@@ -80,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosLabelPrimary
+import com.jmreader.ui.theme.IosPink
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -177,6 +178,7 @@ internal fun GlassBottomBar(
     selected: RootTab,
     onSelect: (RootTab) -> Unit,
     source: BackdropSource,
+    meBadge: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
@@ -436,6 +438,7 @@ internal fun GlassBottomBar(
                     GlassTabItem(
                         spec = spec,
                         selected = isSelected,
+                        badge = spec.tab == RootTab.ME && meBadge,
                         onClick = {
                             if (!isSelected) {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -517,6 +520,7 @@ private fun BoxScope.GlassBackdrop(source: BackdropSource) {
 private fun RowScope.GlassTabItem(
     spec: NavTabSpec,
     selected: Boolean,
+    badge: Boolean,
     onClick: () -> Unit,
 ) {
     val tint by animateColorAsState(
@@ -543,14 +547,26 @@ private fun RowScope.GlassTabItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = if (selected) spec.selectedIcon else spec.unselectedIcon,
-            contentDescription = spec.label,
-            tint = tint,
-            modifier = Modifier
-                .size(22.dp)
-                .scale(iconScale),
-        )
+        Box {
+            Icon(
+                imageVector = if (selected) spec.selectedIcon else spec.unselectedIcon,
+                contentDescription = spec.label,
+                tint = tint,
+                modifier = Modifier
+                    .size(22.dp)
+                    .scale(iconScale),
+            )
+            if (badge) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 2.dp, y = (-1).dp)
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(IosPink),
+                )
+            }
+        }
         Spacer(Modifier.height(2.dp))
         Text(
             text = spec.label,

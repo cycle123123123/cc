@@ -2,6 +2,7 @@ package com.jmreader.app
 
 import android.content.Context
 import com.jmreader.data.JmRepository
+import com.jmreader.data.FavoriteWatch
 import com.jmreader.data.download.DownloadRepository
 import com.jmreader.data.local.AlbumMetaCache
 import com.jmreader.data.local.AppPrefs
@@ -30,6 +31,9 @@ class AppContainer(context: Context) {
     val readingHistory: ReadingHistory = ReadingHistory.of(context)
 
     val readingStats: ReadingStats = ReadingStats.of(context)
+
+    /** 收藏追更（只查韓漫連載）。 */
+    val favoriteWatch: FavoriteWatch = FavoriteWatch.of(context)
 
     val searchHistory: SearchHistory = SearchHistory.of(context)
 

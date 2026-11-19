@@ -67,9 +67,17 @@ fun LibraryScreen(
     onCheckUpdate: () -> Unit,
 ) {
     val member by repo.auth.member.collectAsState()
+    val container = LocalAppContainer.current
     val context = LocalContext.current
     val toast = rememberToaster()
     val scope = rememberCoroutineScope()
+
+    // 進「我的」時順手檢查追更（6 小時一次；手動「知道了」不影響下次自動檢查）
+    LaunchedEffect(member?.uid) {
+        if (member != null && container.favoriteWatch.isDue()) {
+            container.favoriteWatch.check(repo)
+        }
+    }
     var showCacheDialog by remember { mutableStateOf(false) }
     var cacheBytes by remember { mutableStateOf(0L) }
     var clearing by remember { mutableStateOf(false) }

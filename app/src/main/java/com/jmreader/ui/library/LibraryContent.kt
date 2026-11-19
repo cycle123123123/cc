@@ -131,7 +131,8 @@ internal fun LibraryContent(
     val container = LocalAppContainer.current
     val toast = rememberToaster()
 
-    // 本地閱讀歷史（第三個 tab）
+    // 追更提醒（只查韓漫連載），數字來自本地緩存
+    val watchSnapshot by container.favoriteWatch.snapshot.collectAsState()
     val readingHistory = container.readingHistory
     val localHistory by readingHistory.history.collectAsState()
     var showClearHistory by state.showClearHistory
@@ -210,6 +211,19 @@ internal fun LibraryContent(
         showMeta = false,
         contentPadding = PaddingValues(start = 16.dp, top = 6.dp, end = 16.dp, bottom = BottomBarMetrics.ContentInset),
         header = {
+            if (watchSnapshot.updates.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    WatchUpdatesCard(
+                        updates = watchSnapshot.updates,
+                        onOpen = { id ->
+                            container.favoriteWatch.acknowledge(id)
+                            onOpen(id)
+                        },
+                        onDismiss = { container.favoriteWatch.clearUpdates() },
+                    )
+                }
+            }
+
             item(span = { GridItemSpan(maxLineSpan) }) {
                 AccountCard(
                     member = member,

@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -50,6 +51,8 @@ fun AppRoot(repo: JmRepository) {
     val libraryState = remember { LibraryState() }
     val scope = rememberCoroutineScope()
     val container = LocalAppContainer.current
+    // 「我的」底栏小红点：只在有追更提醒时亮
+    val watchCount by container.favoriteWatch.snapshot.collectAsState()
     val toaster = rememberToaster()
 
     // 应用内更新：启动时查一次（6 小时内不重复查）
@@ -152,6 +155,7 @@ fun AppRoot(repo: JmRepository) {
                 selected = tab,
                 onSelect = { tab = it },
                 source = backdrop,
+                meBadge = watchCount.pendingCount > 0,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
         }
