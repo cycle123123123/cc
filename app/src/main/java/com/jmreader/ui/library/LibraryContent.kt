@@ -66,6 +66,7 @@ import com.jmreader.data.JmRepository
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.userMessage
 import com.jmreader.BuildConfig
+import com.jmreader.ui.theme.IosHairline
 
 @Composable
 internal fun LibraryContent(
@@ -523,7 +524,7 @@ private fun AccountCard(
             .fillMaxWidth()
             .clip(shape)
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), shape)
+            .border(0.5.dp, IosHairline, shape)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

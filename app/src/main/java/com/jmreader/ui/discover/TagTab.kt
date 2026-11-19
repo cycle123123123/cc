@@ -39,6 +39,7 @@ import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelPrimary
+import com.jmreader.ui.theme.IosHairline
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -84,7 +85,7 @@ internal fun TagTab(repo: JmRepository, state: TagState, onSearchTag: (String) -
                     .fillMaxWidth()
                     .clip(shape)
                     .background(IosCardWhite)
-                    .border(0.5.dp, Color(0x12000000), shape)
+                    .border(0.5.dp, IosHairline, shape)
                     .padding(14.dp),
             ) {
                 Text(

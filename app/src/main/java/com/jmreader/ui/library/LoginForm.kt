@@ -44,6 +44,7 @@ import com.jmreader.data.model.JmException
 import com.jmreader.data.JmRepository
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.userMessage
+import com.jmreader.ui.theme.IosHairline
 
 @Composable
 internal fun LoginForm(repo: JmRepository, compact: Boolean = false) {
@@ -92,7 +93,7 @@ internal fun LoginForm(repo: JmRepository, compact: Boolean = false) {
                         Modifier
                             .clip(shape)
                             .background(IosCardWhite)
-                            .border(0.5.dp, Color(0x12000000), shape)
+                            .border(0.5.dp, IosHairline, shape)
                     },
                 )
                 .padding(if (compact) 0.dp else 20.dp),

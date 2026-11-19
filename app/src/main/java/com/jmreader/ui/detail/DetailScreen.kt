@@ -210,6 +210,10 @@ fun DetailScreen(
                                 chapters = chapters,
                                 resumeCid = resume?.cid,
                                 onRead = { chapter -> onRead(chapter.id, chapter.title) },
+                                onDownloadAll = {
+                                    val count = state.enqueueAllDownloads()
+                                    toast(if (count > 0) "已加入 $count 話下載" else "沒有可下載的章節")
+                                },
                                 onDownload = { chapter ->
                                     state.enqueueDownload(chapter)
                                     toast("已加入下載")

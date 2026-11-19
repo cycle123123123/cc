@@ -48,6 +48,7 @@ import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosFillGray
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
+import com.jmreader.ui.theme.IosHairline
 
 @Composable
 internal fun SkeletonGrid() {
@@ -90,7 +91,7 @@ internal fun ContinueCard(repo: JmRepository, item: LastRead, onClick: () -> Uni
             .shadow(2.dp, shape, clip = false)
             .clip(shape)
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), shape)
+            .border(0.5.dp, IosHairline, shape)
             .clickable(onClick = onClick)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,

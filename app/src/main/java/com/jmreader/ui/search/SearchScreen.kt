@@ -64,6 +64,7 @@ import com.jmreader.core.runCatchingCancellable
 import com.jmreader.ui.components.loadWorkCategories
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
+import com.jmreader.ui.theme.IosHairline
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -256,7 +257,7 @@ fun SearchScreen(
                                 .fillMaxWidth()
                                 .clip(shape)
                                 .background(IosCardWhite)
-                                .border(0.5.dp, Color(0x12000000), shape)
+                                .border(0.5.dp, IosHairline, shape)
                                 .padding(14.dp),
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -305,7 +306,7 @@ fun SearchScreen(
                                     .fillMaxWidth()
                                     .clip(shape)
                                     .background(IosCardWhite)
-                                    .border(0.5.dp, Color(0x12000000), shape)
+                                    .border(0.5.dp, IosHairline, shape)
                                     .padding(14.dp),
                             ) {
                                 Text(

@@ -39,11 +39,11 @@ gradle :app:assembleRelease   # R8 开启；产物 app/build/outputs/apk/release
 - `core/` 纯 JVM（签名、AES、分条算法、可取消请求）；`data/` 拆成 `JmRepository`（线路/会话/缓存/业务）、`JmHttp`（签名+信封解密）、`PageLoader`（取页/解码/还原）、`PageCache`（磁盘 200MB）、`PageStore`（位图 48MB）、`ContentFilter`、`UpdateChecker`。
 - `ui/AppRoot`：3 个底部 tab + overlay 栈，**只渲染栈顶**；`SearchState` / `AuthorWorksState` 挂在 `Screen` 实例上，`HomeState` / `DiscoverState` / `LibraryState` 挂在 `AppRoot` 上，切 tab 复用列表、筛选与滚动位置。没有 ViewModel。
 - 切回 tab 是否重拉由 `ui/common/RefreshPolicy` 决定：列表 10 分钟、收藏/历史 5 分钟；过期时静默刷新（旧列表继续显示），未过期一个请求都不发。
-- 主题在 `ui/Theme.kt`（当前**强制浅色**；阅读器自带黑底，不依赖主题）。
+- 主题在 `ui/theme/Theme.kt`：浅/深两套 iOS 调色板，支持「跟隨系統 / 淺色 / 深色」（我的 → 深色模式，切换后 `recreate()`）。颜色常量（`IosCardWhite` 等）是读 `JmPalette` 的 getter，页面代码不需要判断深浅；阅读器自带黑底，不依赖主题。
 - 大屏文件已拆分：`DetailScreen`+`DetailSections`、`ReaderScreen`+`ReaderSections`、`DiscoverScreen`+`DiscoverTabs`、`LibraryScreen`+`LibraryContent`+`LibraryLogin`。新增 UI 尽量放对应子文件。
 
 ## 协议易错点（细节见 docs/API.md）
-- 请求头 `Token=md5(ts+"185Hcomic3PAPP7R")`、`Tokenparam="{ts},2.1.13"`；响应 AES-ECB，key 依次尝试两个 secret。
+- 请求头 `Token=md5(ts+"185Hcomic3PAPP7R")`、`Tokenparam="{ts},2.1.14"`；响应 AES-ECB，key 依次尝试两个 secret。
 - 搜索分类用 `c=<slug>`（`category` 会被忽略）；排序用 `o=mv|tf`（`o=mp` 服务端 500）；`order=` 无效。
 - 周榜期数用 `id`（不是 `category`）；`hanman` 与 `manga` 返回相同内容且标题为空；没有日榜/月榜接口。
 - `total_views` 只在 `/album` 返回，列表接口没有——卡片可见时按需补（并发 2）。

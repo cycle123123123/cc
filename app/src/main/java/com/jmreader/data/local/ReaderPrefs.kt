@@ -92,6 +92,11 @@ class AppPrefs private constructor(context: Context) {
         get() = prefs.getString("dismissed_protocol", null).orEmpty()
         set(value) = prefs.edit().putString("dismissed_protocol", value).apply()
 
+    /** 0 = 跟隨系統，1 = 淺色，2 = 深色（見 `ThemeMode`）。 */
+    var themeMode: Int
+        get() = prefs.getInt("theme_mode", 0)
+        set(value) = prefs.edit().putInt("theme_mode", value).apply()
+
     companion object {
         @Volatile
         private var instance: AppPrefs? = null

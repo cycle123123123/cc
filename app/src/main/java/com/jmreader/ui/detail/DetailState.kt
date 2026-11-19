@@ -151,6 +151,15 @@ class DetailState(
         container.downloads.enqueue(chapter.id, albumId, chapter.title)
     }
 
+    /** 一键把整本所有章节加入下载队列，返回加入的数量。 */
+    fun enqueueAllDownloads(): Int {
+        if (chapters.isEmpty()) return 0
+        chapters.forEach { chapter ->
+            container.downloads.enqueue(chapter.id, albumId, chapter.title)
+        }
+        return chapters.size
+    }
+
     /** 单话本的下载入口：有目录用第一话，否则退回作品本身。 */
     fun enqueueDownloadFirst() {
         val album = detail ?: return

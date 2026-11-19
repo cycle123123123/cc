@@ -43,10 +43,11 @@ import com.jmreader.ui.theme.IosFillGray
 import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
+import com.jmreader.ui.theme.IosHairline
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DownloadsScreen(onBack: () -> Unit) {
+fun DownloadsScreen(onBack: () -> Unit, onRead: (DownloadTask) -> Unit = {}) {
     val container = LocalAppContainer.current
     val downloads = container.downloads
     val tasks by downloads.tasks.collectAsState()
@@ -92,6 +93,7 @@ fun DownloadsScreen(onBack: () -> Unit) {
                         onPause = { downloads.pause(task.cid) },
                         onResume = { downloads.resume(task.cid) },
                         onDelete = { downloads.delete(task.cid) },
+                        onRead = { onRead(task) },
                     )
                 }
             }
@@ -105,6 +107,7 @@ private fun DownloadRow(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onDelete: () -> Unit,
+    onRead: () -> Unit,
 ) {
     val shape = RoundedCornerShape(14.dp)
     Column(
@@ -112,7 +115,7 @@ private fun DownloadRow(
             .fillMaxWidth()
             .clip(shape)
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), shape)
+            .border(0.5.dp, IosHairline, shape)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Text(
@@ -135,8 +138,11 @@ private fun DownloadRow(
             )
             Row {
                 when {
-                    task.isDone -> TextButton(onClick = onDelete) {
-                        Text("刪除", color = MaterialTheme.colorScheme.error)
+                    task.isDone -> {
+                        TextButton(onClick = onRead) { Text("閱讀", color = IosBlue) }
+                        TextButton(onClick = onDelete) {
+                            Text("刪除", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                     task.isRunning || task.status == DownloadTask.STATUS_PENDING -> {
                         TextButton(onClick = onPause) { Text("暫停", color = IosBlue) }

@@ -1,5 +1,6 @@
 package com.jmreader.ui.library
 
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,28 +14,39 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosPink
 import com.jmreader.ui.theme.IosSeparator
+import com.jmreader.ui.theme.ThemeMode
+import com.jmreader.ui.theme.IosHairline
 
 /**
  * 「工具與設定」分組：未登入 / 已登入共用，四項入口保持一致。
@@ -50,6 +62,9 @@ internal fun SettingsGroup(
     onCheckUpdate: () -> Unit,
     versionName: String? = null,
 ) {
+    val context = LocalContext.current
+    val prefs = LocalAppContainer.current.appPrefs
+    var showThemeDialog by remember { mutableStateOf(false) }
     Column {
         Text(
             text = "工具與設定",
@@ -64,7 +79,7 @@ internal fun SettingsGroup(
                 .fillMaxWidth()
                 .clip(shape)
                 .background(IosCardWhite)
-                .border(0.5.dp, Color(0x12000000), shape),
+                .border(0.5.dp, IosHairline, shape),
         ) {
             SettingRow(Icons.Filled.Download, "下載管理", IosBlue, onDownloads)
             SettingsDivider()
@@ -73,6 +88,14 @@ internal fun SettingsGroup(
             SettingRow(Icons.Filled.Insights, "閱讀統計", IosBlue, onStats)
             SettingsDivider()
             SettingRow(Icons.Filled.BugReport, "診斷日誌", IosLabelSecondary, onDiagnostics)
+            SettingsDivider()
+            SettingRow(
+                icon = Icons.Filled.DarkMode,
+                label = "深色模式",
+                tint = IosBlue,
+                onClick = { showThemeDialog = true },
+                trailing = themeModeLabel(prefs.themeMode),
+            )
             SettingsDivider()
             SettingRow(Icons.Filled.DeleteSweep, "清除快取", IosPink, onClearCache)
             SettingsDivider()
@@ -83,6 +106,68 @@ internal fun SettingsGroup(
                 onClick = onCheckUpdate,
                 trailing = versionName?.let { "v$it" },
             )
+        }
+
+        if (showThemeDialog) {
+            ThemeModeDialog(
+                current = prefs.themeMode,
+                onSelect = { mode ->
+                    prefs.themeMode = mode
+                    showThemeDialog = false
+                    (context as? Activity)?.recreate()
+                },
+                onDismiss = { showThemeDialog = false },
+            )
+        }
+    }
+}
+
+private fun themeModeLabel(mode: Int): String = when (mode) {
+    ThemeMode.LIGHT -> "淺色"
+    ThemeMode.DARK -> "深色"
+    else -> "跟隨系統"
+}
+
+@Composable
+private fun ThemeModeDialog(
+    current: Int,
+    onSelect: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("深色模式") },
+        text = {
+            Column {
+                ThemeModeOption("跟隨系統", ThemeMode.SYSTEM, current, onSelect)
+                ThemeModeOption("淺色", ThemeMode.LIGHT, current, onSelect)
+                ThemeModeOption("深色", ThemeMode.DARK, current, onSelect)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("取消", color = IosBlue) }
+        },
+    )
+}
+
+@Composable
+private fun ThemeModeOption(label: String, mode: Int, current: Int, onSelect: (Int) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onSelect(mode) }
+            .padding(vertical = 12.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            fontSize = 15.sp,
+            color = IosLabelPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        if (current == mode) {
+            Text("✓", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = IosBlue)
         }
     }
 }

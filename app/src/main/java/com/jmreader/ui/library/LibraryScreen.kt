@@ -54,6 +54,7 @@ import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.data.JmRepository
 import com.jmreader.BuildConfig
+import com.jmreader.ui.theme.IosHairline
 
 @Composable
 fun LibraryScreen(
@@ -263,7 +264,7 @@ private fun LoginPromptCard(onLogin: () -> Unit) {
             .fillMaxWidth()
             .clip(shape)
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), shape)
+            .border(0.5.dp, IosHairline, shape)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

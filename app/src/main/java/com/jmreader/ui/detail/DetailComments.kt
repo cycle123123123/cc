@@ -37,6 +37,7 @@ import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
+import com.jmreader.ui.theme.IosHairline
 
 /** 评论输入框：回复目标提示 + 输入 + 发送。 */
 @Composable
@@ -54,7 +55,7 @@ internal fun CommentComposer(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), RoundedCornerShape(12.dp))
+            .border(0.5.dp, IosHairline, RoundedCornerShape(12.dp))
             .padding(12.dp),
     ) {
         replyTo?.let { target ->
@@ -109,7 +110,7 @@ internal fun CommentRow(
             .padding(start = if (isReply) 20.dp else 0.dp)
             .clip(shape)
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), shape)
+            .border(0.5.dp, IosHairline, shape)
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         Row(

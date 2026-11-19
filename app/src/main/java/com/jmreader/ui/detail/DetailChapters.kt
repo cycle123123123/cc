@@ -34,6 +34,7 @@ import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosBlueSoft
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
+import com.jmreader.ui.theme.IosHairline
 
 @Composable
 internal fun ChapterRow(
@@ -48,7 +49,7 @@ internal fun ChapterRow(
             .fillMaxWidth()
             .clip(shape)
             .background(IosCardWhite)
-            .border(0.5.dp, if (isResume) IosBlue.copy(alpha = 0.35f) else Color(0x12000000), shape)
+            .border(0.5.dp, if (isResume) IosBlue.copy(alpha = 0.35f) else IosHairline, shape)
             .clickable(onClick = onRead)
             .padding(start = 14.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -139,16 +140,24 @@ internal fun LazyListScope.chapterPreviewSection(
     resumeCid: Long?,
     onRead: (ChapterEntry) -> Unit,
     onDownload: (ChapterEntry) -> Unit,
+    onDownloadAll: () -> Unit,
     onViewAll: () -> Unit,
 ) {
     item {
-        Text(
-            text = "章節列表（共 ${chapters.size} 話）",
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            color = IosLabelPrimary,
-            modifier = Modifier.padding(top = 4.dp),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "章節列表（共 ${chapters.size} 話）",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = IosLabelPrimary,
+                modifier = Modifier.weight(1f).padding(top = 4.dp),
+            )
+            if (chapters.isNotEmpty()) {
+                TextButton(onClick = onDownloadAll) {
+                    Text("下載全部", color = IosBlue, fontSize = 12.sp)
+                }
+            }
+        }
     }
     chapterItems(
         chapters = chapters.take(5),

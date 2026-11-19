@@ -25,6 +25,7 @@ import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
+import com.jmreader.ui.theme.IosRaised
 
 /** iOS 风格胶囊筛选项（无边框、无打勾图标、紧凑圆润） */
 @Composable
@@ -87,7 +88,7 @@ fun IosSegmentedControl(
                             Modifier
                                 .shadow(1.5.dp, RoundedCornerShape(8.dp))
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White)
+                                .background(IosRaised)
                         } else {
                             Modifier.clip(RoundedCornerShape(8.dp))
                         },

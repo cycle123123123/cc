@@ -27,6 +27,7 @@ import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosSeparator
+import com.jmreader.ui.theme.IosHairline
 
 /**
  * 「我的」頁頂部的追更提醒：只列韓漫連載的新章節。
@@ -44,7 +45,7 @@ internal fun WatchUpdatesCard(
             .fillMaxWidth()
             .clip(shape)
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), shape)
+            .border(0.5.dp, IosHairline, shape)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

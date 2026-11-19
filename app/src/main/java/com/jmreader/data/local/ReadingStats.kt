@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.util.Calendar
+import java.util.TimeZone
 
 /** 一天的阅读量。[day] 是本地时区的 epochDay（`millis + tzOffset` / 86400000）。 */
 @Serializable
@@ -138,16 +139,16 @@ class ReadingStats private constructor(context: Context) {
         }
 
         fun dayLabel(day: Int): String {
-            val cal = Calendar.getInstance()
-            val millis = day.toLong() * MILLIS_PER_DAY
-            cal.timeInMillis = millis - cal.timeZone.getOffset(millis)
+            val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                timeInMillis = day.toLong() * MILLIS_PER_DAY
+            }
             return "${cal.get(Calendar.MONTH) + 1}/${cal.get(Calendar.DAY_OF_MONTH)}"
         }
 
         fun weekdayLabel(day: Int): String {
-            val cal = Calendar.getInstance()
-            val millis = day.toLong() * MILLIS_PER_DAY
-            cal.timeInMillis = millis - cal.timeZone.getOffset(millis)
+            val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                timeInMillis = day.toLong() * MILLIS_PER_DAY
+            }
             return WEEKDAYS[cal.get(Calendar.DAY_OF_WEEK) - 1]
         }
 

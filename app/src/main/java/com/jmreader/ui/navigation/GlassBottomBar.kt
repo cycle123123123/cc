@@ -79,8 +79,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jmreader.ui.theme.IosBlue
+import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosPink
+import com.jmreader.ui.theme.JmPalette
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -347,16 +349,31 @@ internal fun GlassBottomBar(
         ) {
             GlassBackdrop(source)
 
-            // 清透中性玻璃底膜：低遮罩保留底层色彩与形状，无任何蓝紫偏色
-            val tintBrush = if (isBlurred) {
-                Brush.verticalGradient(
+            // 清透中性玻璃底膜：低遮罩保留底层色彩与形状；深色下压到很低的白色，避免整条发灰
+            val dark = JmPalette.dark
+            val tintBrush = when {
+                isBlurred && dark -> Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.10f),
+                        Color.White.copy(alpha = 0.04f),
+                    ),
+                )
+
+                isBlurred -> Brush.verticalGradient(
                     listOf(
                         Color.White.copy(alpha = 0.30f),
                         Color.White.copy(alpha = 0.14f),
                     ),
                 )
-            } else {
-                Brush.verticalGradient(
+
+                dark -> Brush.verticalGradient(
+                    listOf(
+                        IosCardWhite.copy(alpha = 0.96f),
+                        IosCardWhite.copy(alpha = 0.92f),
+                    ),
+                )
+
+                else -> Brush.verticalGradient(
                     listOf(
                         Color.White.copy(alpha = 0.94f),
                         Color(0xFFF6F6F8).copy(alpha = 0.90f),
@@ -365,18 +382,26 @@ internal fun GlassBottomBar(
             }
             Box(Modifier.matchParentSize().background(tintBrush))
 
-            // 玻璃对角高光描边（单层迎光白边，去掉灰暗外框）
+            // 玻璃对角高光描边：深色下只留很淡的一圈
             Box(
                 Modifier
                     .matchParentSize()
                     .border(
                         width = 1.dp,
                         brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.95f),
-                                Color.White.copy(alpha = 0.25f),
-                                Color.White.copy(alpha = 0.85f),
-                            ),
+                            colors = if (dark) {
+                                listOf(
+                                    Color.White.copy(alpha = 0.22f),
+                                    Color.White.copy(alpha = 0.06f),
+                                    Color.White.copy(alpha = 0.18f),
+                                )
+                            } else {
+                                listOf(
+                                    Color.White.copy(alpha = 0.95f),
+                                    Color.White.copy(alpha = 0.25f),
+                                    Color.White.copy(alpha = 0.85f),
+                                )
+                            },
                         ),
                         shape = CircleShape,
                     ),
@@ -389,6 +414,13 @@ internal fun GlassBottomBar(
                     listOf(
                         Color(0xFF9AA3AF).copy(alpha = 0.34f),
                         Color(0xFF9AA3AF).copy(alpha = 0.22f),
+                    ),
+                )
+
+                dark -> Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.18f),
+                        Color.White.copy(alpha = 0.09f),
                     ),
                 )
 

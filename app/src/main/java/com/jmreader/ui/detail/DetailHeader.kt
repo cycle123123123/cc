@@ -62,6 +62,7 @@ import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosPink
 import com.jmreader.ui.theme.IosSeparator
+import com.jmreader.ui.theme.IosHairline
 
 /** iOS App Store 风格四栏横向数据条（上下细线 + 竖向短分割线） */
 @Composable
@@ -344,7 +345,7 @@ internal fun DetailHeaderCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), RoundedCornerShape(16.dp))
+            .border(0.5.dp, IosHairline, RoundedCornerShape(16.dp))
             .padding(14.dp),
     ) {
         Header(
@@ -396,7 +397,7 @@ internal fun DetailInfoCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), RoundedCornerShape(14.dp))
+            .border(0.5.dp, IosHairline, RoundedCornerShape(14.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -497,7 +498,7 @@ internal fun SameAuthorSection(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), RoundedCornerShape(14.dp))
+            .border(0.5.dp, IosHairline, RoundedCornerShape(14.dp))
             .padding(vertical = 14.dp),
     ) {
         Text(

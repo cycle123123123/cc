@@ -54,6 +54,7 @@ import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosSeparator
 import com.jmreader.data.JmRepository
+import com.jmreader.ui.theme.IosHairline
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,7 +108,7 @@ fun BlocksScreen(repo: JmRepository, onBack: () -> Unit) {
                         .fillMaxWidth()
                         .clip(shape)
                         .background(IosCardWhite)
-                        .border(0.5.dp, Color(0x12000000), shape)
+                        .border(0.5.dp, IosHairline, shape)
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
@@ -201,7 +202,7 @@ fun BlocksScreen(repo: JmRepository, onBack: () -> Unit) {
                         .fillMaxWidth()
                         .clip(shape)
                         .background(IosCardWhite)
-                        .border(0.5.dp, Color(0x12000000), shape)
+                        .border(0.5.dp, IosHairline, shape)
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -281,7 +282,7 @@ private fun RuleRow(text: String, onDelete: () -> Unit) {
             .fillMaxWidth()
             .clip(shape)
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), shape)
+            .border(0.5.dp, IosHairline, shape)
             .padding(horizontal = 14.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,

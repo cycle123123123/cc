@@ -49,6 +49,7 @@ import com.jmreader.ui.theme.IosPink
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.jmreader.ui.theme.IosHairline
 
 /**
  * 診斷日誌頁：崩潰堆棧只存在本機，這裡負責看數量、一鍵分享、清除。
@@ -114,7 +115,7 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
                         .fillMaxWidth()
                         .clip(shape)
                         .background(IosCardWhite)
-                        .border(0.5.dp, Color(0x12000000), shape)
+                        .border(0.5.dp, IosHairline, shape)
                         .padding(16.dp),
                 ) {
                     Text(
@@ -165,7 +166,7 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
                         .fillMaxWidth()
                         .clip(shape)
                         .background(IosCardWhite)
-                        .border(0.5.dp, Color(0x12000000), shape)
+                        .border(0.5.dp, IosHairline, shape)
                         .padding(14.dp),
                 ) {
                     Text(

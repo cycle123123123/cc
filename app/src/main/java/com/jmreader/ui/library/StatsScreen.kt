@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,6 +43,7 @@ import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosSeparator
+import com.jmreader.ui.theme.IosHairline
 
 /** 「閱讀統計」頁：全部數字都來自本機 [ReadingStats]，不上傳。 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,6 +58,8 @@ fun StatsScreen(onBack: () -> Unit) {
     val week = ((today - 6)..today).map { day ->
         snapshot.days.firstOrNull { it.day == day } ?: DayStat(day)
     }
+    // 只画有记录的那几天：今天没读就不出现今天这根柱子
+    val activeWeek = week.filter { it.pages > 0 }
     val maxPages = week.maxOfOrNull { it.pages }?.coerceAtLeast(1) ?: 1
     val weekPages = week.sumOf { it.pages }
     val weekSeconds = week.sumOf { it.seconds }
@@ -143,16 +147,30 @@ fun StatsScreen(onBack: () -> Unit) {
                                 color = IosLabelSecondary,
                             )
                         }
-                        Column(
-                            modifier = Modifier.padding(top = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            week.forEach { day ->
-                                DayBar(
-                                    day = day,
-                                    isToday = day.day == today,
-                                    fraction = if (maxPages == 0) 0f else day.pages.toFloat() / maxPages,
-                                )
+                        if (activeWeek.isEmpty()) {
+                            Text(
+                                text = "最近 7 天還沒有記錄",
+                                fontSize = 12.sp,
+                                color = IosLabelSecondary,
+                                modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
+                            )
+                        } else {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 16.dp)
+                                    .height(112.dp),
+                                verticalAlignment = Alignment.Bottom,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                activeWeek.forEach { day ->
+                                    DayColumn(
+                                        day = day,
+                                        isToday = day.day == today,
+                                        fraction = if (maxPages == 0) 0f else day.pages.toFloat() / maxPages,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                }
                             }
                         }
                     }
@@ -180,7 +198,7 @@ private fun Card(content: @Composable () -> Unit) {
             .fillMaxWidth()
             .clip(shape)
             .background(IosCardWhite)
-            .border(0.5.dp, Color(0x12000000), shape),
+            .border(0.5.dp, IosHairline, shape),
     ) {
         content()
     }
@@ -211,36 +229,38 @@ private fun DividerLine() {
 }
 
 @Composable
-private fun DayBar(day: DayStat, isToday: Boolean, fraction: Float) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun DayColumn(
+    day: DayStat,
+    isToday: Boolean,
+    fraction: Float,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = "${day.pages}",
+            fontSize = 10.sp,
+            color = if (isToday) IosBlue else IosLabelSecondary,
+            maxLines = 1,
+        )
+        Spacer(Modifier.height(4.dp))
+        Box(
+            modifier = Modifier.fillMaxWidth().height(72.dp),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth(0.62f)
+                    .height(72.dp * fraction.coerceIn(0.06f, 1f))
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (isToday) IosBlue else IosBlue.copy(alpha = 0.45f)),
+            )
+        }
+        Spacer(Modifier.height(6.dp))
         Text(
             text = if (isToday) "今天" else ReadingStats.weekdayLabel(day.day),
-            fontSize = 12.sp,
-            color = if (isToday) IosBlue else IosLabelSecondary,
-            modifier = Modifier.padding(end = 8.dp),
-        )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(IosSeparator),
-        ) {
-            if (fraction > 0f) {
-                Box(
-                    Modifier
-                        .fillMaxWidth(fraction)
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (isToday) IosBlue else IosBlue.copy(alpha = 0.55f)),
-                )
-            }
-        }
-        Text(
-            text = if (day.pages > 0) "${day.pages} 頁" else "—",
             fontSize = 11.sp,
-            color = IosLabelSecondary,
-            modifier = Modifier.padding(start = 8.dp),
+            color = if (isToday) IosBlue else IosLabelSecondary,
+            maxLines = 1,
         )
     }
 }

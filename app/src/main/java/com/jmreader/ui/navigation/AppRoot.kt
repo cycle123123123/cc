@@ -204,7 +204,10 @@ fun AppRoot(repo: JmRepository) {
                     )
                 }
 
-                Screen.Downloads -> DownloadsScreen(onBack = { pop() })
+                Screen.Downloads -> DownloadsScreen(
+                    onBack = { pop() },
+                    onRead = { task -> push(Screen.Reader(task.albumId, task.cid, task.title)) },
+                )
 
                 Screen.Blocks -> BlocksScreen(repo = repo, onBack = { pop() })
 
