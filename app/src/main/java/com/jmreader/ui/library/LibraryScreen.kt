@@ -59,6 +59,8 @@ import com.jmreader.BuildConfig
 fun LibraryScreen(
     repo: JmRepository,
     state: LibraryState,
+    onStats: () -> Unit,
+    onDiagnostics: () -> Unit,
     onOpen: (Long) -> Unit,
     onDownloads: () -> Unit,
     onBlocks: () -> Unit,
@@ -109,6 +111,8 @@ fun LibraryScreen(
             if (member == null) {
                 LoggedOutLibrary(
                     repo = repo,
+                    onStats = onStats,
+                    onDiagnostics = onDiagnostics,
                     onOpen = onOpen,
                     onDownloads = onDownloads,
                     onBlocks = onBlocks,
@@ -121,6 +125,8 @@ fun LibraryScreen(
                     repo = repo,
                     state = state,
                     member = member!!,
+                    onStats = onStats,
+                    onDiagnostics = onDiagnostics,
                     onOpen = onOpen,
                     onDownloads = onDownloads,
                     onBlocks = onBlocks,
@@ -179,6 +185,8 @@ fun LibraryScreen(
 @Composable
 private fun LoggedOutLibrary(
     repo: JmRepository,
+    onStats: () -> Unit,
+    onDiagnostics: () -> Unit,
     onOpen: (Long) -> Unit,
     onDownloads: () -> Unit,
     onBlocks: () -> Unit,
@@ -211,6 +219,8 @@ private fun LoggedOutLibrary(
                 SettingsGroup(
                     onDownloads = onDownloads,
                     onBlocks = onBlocks,
+                    onStats = onStats,
+                    onDiagnostics = onDiagnostics,
                     onClearCache = onClearCache,
                     onCheckUpdate = onCheckUpdate,
                     versionName = com.jmreader.BuildConfig.VERSION_NAME,

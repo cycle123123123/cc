@@ -8,6 +8,7 @@ import com.jmreader.data.local.AppPrefs
 import com.jmreader.data.local.ContentFilter
 import com.jmreader.data.local.ReaderPrefs
 import com.jmreader.data.local.ReadingHistory
+import com.jmreader.data.local.ReadingStats
 import com.jmreader.data.local.SearchHistory
 import com.jmreader.data.update.UpdateChecker
 
@@ -27,6 +28,8 @@ class AppContainer(context: Context) {
     val downloads: DownloadRepository = DownloadRepository.of(context)
 
     val readingHistory: ReadingHistory = ReadingHistory.of(context)
+
+    val readingStats: ReadingStats = ReadingStats.of(context)
 
     val searchHistory: SearchHistory = SearchHistory.of(context)
 

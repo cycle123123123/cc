@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,6 +44,8 @@ import com.jmreader.ui.theme.IosSeparator
 internal fun SettingsGroup(
     onDownloads: () -> Unit,
     onBlocks: () -> Unit,
+    onStats: () -> Unit,
+    onDiagnostics: () -> Unit,
     onClearCache: () -> Unit,
     onCheckUpdate: () -> Unit,
     versionName: String? = null,
@@ -65,6 +69,10 @@ internal fun SettingsGroup(
             SettingRow(Icons.Filled.Download, "下載管理", IosBlue, onDownloads)
             SettingsDivider()
             SettingRow(Icons.Filled.Block, "屏蔽管理", IosBlue, onBlocks)
+            SettingsDivider()
+            SettingRow(Icons.Filled.Insights, "閱讀統計", IosBlue, onStats)
+            SettingsDivider()
+            SettingRow(Icons.Filled.BugReport, "診斷日誌", IosLabelSecondary, onDiagnostics)
             SettingsDivider()
             SettingRow(Icons.Filled.DeleteSweep, "清除快取", IosPink, onClearCache)
             SettingsDivider()

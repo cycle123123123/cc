@@ -9,6 +9,8 @@ sealed interface Screen {
     data class Reader(val aid: Long, val cid: Long, val title: String) : Screen
     data object Downloads : Screen
     data object Blocks : Screen
+    data object Stats : Screen
+    data object Diagnostics : Screen
 }
 
 /** 底部三个 root tab，仅 AppRoot 使用。 */

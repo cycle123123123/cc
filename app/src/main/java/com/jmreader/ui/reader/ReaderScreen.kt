@@ -1,5 +1,6 @@
 package com.jmreader.ui.reader
 
+import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -70,6 +71,18 @@ fun ReaderScreen(
     val context = LocalContext.current
     val container = LocalAppContainer.current
     val readerPrefs = container.readerPrefs
+
+    // 阅读统计：本话停留时长 + 实际看过的页数（少于 5 秒且没翻页的会话丢弃）
+    val readingStats = container.readingStats
+    val sessionStart = remember(cid) { SystemClock.elapsedRealtime() }
+    val seenPages = remember(cid) { mutableSetOf<Int>() }
+    DisposableEffect(cid) {
+        onDispose {
+            val seconds = (SystemClock.elapsedRealtime() - sessionStart) / 1000
+            val pages = seenPages.size
+            if (seconds >= 5 || pages > 1) readingStats.record(seconds, pages, albumId)
+        }
+    }
     val toast = rememberToaster()
     val view = LocalView.current
     val scope = rememberCoroutineScope()
@@ -273,6 +286,7 @@ fun ReaderScreen(
 
     // 预取当前页和后 3 页（首次打开时就是 1-4 页）
     LaunchedEffect(currentIndex, data?.id, mode, cid) {
+        seenPages.add(currentIndex)
         val comic = data ?: return@LaunchedEffect
         val next = comic.images.drop(currentIndex).take(4).map { it.image to it.page }
         store?.prefetch(next)

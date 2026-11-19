@@ -75,6 +75,8 @@ internal fun LibraryContent(
     onOpen: (Long) -> Unit,
     onDownloads: () -> Unit,
     onBlocks: () -> Unit,
+    onStats: () -> Unit,
+    onDiagnostics: () -> Unit,
     onClearCache: () -> Unit,
     onCheckUpdate: () -> Unit,
 ) {
@@ -219,6 +221,8 @@ internal fun LibraryContent(
                 SettingsGroup(
                     onDownloads = onDownloads,
                     onBlocks = onBlocks,
+                    onStats = onStats,
+                    onDiagnostics = onDiagnostics,
                     onClearCache = onClearCache,
                     onCheckUpdate = onCheckUpdate,
                     versionName = com.jmreader.BuildConfig.VERSION_NAME,

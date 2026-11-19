@@ -14,6 +14,7 @@ class JmApplication : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
+        CrashLogger.install(this)
         container = AppContainer(this)
         repository = container.repository
     }

@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
 import com.jmreader.ui.search.AuthorWorksScreen
 import com.jmreader.ui.library.BlocksScreen
+import com.jmreader.ui.library.DiagnosticsScreen
+import com.jmreader.ui.library.StatsScreen
 import com.jmreader.ui.detail.DetailScreen
 import com.jmreader.ui.discover.DiscoverScreen
 import com.jmreader.ui.discover.DiscoverState
@@ -133,6 +135,8 @@ fun AppRoot(repo: JmRepository) {
                     RootTab.ME -> LibraryScreen(
                         repo = repo,
                         state = libraryState,
+                        onStats = { push(Screen.Stats) },
+                        onDiagnostics = { push(Screen.Diagnostics) },
                         onOpen = { push(Screen.Detail(it)) },
                         onDownloads = { push(Screen.Downloads) },
                         onBlocks = { push(Screen.Blocks) },
@@ -199,6 +203,10 @@ fun AppRoot(repo: JmRepository) {
                 Screen.Downloads -> DownloadsScreen(onBack = { pop() })
 
                 Screen.Blocks -> BlocksScreen(repo = repo, onBack = { pop() })
+
+                Screen.Stats -> StatsScreen(onBack = { pop() })
+
+                Screen.Diagnostics -> DiagnosticsScreen(onBack = { pop() })
             }
         }
     }

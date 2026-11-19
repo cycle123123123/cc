@@ -20,8 +20,8 @@ android {
         applicationId = "com.jmreader"
         minSdk = 24
         targetSdk = 35
-        versionCode = 28
-        versionName = "0.5.12"
+        versionCode = 29
+        versionName = "0.6.0"
     }
 
     signingConfigs {
