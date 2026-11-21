@@ -37,15 +37,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import kotlinx.coroutines.launch
-import com.jmreader.ui.navigation.AppRoot
-import com.jmreader.data.model.ChapterEntry
-import com.jmreader.data.model.ComicRead
-import com.jmreader.data.page.PageCache
 import com.jmreader.data.page.PageStore
 import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.rememberToaster
-import com.jmreader.ui.navigation.Screen
-import com.jmreader.data.model.SeriesParser
 import com.jmreader.data.JmRepository
 import com.jmreader.core.runCatchingCancellable
 
@@ -106,13 +100,11 @@ fun ReaderScreen(
     val view = LocalView.current
     val scope = rememberCoroutineScope()
 
-    // 當前話的資料。read 本身不帶 key，用 loadedCid 標記它屬於哪一話：
-    // AppRoot 用同一個 slot 換掉 Screen.Reader 時，cid 變了但 state 會留下來，
-    // 只有 loadedCid == cid 才把 read 當成「當前畫面」，否則一律視為未載入。
-    var read by remember { mutableStateOf<ComicRead?>(null) }
-    var loadedCid by remember { mutableStateOf<Long?>(null) }
-    var chapters by remember { mutableStateOf<List<ChapterEntry>>(emptyList()) }
-    var error by remember { mutableStateOf<String?>(null) }
+    // 當前話的正文與目錄。session 綁在 cid 上：切話時整個重建，
+    // 由 ReaderSessionState.current 保證不會把上一話的圖/頁碼串到新的一話。
+    val session = remember(cid) { ReaderSessionState(albumId, cid, container) }
+    // 目錄按 albumId 保活：切下一話時 cid 變了但目錄不能丟
+    val chaptersState = remember(albumId) { ReaderChaptersState(albumId, container) }
     var uiVisible by remember { mutableStateOf(true) }
     var zoomed by remember { mutableStateOf(false) }
     // 条漫整体缩放：1f..3f，切话/切模式归位
@@ -186,49 +178,20 @@ fun ReaderScreen(
     }
 
     LaunchedEffect(cid) {
-        // 切話先清空，避免上一話的圖片/頁碼/緩存串到新的一話
-        read = null
-        loadedCid = null
-        error = null
+        // 切話先清掉頁碼就緒標記，避免新話還沒歸位就把頁碼寫進進度
         positionReady = false
-
-        // 已下載的章節先用本地元數據秒開（斷網也能進），再嘗試用線上資料刷新
-        val local = container.downloads.localComicRead(cid)
-        if (local != null) {
-            read = local
-            loadedCid = cid
-        }
-
-        runCatchingCancellable { repo.comicRead(cid) }
-            .onSuccess {
-                read = it
-                loadedCid = cid
-            }
-            .onFailure { throwable ->
-                if (local == null) error = throwable.message ?: "載入失敗"
-            }
+        session.load()
     }
 
     LaunchedEffect(albumId) {
-        // 目錄優先取 /album 的 series：它一定是數組，且和詳情頁的目錄同源。
-        // /chapter 的 series 在多話作品裡可能只是「總話數」（數字），
-        // 解析不出數組時 chapters 會是空列表 → 上一話/下一話永久禁用，点了没反应。
-        val fromAlbum = runCatchingCancellable { repo.seriesChapters(repo.album(albumId)) }
-            .getOrNull()
-            .orEmpty()
-        chapters = if (fromAlbum.isNotEmpty()) {
-            fromAlbum
-        } else {
-            runCatchingCancellable { SeriesParser.parse(repo.chapter(albumId).series) }
-                .getOrNull()
-                .orEmpty()
-        }
+        chaptersState.load()
     }
 
-    val data = read?.takeIf { loadedCid == cid }
+    val data = session.current
     val images = data?.images ?: emptyList()
+    val chapters = chaptersState.chapters
 
-    val pagerState = rememberPagerState(initialPage = savedPage, pageCount = { read?.images?.size ?: 0 })
+    val pagerState = rememberPagerState(initialPage = savedPage, pageCount = { session.current?.images?.size ?: 0 })
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = savedPage)
 
     // store 綁定當前 cid：換話時舊 store 必須立刻作廢，
@@ -272,7 +235,7 @@ fun ReaderScreen(
 
     // 跳頁（設定彈窗與底欄進度條共用）
     fun jumpToPage(target: Int) {
-        val safe = target.coerceIn(0, images.lastIndex.coerceAtLeast(0))
+        val safe = ReaderGeometry.clampPage(target, images.size)
         scope.launch {
             if (mode == ReaderMode.VERTICAL) listState.scrollToItem(safe) else pagerState.scrollToPage(safe)
         }
@@ -346,7 +309,7 @@ fun ReaderScreen(
             if (total == 0) return@collect
             val step = if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) 1 else -1
             val now = if (mode == ReaderMode.VERTICAL) listState.firstVisibleItemIndex else pagerState.currentPage
-            val target = (now + step).coerceIn(0, total - 1)
+            val target = ReaderGeometry.stepPage(now, step, total)
             if (mode == ReaderMode.VERTICAL) listState.animateScrollToItem(target)
             else pagerState.animateScrollToPage(target)
         }
@@ -387,21 +350,14 @@ fun ReaderScreen(
         }
     }
 
-    fun clampVerticalX(value: Float, scale: Float): Float {
-        val max = viewportWidth * (scale - 1f) / 2f
-        return if (max <= 0f) 0f else value.coerceIn(-max, max)
-    }
+    fun clampVerticalX(value: Float, scale: Float): Float =
+        ReaderGeometry.clampPanX(value, scale, viewportWidth)
 
     /** 双击缩放：以双击点的横坐标为中心，平滑放大/还原。 */
     fun zoomVerticalTo(target: Float, focusX: Float) {
         val startScale = vScale
         val startOffset = vOffsetX
-        val targetOffset = if (target <= 1.01f) {
-            0f
-        } else {
-            val max = viewportWidth * (target - 1f) / 2f
-            (-(focusX - viewportWidth / 2f) * (target - 1f)).coerceIn(-max, max)
-        }
+        val targetOffset = ReaderGeometry.panForScale(target, focusX, viewportWidth)
         scope.launch {
             animate(0f, 1f, animationSpec = tween(220)) { t, _ ->
                 vScale = startScale + (target - startScale) * t
@@ -412,8 +368,8 @@ fun ReaderScreen(
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         when {
-            error != null -> Text(
-                text = error!!,
+            session.error != null -> Text(
+                text = session.error.orEmpty(),
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.align(Alignment.Center),
             )
@@ -439,7 +395,7 @@ fun ReaderScreen(
                                     do {
                                         val event = awaitPointerEvent()
                                         if (event.changes.size >= 2) {
-                                            val next = (vScale * event.calculateZoom()).coerceIn(1f, 3f)
+                                            val next = ReaderGeometry.clampScale(vScale * event.calculateZoom())
                                             vScale = next
                                             vOffsetX = if (next <= 1.01f) {
                                                 0f
@@ -505,14 +461,20 @@ fun ReaderScreen(
                                         when {
                                             offset.x < third -> {
                                                 val delta = if (rtl) 1 else -1
-                                                val target = (pagerState.currentPage + delta)
-                                                    .coerceIn(0, images.lastIndex.coerceAtLeast(0))
+                                                val target = ReaderGeometry.stepPage(
+                                                    pagerState.currentPage,
+                                                    delta,
+                                                    images.size,
+                                                )
                                                 scope.launch { pagerState.animateScrollToPage(target) }
                                             }
                                             offset.x > third * 2 -> {
                                                 val delta = if (rtl) -1 else 1
-                                                val target = (pagerState.currentPage + delta)
-                                                    .coerceIn(0, images.lastIndex.coerceAtLeast(0))
+                                                val target = ReaderGeometry.stepPage(
+                                                    pagerState.currentPage,
+                                                    delta,
+                                                    images.size,
+                                                )
                                                 scope.launch { pagerState.animateScrollToPage(target) }
                                             }
                                             else -> uiVisible = !uiVisible

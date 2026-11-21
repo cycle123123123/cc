@@ -14,7 +14,7 @@ import kotlinx.coroutines.sync.withPermit
  * 全局的卡片角标缓存（点击量 / 爱心 / 页数 / 是否日文）。
  *
  * 列表接口不返回这些字段，只有 `/album` 有：卡片可见时按需补一次（并发 2）。
- * 原来的 `ensureAlbumMeta` 把状态挂在各自的屏幕里，这里统一成应用级单例，
+ * 早期是把这套状态挂在各自的屏幕里，这里统一成应用级单例，
  * 读取用 [get]，请求用 [request]。
  */
 object AlbumMetaCache {

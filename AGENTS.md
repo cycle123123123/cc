@@ -36,11 +36,12 @@ gradle :app:assembleRelease   # R8 开启；产物 app/build/outputs/apk/release
 - App 内 `UpdateChecker` 每 15 分钟检查 release；有 root 时 `su -c pm install -r` 静默安装，失败回退系统安装器。
 
 ## 架构要点
-- `core/` 纯 JVM（签名、AES、分条算法、可取消请求）；`data/` 拆成 `JmRepository`（线路/会话/缓存/业务）、`JmHttp`（签名+信封解密）、`PageLoader`（取页/解码/还原）、`PageCache`（磁盘 200MB）、`PageStore`（位图 48MB）、`ContentFilter`、`UpdateChecker`。
+- `core/` 基本纯 JVM（签名、AES、分条算法、可取消请求、`AtomicFile` 原子写）；例外是 `ImageDescrambler` 用到 `android.graphics.Bitmap/Canvas`。`data/` 拆成 `JmRepository`（线路/会话/缓存/业务）、`JmHttp`（签名+信封解密）、`PageLoader`（取页/解码/还原）、`PageCache`（磁盘 200MB）、`PageStore`（位图 48MB）、`ContentFilter`、`UpdateChecker`。
+- 下载的页文件与 `meta.json` 都走 `core/AtomicFile`（写 `.tmp` 再 rename），进程被杀不会留下「半截文件被当成已完成」；启动时清理残留 `.tmp`。
 - `ui/AppRoot`：3 个底部 tab + overlay 栈，**只渲染栈顶**；`SearchState` / `AuthorWorksState` 挂在 `Screen` 实例上，`HomeState` / `DiscoverState` / `LibraryState` 挂在 `AppRoot` 上，切 tab 复用列表、筛选与滚动位置。没有 ViewModel。
 - 切回 tab 是否重拉由 `ui/common/RefreshPolicy` 决定：列表 10 分钟、收藏/历史 5 分钟；过期时静默刷新（旧列表继续显示），未过期一个请求都不发。
 - 主题在 `ui/theme/Theme.kt`：浅/深两套 iOS 调色板，支持「跟隨系統 / 淺色 / 深色」（我的 → 深色模式，切换后 `recreate()`）。颜色常量（`IosCardWhite` 等）是读 `JmPalette` 的 getter，页面代码不需要判断深浅；阅读器自带黑底，不依赖主题。
-- 大屏文件已拆分：`DetailScreen`+`DetailSections`、`ReaderScreen`+`ReaderSections`、`DiscoverScreen`+`DiscoverTabs`、`LibraryScreen`+`LibraryContent`+`LibraryLogin`。新增 UI 尽量放对应子文件。
+- 大屏文件已按职责拆分：`detail/`（Screen/Header/Chapters/Comments/Preview/State + `ResumeResolver`）、`reader/`（Screen/Bars/Pages/SettingsDialog + `ReaderSessionState`/`ReaderChaptersState`/`ReaderGeometry`）、`discover/`（Screen + 四个 tab）、`library/`（Screen/Content/LoginForm/SettingsGroup/LocalHistory）。新增 UI 尽量放对应目录里的子文件。
 
 ## 协议易错点（细节见 docs/API.md）
 - 请求头 `Token=md5(ts+"185Hcomic3PAPP7R")`、`Tokenparam="{ts},2.1.14"`；响应 AES-ECB，key 依次尝试两个 secret。
@@ -50,5 +51,5 @@ gradle :app:assembleRelease   # R8 开启；产物 app/build/outputs/apk/release
 - 图片为纵向分条乱序，条数由 `md5(aid+文件名)` 末位决定；列表接口不含该字段，阅读时来自 `comic_read`。
 
 ## 测试现状
-- 39 个 JVM 用例：crypto、分条算法、目录解析、屏蔽匹配、页缓存、版本比较。UI 与仓库层无自动化测试。
+- 102 个 JVM 用例：crypto、分条算法、目录解析、屏蔽匹配、页缓存、`PagedList`、`TtlCache`、版本比较、备份编解码、`AtomicFile`、阅读器页码/缩放、续读定位。UI 与仓库层其它部分无自动化测试。
 - 改数据解析/工具类后至少跑 `:app:testDebugUnitTest`；改 UI 后建议装到模拟器截一张图确认。

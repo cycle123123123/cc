@@ -73,12 +73,10 @@ fun DetailScreen(
     val history by container.readingHistory.history.collectAsState()
     val lastRead by container.readingHistory.last.collectAsState()
     val resume = remember(history, lastRead, chapters, albumId) {
-        val record = history.firstOrNull { it.albumId == albumId }
-            ?: lastRead?.takeIf { it.albumId == albumId }
-        record?.takeIf { rec -> chapters.any { it.id == rec.cid } }
+        ResumeResolver.resolve(history, lastRead, chapters, albumId)
     }
     val resumeIndex = remember(resume, chapters) {
-        resume?.let { rec -> chapters.indexOfFirst { it.id == rec.cid } } ?: -1
+        ResumeResolver.indexOf(chapters, resume)
     }
 
     // 分頁結構由話數決定：單話本沒有「目錄」頁；索引一律由 tabs 解析，不硬編碼。

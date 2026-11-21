@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.Json
+import com.jmreader.core.AtomicFile
 import com.jmreader.data.model.ComicRead
 import com.jmreader.data.model.PageImage
 import com.jmreader.data.JmRepository
@@ -51,6 +52,8 @@ class DownloadRepository private constructor(private val context: Context) {
     init {
         refresh()
         resetStaleTasks()
+        // 上次进程被杀可能留下半截 .tmp，启动时清掉；正式文件由原子写保证完整
+        root.listFiles().orEmpty().filter { it.isDirectory }.forEach { AtomicFile.cleanupTemp(it) }
     }
 
     fun refresh() {
@@ -69,7 +72,11 @@ class DownloadRepository private constructor(private val context: Context) {
         val updated = task.copy(updatedAt = System.currentTimeMillis())
         runCatching {
             dir(updated.cid).mkdirs()
-            File(dir(updated.cid), META).writeText(json.encodeToString(DownloadTask.serializer(), updated))
+            // 原子写：meta.json 写到一半被杀会变成坏 JSON，任务会从列表里静默消失
+            AtomicFile.writeText(
+                File(dir(updated.cid), META),
+                json.encodeToString(DownloadTask.serializer(), updated),
+            )
         }
         // 只更新内存里的列表，避免每下载一页都重扫所有任务的 meta.json（O(n²) IO）
         val next = _tasks.value.toMutableList()
@@ -81,6 +88,7 @@ class DownloadRepository private constructor(private val context: Context) {
 
     fun dir(cid: Long): File = File(root, cid.toString())
 
+    /** 写入走原子替换，所以「文件存在且非空」可以安全地当作该页已完成。 */
     fun pageFile(cid: Long, page: Int): File? {
         val file = File(dir(cid), "$page.bin")
         return if (file.exists() && file.length() > 0) file else null
@@ -187,7 +195,8 @@ class DownloadRepository private constructor(private val context: Context) {
             if (pageFile(cid, page.page) != null) continue
 
             val bytes = api.downloadBytes(page.image)
-            pageFileForWrite(cid, page.page).writeBytes(bytes)
+            // 先写 .tmp 再 rename：中断时不会留下被当成「已完成」的半截页文件
+            AtomicFile.writeBytes(pageFileForWrite(cid, page.page), bytes)
 
             task = task.copy(completed = task.completed + 1)
             save(task)
