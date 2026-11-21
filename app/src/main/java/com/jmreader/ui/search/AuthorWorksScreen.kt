@@ -33,6 +33,7 @@ import com.jmreader.data.model.AlbumBrief
 import com.jmreader.ui.components.loadWorkCategories
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
+import com.jmreader.ui.common.rememberPagedList
 
 @Composable
 fun AuthorWorksScreen(
@@ -47,14 +48,15 @@ fun AuthorWorksScreen(
     val blockRules by container.contentFilter.rules.collectAsState()
 
     // 状态类拿不到 repo：首次进入时懒创建，之后挂在 state 上，从详情返回复用同一份列表。
-    val paged = remember(state, repo, authorName) {
-        state.paged ?: PagedList<AlbumBrief>(
+    val paged = rememberPagedList(
+        state, repo, authorName, slot = { state.paged }, store = { state.paged = it }) {
+        PagedList<AlbumBrief>(
             keyOf = { it.id },
             fetch = { page ->
                 val result = repo.search(authorName, page, state.category, state.order)
                 PageResult(items = result.content, total = result.total)
             },
-        ).also { state.paged = it }
+        )
     }
     val albums = paged.items
 

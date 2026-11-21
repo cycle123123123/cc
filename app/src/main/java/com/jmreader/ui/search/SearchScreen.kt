@@ -69,6 +69,7 @@ import com.jmreader.core.runCatchingCancellable
 import com.jmreader.ui.components.loadWorkCategories
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
+import com.jmreader.ui.common.rememberPagedList
 import com.jmreader.ui.theme.IosHairline
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -102,8 +103,9 @@ fun SearchScreen(
     }
 
     // 状态类拿不到 repo：首次进入时懒创建，之后挂在 state 上，从详情返回复用同一份列表。
-    val paged = remember(state, repo) {
-        state.paged ?: PagedList<AlbumBrief>(
+    val paged = rememberPagedList(
+        state, repo, slot = { state.paged }, store = { state.paged = it }) {
+        PagedList<AlbumBrief>(
             keyOf = { it.id },
             fetch = { page ->
                 val result = repo.search(
@@ -114,7 +116,7 @@ fun SearchScreen(
                 )
                 PageResult(items = result.content, total = result.total)
             },
-        ).also { state.paged = it }
+        )
     }
     val albums = paged.items
 

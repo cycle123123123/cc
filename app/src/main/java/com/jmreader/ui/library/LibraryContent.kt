@@ -50,6 +50,7 @@ import com.jmreader.ui.components.IosSegmentedControl
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
 import com.jmreader.ui.common.RefreshPolicy
+import com.jmreader.ui.common.rememberPagedList
 import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.theme.IosBlue
@@ -92,23 +93,25 @@ internal fun LibraryContent(
 
     // 云端收藏 / 云端历史各一条分页流水线，实例挂在 state 上，切 tab 不重建。
     // fetch 在调用时才读 folderId，切换收藏夹后拿到的是新值。
-    val favoritesPaged = remember(repo) {
-        state.favoritesPaged ?: PagedList<AlbumBrief>(keyOf = { it.id }) { page ->
+    val favoritesPaged = rememberPagedList(
+        repo, slot = { state.favoritesPaged }, store = { state.favoritesPaged = it }) {
+        PagedList<AlbumBrief>(keyOf = { it.id }) { page ->
             val call = runCatchingCancellable { repo.favorites(page, folderId) }
             call.exceptionOrNull()?.let { if (it is JmException.Auth) repo.auth.clearMember() }
             val result = call.getOrThrow()
             folders = result.folderList
             PageResult(result.list, result.total.toIntOrNull() ?: result.list.size)
-        }.also { state.favoritesPaged = it }
+        }
     }
 
-    val historyPaged = remember(repo) {
-        state.historyPaged ?: PagedList<AlbumBrief>(keyOf = { it.id }) { page ->
+    val historyPaged = rememberPagedList(
+        repo, slot = { state.historyPaged }, store = { state.historyPaged = it }) {
+        PagedList<AlbumBrief>(keyOf = { it.id }) { page ->
             val call = runCatchingCancellable { repo.history(page) }
             call.exceptionOrNull()?.let { if (it is JmException.Auth) repo.auth.clearMember() }
             val result = call.getOrThrow()
             PageResult(result.list, result.total)
-        }.also { state.historyPaged = it }
+        }
     }
 
     // 收藏/历史的写操作与过期刷新都走这两个入口，顺带更新保鲜时间戳

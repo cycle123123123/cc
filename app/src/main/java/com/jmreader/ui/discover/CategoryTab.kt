@@ -47,6 +47,7 @@ import com.jmreader.data.model.userMessage
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
 import com.jmreader.ui.common.RefreshPolicy
+import com.jmreader.ui.common.rememberPagedList
 import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.ui.components.ErrorState
 import com.jmreader.ui.components.IosFilterPill
@@ -69,8 +70,9 @@ internal fun CategoryTab(
     val gridState = state.gridState
     val scope = rememberCoroutineScope()
 
-    val pager = remember(repo) {
-        state.paged ?: PagedList<AlbumBrief>(
+    val pager = rememberPagedList(
+        repo, slot = { state.paged }, store = { state.paged = it }) {
+        PagedList<AlbumBrief>(
             keyOf = { it.id },
             fetch = { page ->
                 val cValue = if (subSlug.isNotBlank()) "${slug}_$subSlug" else slug
@@ -81,7 +83,7 @@ internal fun CategoryTab(
                     PageResult(result.content, result.total)
                 }
             },
-        ).also { state.paged = it }
+        )
     }
     val albums = pager.items
     val total = pager.total

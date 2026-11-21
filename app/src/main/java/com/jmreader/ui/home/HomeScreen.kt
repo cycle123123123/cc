@@ -70,6 +70,7 @@ import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
 import com.jmreader.ui.common.RefreshPolicy
+import com.jmreader.ui.common.rememberPagedList
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,8 +88,9 @@ fun HomeScreen(
     val lastRead by history.last.collectAsState()
 
     // 状态类拿不到 repo：首次进入时懒创建，之后挂在 state 上，从详情返回复用同一份列表。
-    val pager = remember(state, repo) {
-        state.paged ?: PagedList<AlbumBrief>(
+    val pager = rememberPagedList(
+        state, repo, slot = { state.paged }, store = { state.paged = it }) {
+        PagedList<AlbumBrief>(
             keyOf = { it.id },
             // latest 接口没有总数：用 Int.MAX_VALUE 占位，hasMore 只看「新页是否为空」，与原实现一致
             fetch = { page ->
@@ -96,7 +98,7 @@ fun HomeScreen(
                 if (page == 1) state.cached = emptyList()
                 PageResult(items, Int.MAX_VALUE)
             },
-        ).also { state.paged = it }
+        )
     }
     val albums = pager.items.ifEmpty { state.cached }
     val loading = pager.loading

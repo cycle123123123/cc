@@ -1,14 +1,31 @@
 package com.jmreader.ui.common
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.jmreader.data.model.userMessage
 import kotlinx.coroutines.CancellationException
 
 /** 一页数据：列表 + 总数（部分接口没有总数，用 [Int.MAX_VALUE] 占位）。 */
 data class PageResult<T>(val items: List<T>, val total: Int)
+
+/**
+ * 懒创建 PagedList 并回挂到状态类：首次进入某屏时创建，之后复用同一份列表。
+ *
+ * 等价于各屏原先手写的
+ * `remember(keys) { state.paged ?: PagedList(...).also { state.paged = it } }`，
+ * [keys] 的语义与原 `remember` 完全一致（换筛选条件/换作品时重建）。
+ */
+@Composable
+fun <T> rememberPagedList(
+    vararg keys: Any?,
+    slot: () -> PagedList<T>?,
+    store: (PagedList<T>) -> Unit,
+    create: () -> PagedList<T>,
+): PagedList<T> = remember(*keys) { slot() ?: create().also(store) }
 
 /**
  * 手写的分页列表状态：首屏、加载更多、去重、错误保留旧数据。
