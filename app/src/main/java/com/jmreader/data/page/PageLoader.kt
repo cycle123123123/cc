@@ -1,12 +1,11 @@
 package com.jmreader.data.page
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.jmreader.data.download.DownloadRepository
 import com.jmreader.data.model.JmException
 import com.jmreader.core.ImageDescrambler
 import com.jmreader.data.JmRepository
@@ -15,10 +14,13 @@ import com.jmreader.data.JmRepository
  * 阅读页加载：下载目录 → 页缓存 → 网络 → 采样解码 → 分条还原。
  *
  * 从 [JmRepository] 拆出来，和「接口调用/线路选择」分开。
+ *
+ * 本地页由调用方以 [localPage] 注入，而不是在这里取 `DownloadRepository.of()`：
+ * 下载仓库在构造时会懒取 [JmRepository]，两边互相持有会让单例初始化顺序变成隐式约束。
  */
 internal class PageLoader(
-    private val appContext: Context,
     private val pageCache: PageCache,
+    private val localPage: (Long, Int) -> File?,
     private val fetchBytes: suspend (String) -> ByteArray,
 ) {
 
@@ -30,7 +32,7 @@ internal class PageLoader(
         scrambleId: Long,
         targetWidth: Int,
     ): Bitmap = withContext(Dispatchers.IO) {
-        val local = DownloadRepository.of(appContext).pageFile(cid, page)
+        val local = localPage(cid, page)
         val bytes = local?.readBytes()
             ?: pageCache.read(cid, page)
             ?: fetchBytes(url).also { pageCache.write(cid, page, it) }

@@ -20,12 +20,10 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -353,142 +351,74 @@ internal fun LibraryContent(
         },
     )
 
-    if (showFolders) {
-        AlertDialog(
-            onDismissRequest = { showFolders = false },
-            title = { Text("收藏夾") },
-            text = {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = newFolderName,
-                            onValueChange = { newFolderName = it },
-                            label = { Text("新收藏夾") },
-                            singleLine = true,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TextButton(
-                            enabled = newFolderName.isNotBlank(),
-                            onClick = {
-                                val name = newFolderName.trim()
-                                scope.launch {
-                                    runCatchingCancellable { repo.addFavoriteFolder(name) }
-                                        .onSuccess {
-                                            newFolderName = ""
-                                            refreshFavorites()
-                                        }
-                                        .onFailure {
-                                            toast(it.userMessage())
-                                        }
-                                }
-                            },
-                        ) { Text("新增") }
+    FolderManageDialog(
+        visible = showFolders,
+        folders = folders,
+        newName = newFolderName,
+        onNewNameChange = { newFolderName = it },
+        onAdd = { name ->
+            scope.launch {
+                runCatchingCancellable { repo.addFavoriteFolder(name) }
+                    .onSuccess {
+                        newFolderName = ""
+                        refreshFavorites()
                     }
-                    folders.forEach { folder ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(folder.name, modifier = Modifier.weight(1f))
-                            TextButton(
-                                onClick = {
-                                    renameTarget = folder
-                                    renameText = folder.name
-                                },
-                            ) { Text("改名") }
-                            TextButton(
-                                onClick = {
-                                    scope.launch {
-                                        runCatchingCancellable { repo.deleteFavoriteFolder(folder.fid) }
-                                            .onSuccess {
-                                                if (folderId == folder.fid) folderId = ""
-                                                refreshFavorites()
-                                            }
-                                            .onFailure {
-                                                toast(it.userMessage())
-                                            }
-                                    }
-                                },
-                            ) { Text("刪除") }
-                        }
+                    .onFailure { toast(it.userMessage()) }
+            }
+        },
+        onRenameClick = { folder ->
+            renameTarget = folder
+            renameText = folder.name
+        },
+        onDeleteClick = { folder ->
+            scope.launch {
+                runCatchingCancellable { repo.deleteFavoriteFolder(folder.fid) }
+                    .onSuccess {
+                        if (folderId == folder.fid) folderId = ""
+                        refreshFavorites()
                     }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showFolders = false }) { Text("關閉") }
-            },
-        )
-    }
+                    .onFailure { toast(it.userMessage()) }
+            }
+        },
+        onDismiss = { showFolders = false },
+    )
 
-    renameTarget?.let { folder ->
-        AlertDialog(
-            onDismissRequest = { renameTarget = null },
-            title = { Text("重新命名") },
-            text = {
-                OutlinedTextField(
-                    value = renameText,
-                    onValueChange = { renameText = it },
-                    singleLine = true,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = renameText.isNotBlank(),
-                    onClick = {
-                        val name = renameText.trim()
-                        scope.launch {
-                            runCatchingCancellable { repo.renameFavoriteFolder(folder.fid, name) }
-                                .onSuccess {
-                                    renameTarget = null
-                                    refreshFavorites()
-                                }
-                                .onFailure {
-                                    toast(it.userMessage())
-                                }
-                        }
-                    },
-                ) { Text("確定") }
-            },
-            dismissButton = {
-                TextButton(onClick = { renameTarget = null }) { Text("取消") }
-            },
-        )
-    }
+    FolderRenameDialog(
+        folder = renameTarget,
+        text = renameText,
+        onTextChange = { renameText = it },
+        onConfirm = { name ->
+            val folder = renameTarget ?: return@FolderRenameDialog
+            scope.launch {
+                runCatchingCancellable { repo.renameFavoriteFolder(folder.fid, name) }
+                    .onSuccess {
+                        renameTarget = null
+                        refreshFavorites()
+                    }
+                    .onFailure { toast(it.userMessage()) }
+            }
+        },
+        onDismiss = { renameTarget = null },
+    )
 
     moveTarget?.let { album ->
-        AlertDialog(
-            onDismissRequest = { moveTarget = null },
-            title = { Text("移動到收藏夾") },
-            text = {
-                Column {
-                    if (folders.isEmpty()) {
-                        Text("先建立一個收藏夾")
-                    }
-                    folders.forEach { folder ->
-                        TextButton(
-                            onClick = {
-                                val aid = album.id.toLongOrNull()
-                                moveTarget = null
-                                if (aid != null) {
-                                    scope.launch {
-                                        runCatchingCancellable { repo.moveFavorite(folder.fid, aid) }
-                                            .onSuccess {
-                                                toast("已移動到 ${folder.name}")
-                                                refreshFavorites()
-                                            }
-                                            .onFailure {
-                                                toast(it.userMessage())
-                                            }
-                                    }
-                                }
-                            },
-                        ) { Text(folder.name) }
+        MoveToFolderDialog(
+            folders = folders,
+            onPick = { folder ->
+                val aid = album.id.toLongOrNull()
+                moveTarget = null
+                if (aid != null) {
+                    scope.launch {
+                        runCatchingCancellable { repo.moveFavorite(folder.fid, aid) }
+                            .onSuccess {
+                                toast("已移動到 ${folder.name}")
+                                refreshFavorites()
+                            }
+                            .onFailure { toast(it.userMessage()) }
                     }
                 }
             },
-            confirmButton = {
-                TextButton(onClick = { moveTarget = null }) { Text("取消") }
-            },
+            onDismiss = { moveTarget = null },
         )
     }
 

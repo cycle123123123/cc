@@ -3,6 +3,7 @@ package com.jmreader.data
 import android.content.Context
 import android.graphics.Bitmap
 import com.jmreader.core.TtlCache
+import com.jmreader.data.download.DownloadRepository
 import com.jmreader.data.local.AuthStore
 import com.jmreader.data.local.HomeCache
 import com.jmreader.data.model.AlbumBrief
@@ -101,7 +102,12 @@ class JmRepository(context: Context) {
 
     /** 页面字节缓存（带容量上限和 LRU 淘汰）与阅读页加载器。 */
     private val pageCache = PageCache(File(appContext.cacheDir, "pages"))
-    private val pageLoader = PageLoader(appContext, pageCache) { url -> fetchBytes(url) }
+    // 用 lambda 注入本地页查找：只有真正读页时才触达 DownloadRepository，
+    // 避免「JmRepository 构造 PageLoader、PageLoader 又构造 DownloadRepository」的初始化环。
+    private val pageLoader = PageLoader(
+        pageCache = pageCache,
+        localPage = { cid, page -> DownloadRepository.of(appContext).pageFile(cid, page) },
+    ) { url -> fetchBytes(url) }
     private val pages = PageRepository(
         pageCache = pageCache,
         pageLoader = pageLoader,

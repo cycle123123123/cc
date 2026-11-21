@@ -44,7 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jmreader.data.local.BackupManager
+
 import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.theme.IosBlue
@@ -86,15 +86,7 @@ internal fun SettingsGroup(
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             val result = runCatching {
-                val text = BackupManager.encode(
-                    BackupManager.collect(
-                        history = container.readingHistory,
-                        filter = container.contentFilter,
-                        stats = container.readingStats,
-                        search = container.searchHistory,
-                        reader = container.readerPrefs,
-                    ),
-                )
+                val text = container.exportBackupJson()
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     context.contentResolver.openOutputStream(uri)?.use {
                         it.write(text.toByteArray(Charsets.UTF_8))
@@ -115,15 +107,7 @@ internal fun SettingsGroup(
                     context.contentResolver.openInputStream(uri)?.bufferedReader()
                         ?.use { it.readText() } ?: error("無法讀取備份檔")
                 }
-                val data = BackupManager.decode(text)
-                BackupManager.apply(
-                    data = data,
-                    history = container.readingHistory,
-                    filter = container.contentFilter,
-                    stats = container.readingStats,
-                    search = container.searchHistory,
-                    reader = container.readerPrefs,
-                )
+                container.restoreBackupJson(text)
             }
             toast(
                 result.fold(

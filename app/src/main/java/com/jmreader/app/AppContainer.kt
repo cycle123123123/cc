@@ -6,6 +6,7 @@ import com.jmreader.data.FavoriteWatch
 import com.jmreader.data.download.DownloadRepository
 import com.jmreader.data.local.AlbumMetaCache
 import com.jmreader.data.local.AppPrefs
+import com.jmreader.data.local.BackupManager
 import com.jmreader.data.local.ContentFilter
 import com.jmreader.data.local.ReaderPrefs
 import com.jmreader.data.local.ReadingHistory
@@ -45,4 +46,28 @@ class AppContainer(context: Context) {
 
     /** 全局卡片角标缓存（object，本身即单例）。 */
     val albumMetaCache: AlbumMetaCache = AlbumMetaCache
+
+    /**
+     * 備份/恢復的門面：UI 只負責選檔案路徑和讀寫文件，
+     * 不再逐個觸碰 ReadingHistory / ContentFilter / ReadingStats 等 store。
+     */
+    fun exportBackupJson(): String = BackupManager.encode(
+        BackupManager.collect(
+            history = readingHistory,
+            filter = contentFilter,
+            stats = readingStats,
+            search = searchHistory,
+            reader = readerPrefs,
+        ),
+    )
+
+    /** @return 恢復的條目數（歷史 + 進度 + 書籤） */
+    fun restoreBackupJson(text: String): Int = BackupManager.apply(
+        data = BackupManager.decode(text),
+        history = readingHistory,
+        filter = contentFilter,
+        stats = readingStats,
+        search = searchHistory,
+        reader = readerPrefs,
+    )
 }
