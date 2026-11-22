@@ -1,7 +1,5 @@
 package com.jmreader.ui.home
 
-import com.jmreader.ui.navigation.BottomBarMetrics
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -46,32 +44,34 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.imageLoader
-import coil.request.ImageRequest
-import kotlinx.coroutines.launch
-import com.jmreader.ui.components.AlbumCard
-import com.jmreader.ui.components.AlbumGrid
+
+import com.jmreader.core.JmConfig
+import com.jmreader.core.runCatchingCancellable
+import com.jmreader.data.JmRepository
 import com.jmreader.data.local.AlbumMetaCache
 import com.jmreader.data.local.ContentFilter
+import com.jmreader.data.local.LastRead
 import com.jmreader.data.local.metaBadge
 import com.jmreader.data.local.metaTopBadge
-import com.jmreader.ui.theme.IosGroupedBg
-import com.jmreader.ui.theme.IosLabelPrimary
-import com.jmreader.ui.theme.IosLabelSecondary
-import com.jmreader.ui.theme.IosSearchBg
-import com.jmreader.ui.theme.IosSeparator
-import com.jmreader.data.local.LastRead
 import com.jmreader.data.model.AlbumBrief
-import com.jmreader.data.model.PromoteSection
-import com.jmreader.core.JmConfig
-import com.jmreader.data.JmRepository
-import com.jmreader.core.runCatchingCancellable
 import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
 import com.jmreader.ui.common.RefreshPolicy
 import com.jmreader.ui.common.rememberPagedList
+import com.jmreader.ui.components.AlbumCard
+import com.jmreader.ui.components.AlbumGrid
+import com.jmreader.ui.navigation.BottomBarMetrics
+import com.jmreader.ui.theme.IosGroupedBg
+import com.jmreader.ui.theme.IosLabelPrimary
+import com.jmreader.ui.theme.IosLabelSecondary
+import com.jmreader.ui.theme.IosSearchBg
+import com.jmreader.ui.theme.IosSeparator
 
+import kotlinx.coroutines.launch
+
+import coil.imageLoader
+import coil.request.ImageRequest
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(

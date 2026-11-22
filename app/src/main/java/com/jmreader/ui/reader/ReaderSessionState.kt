@@ -3,10 +3,10 @@ package com.jmreader.ui.reader
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+
 import com.jmreader.app.AppContainer
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.ComicRead
-
 /**
  * 阅读器当前话的正文状态（普通类，不是 ViewModel）。
  *

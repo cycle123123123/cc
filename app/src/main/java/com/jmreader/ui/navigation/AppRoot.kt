@@ -31,27 +31,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import kotlinx.coroutines.launch
-import com.jmreader.ui.search.AuthorWorksScreen
-import com.jmreader.ui.library.BlocksScreen
-import com.jmreader.ui.library.DiagnosticsScreen
-import com.jmreader.ui.library.StatsScreen
+
+import com.jmreader.data.JmRepository
+import com.jmreader.data.update.UpdateCheckResult
+import com.jmreader.data.update.UpdateInfo
+import com.jmreader.ui.common.LocalAppContainer
+import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.detail.DetailScreen
 import com.jmreader.ui.discover.DiscoverScreen
 import com.jmreader.ui.discover.DiscoverState
-import com.jmreader.ui.library.DownloadsScreen
 import com.jmreader.ui.home.HomeScreen
 import com.jmreader.ui.home.HomeState
+import com.jmreader.ui.library.BlocksScreen
+import com.jmreader.ui.library.DiagnosticsScreen
+import com.jmreader.ui.library.DownloadsScreen
 import com.jmreader.ui.library.LibraryScreen
 import com.jmreader.ui.library.LibraryState
+import com.jmreader.ui.library.StatsScreen
 import com.jmreader.ui.reader.ReaderScreen
+import com.jmreader.ui.search.AuthorWorksScreen
 import com.jmreader.ui.search.SearchScreen
-import com.jmreader.data.update.UpdateCheckResult
-import com.jmreader.data.update.UpdateInfo
-import com.jmreader.data.JmRepository
-import com.jmreader.ui.common.LocalAppContainer
-import com.jmreader.ui.common.rememberToaster
 
+import kotlinx.coroutines.launch
 @Composable
 fun AppRoot(repo: JmRepository) {
     var tab by remember { mutableStateOf(RootTab.HOME) }

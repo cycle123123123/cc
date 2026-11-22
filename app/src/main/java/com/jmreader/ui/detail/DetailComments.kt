@@ -29,15 +29,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.CommentItem
 import com.jmreader.ui.components.IosTextField
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
+import com.jmreader.ui.theme.IosHairline
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
-import com.jmreader.ui.theme.IosHairline
-
 /** 评论输入框：回复目标提示 + 输入 + 发送。 */
 @Composable
 internal fun CommentComposer(

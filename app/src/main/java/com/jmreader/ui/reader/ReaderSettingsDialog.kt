@@ -36,9 +36,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import com.jmreader.core.JmConfig
 import com.jmreader.ui.components.IosSwitch
-
 private val SheetBg = Color(0xF51C1C1E)
 private val SheetCard = Color(0xFF2C2C2E)
 private val SheetCardBorder = Color(0x22FFFFFF)

@@ -1,11 +1,11 @@
 package com.jmreader.data.net
 
 import com.jmreader.data.model.JmException
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.Json
-
 /**
  * 请求执行层：线路就绪 → 会话检查 → 签名请求 → 鉴权/线路失效重试 → 反序列化。
  *
@@ -25,7 +25,7 @@ internal class ApiClient(
     ): T = withContext(Dispatchers.IO) {
         hosts.ensureReady()
         session.ensureSession()
-        val base = hosts.apiBase ?: throw JmException.Network("线路未就绪")
+        val base = hosts.apiBase ?: throw JmException.Network("線路未就緒")
         val body = try {
             jmHttp.get(base, path, params)
         } catch (e: JmException.Auth) {
@@ -48,7 +48,7 @@ internal class ApiClient(
         withContext(Dispatchers.IO) {
             hosts.ensureReady()
             session.ensureSession()
-            val base = hosts.apiBase ?: throw JmException.Network("线路未就绪")
+            val base = hosts.apiBase ?: throw JmException.Network("線路未就緒")
             jmHttp.post(base, path, form)
         }
 
@@ -57,7 +57,7 @@ internal class ApiClient(
         withContext(Dispatchers.IO) {
             hosts.ensureReady()
             session.ensureSession()
-            val base = hosts.apiBase ?: throw JmException.Network("线路未就绪")
+            val base = hosts.apiBase ?: throw JmException.Network("線路未就緒")
             jmHttp.postRaw(base, path, form)
         }
 }

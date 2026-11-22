@@ -2,12 +2,13 @@ package com.jmreader.data.local
 
 import android.content.Context
 import android.util.Base64
+
+import com.jmreader.data.JmRepository
+import com.jmreader.data.model.Member
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import com.jmreader.data.model.Member
-import com.jmreader.data.JmRepository
-
 /**
  * 登录态存储。
  * - jwt / session：有效期按 1 小时算，过期后由 JmRepository 用记住的账号密码自动重新登录

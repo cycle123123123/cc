@@ -1,5 +1,6 @@
 package com.jmreader.data.net
 
+import com.jmreader.data.JmRepository
 import com.jmreader.data.model.AlbumBrief
 import com.jmreader.data.model.CreatorAuthor
 import com.jmreader.data.model.CreatorAuthorResponse
@@ -9,10 +10,9 @@ import com.jmreader.data.model.ForumPage
 import com.jmreader.data.model.PromoteSection
 import com.jmreader.data.model.WeekOptions
 import com.jmreader.data.model.WeekPage
+
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.builtins.ListSerializer
-import com.jmreader.data.JmRepository
-
 /** 只读接口所需的「取 JSON 并反序列化」能力，由 [com.jmreader.data.JmRepository] 实现。 */
 internal interface ApiFetcher {
     suspend fun <T> fetch(

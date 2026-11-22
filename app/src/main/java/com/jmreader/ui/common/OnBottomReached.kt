@@ -7,8 +7,8 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 
+import kotlinx.coroutines.flow.distinctUntilChanged
 /**
  * 通用触底加载：列表滚到接近底部时回调一次，[enabled] 为 false（加载中/没有更多/出错）时不触发。
  */

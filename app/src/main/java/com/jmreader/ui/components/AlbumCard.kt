@@ -26,12 +26,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+
+import com.jmreader.data.JmRepository
 import com.jmreader.data.model.AlbumBrief
 import com.jmreader.ui.theme.IosFillGray
 import com.jmreader.ui.theme.IosLabelPrimary
-import com.jmreader.data.JmRepository
 
+import coil.compose.AsyncImage
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AlbumCard(

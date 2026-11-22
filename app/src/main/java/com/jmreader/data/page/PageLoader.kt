@@ -2,14 +2,16 @@ package com.jmreader.data.page
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import java.io.File
-import java.io.IOException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import com.jmreader.data.model.JmException
+
 import com.jmreader.core.ImageDescrambler
 import com.jmreader.data.JmRepository
+import com.jmreader.data.model.JmException
 
+import java.io.File
+import java.io.IOException
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 /**
  * 阅读页加载：下载目录 → 页缓存 → 网络 → 采样解码 → 分条还原。
  *
@@ -57,7 +59,7 @@ internal class PageLoader(
             inPreferredConfig = Bitmap.Config.ARGB_8888
         }
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-            ?: throw JmException.Parse(IOException("图片解码失败"))
+            ?: throw JmException.Parse(IOException("圖片解碼失敗"))
 
         val cleanUrl = url.substringBefore('?')
         if (cleanUrl.endsWith(".gif", ignoreCase = true)) {

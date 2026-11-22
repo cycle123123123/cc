@@ -3,10 +3,10 @@ package com.jmreader.data.net
 import com.jmreader.data.local.AuthStore
 import com.jmreader.data.model.JmException
 import com.jmreader.data.model.Member
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-
 /**
  * 登录态：密码登录、登出、JWT 过期后的静默重登。
  * 线路由 [HostManager] 提供（通过构造参数传入的两个回调），避免两个类互相持有。
@@ -25,7 +25,7 @@ internal class SessionManager(
     suspend fun login(username: String, password: String, remember: Boolean = true): Member =
         withContext(Dispatchers.IO) {
             ensureReady()
-            val base = base() ?: throw JmException.Network("线路未就绪")
+            val base = base() ?: throw JmException.Network("線路未就緒")
             val member = performLoginRequest(base, username, password)
             if (remember) auth.saveCredentials(username, password) else auth.clearCredentials()
             member

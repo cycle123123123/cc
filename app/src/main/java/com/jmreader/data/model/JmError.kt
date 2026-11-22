@@ -7,16 +7,16 @@ sealed class JmException(message: String, cause: Throwable? = null) : Exception(
     class Network(message: String, cause: Throwable? = null) : JmException(message, cause)
 
     /** 需要登录 / token 失效（HTTP 401）。 */
-    class Auth(message: String = "需要登录") : JmException(message)
+    class Auth(message: String = "需要登入") : JmException(message)
 
     /** 接口返回 code != 200。 */
     class Api(val code: Int, message: String) : JmException(message)
 
     /** 响应解密失败（时间戳或密钥不匹配）。 */
-    class Decrypt(cause: Throwable? = null) : JmException("数据解密失败", cause)
+    class Decrypt(cause: Throwable? = null) : JmException("數據解密失敗", cause)
 
     /** JSON 结构不符合预期。 */
-    class Parse(cause: Throwable? = null) : JmException("数据解析失败", cause)
+    class Parse(cause: Throwable? = null) : JmException("數據解析失敗", cause)
 }
 
 /** 给用户看的错误文案，避免把异常原文直接甩到界面上。 */

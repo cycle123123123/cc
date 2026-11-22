@@ -1,11 +1,12 @@
 package com.jmreader.app
 
 import android.app.Application
+
+import com.jmreader.data.JmRepository
+
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
-import com.jmreader.data.JmRepository
-
 class JmApplication : Application(), ImageLoaderFactory {
 
     /** 应用级单例集合，UI 通过 LocalAppContainer 取用。 */

@@ -2,19 +2,23 @@ package com.jmreader.data.update
 
 import android.content.Context
 import android.content.Intent
+
 import androidx.core.content.FileProvider
+
+import com.jmreader.BuildConfig
+import com.jmreader.data.JmRepository
+
 import java.io.File
 import java.io.IOException
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+
 import okhttp3.CacheControl
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import com.jmreader.data.JmRepository
-import com.jmreader.BuildConfig
-
 /** GitHub Release 里的一条更新信息。 */
 data class UpdateInfo(
     val version: String,
@@ -153,7 +157,7 @@ class UpdateChecker private constructor(
                 lastError = e
             }
         }
-        throw (lastError as? IOException) ?: IOException(lastError?.message ?: "下载失败")
+        throw (lastError as? IOException) ?: IOException(lastError?.message ?: "下載失敗")
     }
 
     private fun downloadFrom(url: String, onProgress: (Int) -> Unit): File {
@@ -167,7 +171,7 @@ class UpdateChecker private constructor(
             .build()
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
-            val body = response.body ?: throw IOException("响应为空")
+            val body = response.body ?: throw IOException("響應為空")
             val total = body.contentLength()
             body.byteStream().use { input ->
                 target.outputStream().use { output ->

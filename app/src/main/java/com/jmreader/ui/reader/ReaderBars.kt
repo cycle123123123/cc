@@ -49,8 +49,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jmreader.data.model.ChapterEntry
 
+import com.jmreader.data.model.ChapterEntry
 private val ReaderAccentBlue = Color(0xFF0A84FF)
 private val ReaderBlueSoft = Color(0x330A84FF)
 

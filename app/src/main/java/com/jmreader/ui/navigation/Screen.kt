@@ -1,7 +1,6 @@
 package com.jmreader.ui.navigation
 
 import com.jmreader.ui.search.AlbumQueryState
-
 sealed interface Screen {
     data class Search(val query: String = "", val state: AlbumQueryState = AlbumQueryState()) : Screen
     data class AuthorWorks(val name: String, val state: AlbumQueryState = AlbumQueryState()) : Screen

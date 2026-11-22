@@ -17,24 +17,25 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
-import com.jmreader.ui.components.AlbumGrid
-import com.jmreader.ui.components.CategoryChips
-import com.jmreader.data.local.ContentFilter
-import com.jmreader.ui.common.LocalAppContainer
-import com.jmreader.ui.components.ErrorState
-import com.jmreader.ui.components.IosNavigationBar
-import com.jmreader.ui.theme.IosBlue
-import com.jmreader.ui.theme.IosGroupedBg
-import com.jmreader.ui.theme.IosLabelSecondary
-import com.jmreader.ui.components.SortChips
+
 import com.jmreader.data.JmRepository
+import com.jmreader.data.local.ContentFilter
 import com.jmreader.data.model.AlbumBrief
-import com.jmreader.ui.components.loadWorkCategories
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
 import com.jmreader.ui.common.rememberPagedList
+import com.jmreader.ui.components.AlbumGrid
+import com.jmreader.ui.components.CategoryChips
+import com.jmreader.ui.components.ErrorState
+import com.jmreader.ui.components.IosNavigationBar
+import com.jmreader.ui.components.SortChips
+import com.jmreader.ui.components.loadWorkCategories
+import com.jmreader.ui.theme.IosBlue
+import com.jmreader.ui.theme.IosGroupedBg
+import com.jmreader.ui.theme.IosLabelSecondary
 
+import kotlinx.coroutines.launch
 @Composable
 fun AuthorWorksScreen(
     repo: JmRepository,

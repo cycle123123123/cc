@@ -1,21 +1,23 @@
 package com.jmreader.data.net
 
+import com.jmreader.core.JmConfig
+import com.jmreader.core.JmCrypto
+import com.jmreader.core.awaitResponse
+import com.jmreader.data.JmRepository
+import com.jmreader.data.local.AuthStore
+import com.jmreader.data.model.JmException
+
 import java.net.URLEncoder
+
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import com.jmreader.data.local.AuthStore
-import com.jmreader.data.model.JmException
-import com.jmreader.core.JmConfig
-import com.jmreader.core.JmCrypto
-import com.jmreader.data.JmRepository
-import com.jmreader.core.awaitResponse
-
 /**
  * 无状态的信封层：拼 query、加签名头、发请求、AES 解密、统一抛 [JmException]。
  *
@@ -75,7 +77,7 @@ internal class JmHttp(
         client.newCall(request).awaitNetwork().use { response ->
             if (response.code == 401) throw JmException.Auth()
             if (!response.isSuccessful) throw JmException.Network("HTTP ${response.code}")
-            return response.body?.bytes() ?: throw JmException.Network("响应为空")
+            return response.body?.bytes() ?: throw JmException.Network("響應為空")
         }
     }
 
@@ -128,5 +130,5 @@ private suspend fun okhttp3.Call.awaitNetwork(): okhttp3.Response =
     try {
         awaitResponse()
     } catch (e: java.io.IOException) {
-        throw JmException.Network(e.message ?: "网络不可用", e)
+        throw JmException.Network(e.message ?: "網絡不可用", e)
     }

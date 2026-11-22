@@ -2,6 +2,7 @@ package com.jmreader.ui.search
 
 import android.content.ClipboardManager
 import android.content.Context
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -50,28 +51,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
-import com.jmreader.ui.components.AlbumGrid
-import com.jmreader.ui.components.CategoryChips
-import com.jmreader.data.local.ContentFilter
-import com.jmreader.ui.common.LocalAppContainer
-import com.jmreader.ui.components.ErrorState
-import com.jmreader.ui.theme.IosBlue
-import com.jmreader.ui.theme.IosCardWhite
-import com.jmreader.ui.theme.IosGroupedBg
-import com.jmreader.ui.theme.IosLabelPrimary
-import com.jmreader.ui.theme.IosLabelSecondary
-import com.jmreader.ui.theme.IosSearchBg
-import com.jmreader.ui.components.SortChips
-import com.jmreader.data.JmRepository
-import com.jmreader.data.model.AlbumBrief
+
 import com.jmreader.core.runCatchingCancellable
-import com.jmreader.ui.components.loadWorkCategories
+import com.jmreader.data.JmRepository
+import com.jmreader.data.local.ContentFilter
+import com.jmreader.data.model.AlbumBrief
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
 import com.jmreader.ui.common.rememberPagedList
+import com.jmreader.ui.components.AlbumGrid
+import com.jmreader.ui.components.CategoryChips
+import com.jmreader.ui.components.ErrorState
+import com.jmreader.ui.components.SortChips
+import com.jmreader.ui.components.loadWorkCategories
+import com.jmreader.ui.theme.IosBlue
+import com.jmreader.ui.theme.IosCardWhite
+import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosHairline
+import com.jmreader.ui.theme.IosLabelPrimary
+import com.jmreader.ui.theme.IosLabelSecondary
+import com.jmreader.ui.theme.IosSearchBg
 
+import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(

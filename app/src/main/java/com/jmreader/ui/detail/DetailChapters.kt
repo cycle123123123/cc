@@ -24,20 +24,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.jmreader.data.model.ChapterEntry
+
 import com.jmreader.data.download.DownloadTask
+import com.jmreader.data.model.ChapterEntry
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosBlueSoft
 import com.jmreader.ui.theme.IosCardWhite
+import com.jmreader.ui.theme.IosHairline
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
-import com.jmreader.ui.theme.IosHairline
-
 @Composable
 internal fun ChapterRow(
     chapter: ChapterEntry,

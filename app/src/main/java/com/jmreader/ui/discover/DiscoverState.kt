@@ -3,12 +3,12 @@ package com.jmreader.ui.discover
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+
 import com.jmreader.data.model.AlbumBrief
 import com.jmreader.data.model.CategoryBlock
 import com.jmreader.data.model.CategoryNode
 import com.jmreader.data.model.WeekOptions
 import com.jmreader.ui.common.PagedList
-
 /**
  * 發現頁的保活狀態，掛在 [com.jmreader.ui.navigation.AppRoot] 上。
  *

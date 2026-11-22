@@ -6,9 +6,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.jmreader.data.model.userMessage
-import kotlinx.coroutines.CancellationException
 
+import com.jmreader.data.model.userMessage
+
+import kotlinx.coroutines.CancellationException
 /** 一页数据：列表 + 总数（部分接口没有总数，用 [Int.MAX_VALUE] 占位）。 */
 data class PageResult<T>(val items: List<T>, val total: Int)
 

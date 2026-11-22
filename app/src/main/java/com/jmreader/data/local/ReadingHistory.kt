@@ -1,13 +1,13 @@
 package com.jmreader.data.local
 
 import android.content.Context
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
-
 /** 最近一次阅读：哪本作品、哪一话、第几页。 */
 @Serializable
 data class LastRead(

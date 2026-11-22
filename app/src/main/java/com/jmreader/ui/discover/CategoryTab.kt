@@ -38,11 +38,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
+
+import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.JmRepository
 import com.jmreader.data.model.AlbumBrief
-import com.jmreader.data.model.CategoryNode
-import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.userMessage
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
@@ -55,6 +54,7 @@ import com.jmreader.ui.navigation.BottomBarMetrics
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosLabelSecondary
 
+import kotlinx.coroutines.launch
 @Composable
 internal fun CategoryTab(
     repo: JmRepository,

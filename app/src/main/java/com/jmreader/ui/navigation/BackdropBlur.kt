@@ -3,6 +3,7 @@ package com.jmreader.ui.navigation
 import android.os.Build
 import android.os.SystemClock
 import android.view.ViewTreeObserver
+
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
@@ -26,8 +27,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.IntSize
-import kotlin.math.roundToInt
 
+import kotlin.math.roundToInt
 /**
  * 底栏背后的「真实内容」零拷贝 GPU 采样器。
  *

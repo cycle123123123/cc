@@ -1,16 +1,18 @@
 package com.jmreader.data.page
 
 import android.content.SharedPreferences
+
 import com.jmreader.core.JmConfig
 import com.jmreader.core.awaitResponse
+import com.jmreader.data.JmRepository
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import com.jmreader.data.JmRepository
-
 /**
  * 图源（CDN host）：手动选择、测速最优、图片 URL 重写。
  * 由 [com.jmreader.data.JmRepository] 持有并委托，prefs key 与取值规则不变。

@@ -1,7 +1,5 @@
 package com.jmreader.ui.library
 
-import com.jmreader.ui.navigation.BottomBarMetrics
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,37 +34,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
+
+import com.jmreader.BuildConfig
+import com.jmreader.core.runCatchingCancellable
+import com.jmreader.data.JmRepository
 import com.jmreader.data.model.AlbumBrief
-import com.jmreader.data.model.FolderItem
-import com.jmreader.ui.components.AlbumGrid
-import com.jmreader.ui.components.IosFilterPill
-import com.jmreader.ui.components.IosSegmentedControl
+import com.jmreader.data.model.JmException
+import com.jmreader.data.model.Member
+import com.jmreader.data.model.userMessage
+import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.PageResult
 import com.jmreader.ui.common.PagedList
 import com.jmreader.ui.common.RefreshPolicy
 import com.jmreader.ui.common.rememberPagedList
-import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.rememberToaster
+import com.jmreader.ui.components.AlbumGrid
+import com.jmreader.ui.components.IosFilterPill
+import com.jmreader.ui.components.IosSegmentedControl
+import com.jmreader.ui.navigation.BottomBarMetrics
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosBlueSoft
 import com.jmreader.ui.theme.IosCardWhite
+import com.jmreader.ui.theme.IosHairline
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosPink
-import com.jmreader.data.model.JmException
-import com.jmreader.data.model.Member
-import com.jmreader.data.JmRepository
-import com.jmreader.core.runCatchingCancellable
-import com.jmreader.data.model.userMessage
-import com.jmreader.BuildConfig
-import com.jmreader.ui.theme.IosHairline
 
+import kotlinx.coroutines.launch
 @Composable
 internal fun LibraryContent(
     repo: JmRepository,

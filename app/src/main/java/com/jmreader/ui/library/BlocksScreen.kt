@@ -37,7 +37,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
+
+import com.jmreader.data.JmRepository
 import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.components.IosNavigationBar
 import com.jmreader.ui.components.IosSwitch
@@ -45,12 +46,12 @@ import com.jmreader.ui.components.IosTextField
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosGroupedBg
+import com.jmreader.ui.theme.IosHairline
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosSeparator
-import com.jmreader.data.JmRepository
-import com.jmreader.ui.theme.IosHairline
 
+import kotlinx.coroutines.launch
 @Composable
 fun BlocksScreen(repo: JmRepository, onBack: () -> Unit) {
     val container = LocalAppContainer.current

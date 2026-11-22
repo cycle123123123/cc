@@ -1,6 +1,10 @@
 package com.jmreader.data.local
 
 import android.content.Context
+
+import com.jmreader.data.JmRepository
+import com.jmreader.data.model.AlbumBrief
+
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -9,9 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import com.jmreader.data.model.AlbumBrief
-import com.jmreader.data.JmRepository
-
 @Serializable
 data class BlockRules(
     val keywords: List<String> = emptyList(),

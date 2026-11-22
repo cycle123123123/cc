@@ -1,12 +1,12 @@
 package com.jmreader.data
 
 import android.content.Context
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-
 /** 一本被追更的韓漫。`resolved` 表示已經拉過詳情、確認過是否連載。 */
 @Serializable
 data class WatchItem(

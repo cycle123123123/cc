@@ -3,6 +3,7 @@ package com.jmreader.ui.detail
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+
 import com.jmreader.app.AppContainer
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.AlbumBrief
@@ -12,7 +13,6 @@ import com.jmreader.data.model.CommentItem
 import com.jmreader.data.model.ForumPage
 import com.jmreader.data.model.SimpleResult
 import com.jmreader.data.model.userMessage
-
 /**
  * 详情页的状态与动作集合（普通类，不是 ViewModel）。
  *

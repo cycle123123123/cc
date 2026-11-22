@@ -1,10 +1,11 @@
 package com.jmreader.data.local
 
 import com.jmreader.data.model.AlbumBrief
+
 import java.io.File
+
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
-
 /** 首页「最新上架」的本地快照：冷启动先垫一份旧数据，避免一直转圈。 */
 internal class HomeCache(private val dir: File, private val json: Json) {
 

@@ -1,7 +1,6 @@
 package com.jmreader.core
 
 import kotlinx.coroutines.CancellationException
-
 /**
  * 和 runCatching 一样，但把 CancellationException 原样抛回去。
  *

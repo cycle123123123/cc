@@ -1,7 +1,6 @@
 package com.jmreader.data.download
 
 import kotlinx.serialization.Serializable
-
 /** 下载任务元数据，存到 downloads/{cid}/meta.json。 */
 @Serializable
 data class DownloadTask(

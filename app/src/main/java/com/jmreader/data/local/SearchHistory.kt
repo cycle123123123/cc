@@ -1,13 +1,13 @@
 package com.jmreader.data.local
 
 import android.content.Context
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
-
 /** 最近搜索关键词，最多保留 10 条，新的排前面。 */
 class SearchHistory private constructor(context: Context) {
 

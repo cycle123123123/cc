@@ -5,6 +5,7 @@ import android.graphics.RuntimeShader
 import android.graphics.Shader
 import android.os.Build
 import android.os.SystemClock
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -78,16 +79,18 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosPink
 import com.jmreader.ui.theme.JmPalette
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 private data class NavTabSpec(
     val tab: RootTab,
     val label: String,

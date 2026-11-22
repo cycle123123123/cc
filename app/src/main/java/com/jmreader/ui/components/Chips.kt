@@ -7,10 +7,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.JmRepository
 import com.jmreader.data.model.CategoryNode
-
 /** 同人 / 單本 / 短篇 / 韓漫… 分类筛选行，搜索页和作者页共用。 */
 @Composable
 fun CategoryChips(

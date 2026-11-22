@@ -1,11 +1,14 @@
 package com.jmreader.data.net
 
 import android.content.SharedPreferences
+
 import com.jmreader.core.JmConfig
 import com.jmreader.core.JmCrypto
 import com.jmreader.core.awaitResponse
+import com.jmreader.data.JmRepository
 import com.jmreader.data.model.AppSetting
 import com.jmreader.data.model.JmException
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -16,10 +19,9 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import com.jmreader.data.JmRepository
-
 /**
  * 线路（base url）与 `/setting` 元信息：发现、缓存、切换、失败后重发现。
  * 由 [com.jmreader.data.JmRepository] 持有，对外 API 仍由它转出，行为与拆分前一致。
@@ -69,7 +71,7 @@ internal class HostManager(
         }
 
         ensureReady()
-        val base = apiBase ?: throw JmException.Network("线路未就绪")
+        val base = apiBase ?: throw JmException.Network("線路未就緒")
         val setting = json.decodeFromString(AppSetting.serializer(), jmHttp.get(base, "setting", emptyMap()))
         cachedSetting = setting
         cachedSettingAt = now
@@ -118,7 +120,7 @@ internal class HostManager(
         collectNetworkHosts(candidates)
         JmConfig.BUILTIN_HOSTS.forEach { candidates.add("https://$it/") }
 
-        val best = hostBenchmark.best(candidates) ?: throw JmException.Network("没有可用线路")
+        val best = hostBenchmark.best(candidates) ?: throw JmException.Network("沒有可用線路")
         adopt(best)
     }
 

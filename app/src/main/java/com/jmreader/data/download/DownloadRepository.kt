@@ -1,8 +1,15 @@
 package com.jmreader.data.download
 
 import android.content.Context
+
+import com.jmreader.core.AtomicFile
+import com.jmreader.data.JmRepository
+import com.jmreader.data.model.ComicRead
+import com.jmreader.data.model.PageImage
+
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,11 +24,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.Json
-import com.jmreader.core.AtomicFile
-import com.jmreader.data.model.ComicRead
-import com.jmreader.data.model.PageImage
-import com.jmreader.data.JmRepository
-
 /**
  * 离线下载管理。目录结构：
  *   files/downloads/{cid}/meta.json

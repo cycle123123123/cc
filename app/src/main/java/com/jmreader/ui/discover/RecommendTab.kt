@@ -26,18 +26,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
+
+import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.JmRepository
 import com.jmreader.data.model.AlbumBrief
-import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.userMessage
-import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.ui.common.RefreshPolicy
+import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosBlueSoft
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 
+import kotlinx.coroutines.launch
 @Composable
 internal fun RecommendTab(
     repo: JmRepository,

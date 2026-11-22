@@ -1,15 +1,16 @@
 package com.jmreader.data.local
 
 import androidx.compose.runtime.mutableStateMapOf
+
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.JmRepository
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-
 /**
  * 全局的卡片角标缓存（点击量 / 爱心 / 页数 / 是否日文）。
  *

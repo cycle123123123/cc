@@ -1,7 +1,5 @@
 package com.jmreader.ui.library
 
-import com.jmreader.ui.navigation.BottomBarMetrics
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,22 +38,25 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.imageLoader
-import kotlinx.coroutines.launch
-import com.jmreader.ui.theme.IosBlue
-import com.jmreader.ui.theme.IosBlueSoft
-import com.jmreader.ui.theme.IosCardWhite
-import com.jmreader.ui.theme.IosGroupedBg
-import com.jmreader.ui.theme.IosLabelPrimary
-import com.jmreader.ui.theme.IosLabelSecondary
+
+import com.jmreader.BuildConfig
+import com.jmreader.data.JmRepository
 import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.formatCacheSize
 import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.components.AlbumGrid
-import com.jmreader.data.JmRepository
-import com.jmreader.BuildConfig
+import com.jmreader.ui.navigation.BottomBarMetrics
+import com.jmreader.ui.theme.IosBlue
+import com.jmreader.ui.theme.IosBlueSoft
+import com.jmreader.ui.theme.IosCardWhite
+import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosHairline
+import com.jmreader.ui.theme.IosLabelPrimary
+import com.jmreader.ui.theme.IosLabelSecondary
 
+import kotlinx.coroutines.launch
+
+import coil.imageLoader
 @Composable
 fun LibraryScreen(
     repo: JmRepository,
@@ -151,7 +152,7 @@ fun LibraryScreen(
             onDismissRequest = { if (!clearing) showCacheDialog = false },
             title = { Text("清除快取") },
             text = {
-                Text("目前占用 ${formatCacheSize(cacheBytes)}。包含封面、閱讀頁和介面快取，清除後再打開會重新下載。")
+                Text("目前佔用 ${formatCacheSize(cacheBytes)}。包含封面、閱讀頁和介面快取，清除後再打開會重新下載。")
             },
             confirmButton = {
                 TextButton(

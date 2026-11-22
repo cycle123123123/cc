@@ -1,7 +1,6 @@
 package com.jmreader.data.local
 
 import android.content.Context
-
 /**
  * `jmreader_reader` 的读写封装（文件名、key、默认值、类型全部保持原样）。
  *

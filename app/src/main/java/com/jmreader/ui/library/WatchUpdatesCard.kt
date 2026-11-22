@@ -21,14 +21,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import com.jmreader.data.WatchUpdate
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
+import com.jmreader.ui.theme.IosHairline
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosSeparator
-import com.jmreader.ui.theme.IosHairline
-
 /**
  * 「我的」頁頂部的追更提醒：只列韓漫連載的新章節。
  * 點一行直接進詳情；右側「知道了」清掉提醒。

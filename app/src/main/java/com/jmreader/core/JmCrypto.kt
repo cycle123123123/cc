@@ -1,10 +1,11 @@
 package com.jmreader.core
 
 import java.security.MessageDigest
+
 import javax.crypto.Cipher
 import javax.crypto.spec.SecretKeySpec
-import okio.ByteString.Companion.decodeBase64
 
+import okio.ByteString.Companion.decodeBase64
 /**
  * 官方客户端 v2.1.14 的请求签名与响应解密。
  * 详见 docs/API.md §3、§4。
@@ -41,7 +42,7 @@ object JmCrypto {
                 lastError = t
             }
         }
-        throw IllegalStateException("响应解密失败", lastError)
+        throw IllegalStateException("響應解密失敗", lastError)
     }
 
     /** 解密线路清单 txt。 */
@@ -50,7 +51,7 @@ object JmCrypto {
 
     private fun decodeBase64(text: String): ByteArray {
         val compact = text.filterNot { it.isWhitespace() }
-        return (compact.decodeBase64() ?: throw IllegalArgumentException("Base64 解码失败")).toByteArray()
+        return (compact.decodeBase64() ?: throw IllegalArgumentException("Base64 解碼失敗")).toByteArray()
     }
 
     private fun aesEcbDecrypt(data: ByteArray, keyHex: String): String {

@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
-
 /**
  * 章节图纵向分条倒序还原。
  * 详见 docs/API.md §6，算法源自官方前端 5412 模块的 wR()。

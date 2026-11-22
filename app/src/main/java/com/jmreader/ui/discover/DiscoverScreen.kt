@@ -24,12 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+import com.jmreader.data.JmRepository
+import com.jmreader.ui.components.IosSegmentedControl
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelPrimary
-import com.jmreader.ui.components.IosSegmentedControl
-import com.jmreader.data.JmRepository
-
 @Composable
 fun DiscoverScreen(
     repo: JmRepository,

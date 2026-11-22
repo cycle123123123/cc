@@ -10,7 +10,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-
 /** 列表加载失败时的统一空态：中文提示 + 重试。 */
 @Composable
 fun ErrorState(

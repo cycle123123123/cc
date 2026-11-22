@@ -34,18 +34,19 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
+
+import com.jmreader.core.runCatchingCancellable
+import com.jmreader.data.JmRepository
+import com.jmreader.data.model.JmException
+import com.jmreader.data.model.userMessage
 import com.jmreader.ui.components.IosSwitch
 import com.jmreader.ui.components.IosTextField
 import com.jmreader.ui.theme.IosCardWhite
+import com.jmreader.ui.theme.IosHairline
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
-import com.jmreader.data.model.JmException
-import com.jmreader.data.JmRepository
-import com.jmreader.core.runCatchingCancellable
-import com.jmreader.data.model.userMessage
-import com.jmreader.ui.theme.IosHairline
 
+import kotlinx.coroutines.launch
 @Composable
 internal fun LoginForm(repo: JmRepository, compact: Boolean = false) {
     var username by remember { mutableStateOf("") }

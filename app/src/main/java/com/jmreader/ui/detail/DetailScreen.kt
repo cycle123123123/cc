@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import com.jmreader.data.JmRepository
 import com.jmreader.data.model.userMessage
 import com.jmreader.ui.common.LocalAppContainer
@@ -34,8 +35,8 @@ import com.jmreader.ui.components.IosSegmentedControl
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosGroupedBg
 import com.jmreader.ui.theme.IosLabelSecondary
-import kotlinx.coroutines.launch
 
+import kotlinx.coroutines.launch
 @Composable
 fun DetailScreen(
     repo: JmRepository,

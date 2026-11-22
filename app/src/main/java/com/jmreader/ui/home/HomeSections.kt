@@ -37,7 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+
 import com.jmreader.core.JmConfig
 import com.jmreader.data.JmRepository
 import com.jmreader.data.local.LastRead
@@ -46,10 +46,11 @@ import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosBlueSoft
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosFillGray
+import com.jmreader.ui.theme.IosHairline
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
-import com.jmreader.ui.theme.IosHairline
 
+import coil.compose.AsyncImage
 @Composable
 internal fun SkeletonGrid() {
     val transition = rememberInfiniteTransition(label = "skeleton")

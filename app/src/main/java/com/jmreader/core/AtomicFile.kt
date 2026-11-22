@@ -2,7 +2,6 @@ package com.jmreader.core
 
 import java.io.File
 import java.io.IOException
-
 /**
  * 原子写文件：先写同目录的 `<name>.tmp`，成功后再 rename 覆盖目标。
  *

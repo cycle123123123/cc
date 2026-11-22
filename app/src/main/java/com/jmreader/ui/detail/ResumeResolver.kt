@@ -2,7 +2,6 @@ package com.jmreader.ui.detail
 
 import com.jmreader.data.local.LastRead
 import com.jmreader.data.model.ChapterEntry
-
 /**
  * 详情页「續讀」按钮的落点：
  * 优先本作品的 history 记录，[lastRead] 只作兜底；

@@ -1,6 +1,7 @@
 package com.jmreader.ui.library
 
 import android.content.Intent
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -29,20 +30,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import com.jmreader.BuildConfig
 import com.jmreader.app.CrashLogger
 import com.jmreader.ui.common.rememberToaster
 import com.jmreader.ui.components.IosNavigationBar
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosGroupedBg
+import com.jmreader.ui.theme.IosHairline
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosPink
+
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import com.jmreader.ui.theme.IosHairline
-
 /**
  * 診斷日誌頁：崩潰堆棧只存在本機，這裡負責看數量、一鍵分享、清除。
  * 沒有後端上報，卸載即清空。

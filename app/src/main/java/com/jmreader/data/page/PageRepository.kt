@@ -1,12 +1,14 @@
 package com.jmreader.data.page
 
+import android.graphics.Bitmap
+
+import com.jmreader.data.JmRepository
 import com.jmreader.data.model.ComicRead
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import android.graphics.Bitmap
-import com.jmreader.data.JmRepository
 
+import okhttp3.OkHttpClient
 /**
  * 阅读页相关的仓库逻辑：原始字节下载、字节缓存占用/清理、下一话预取、单页解码。
  * 由 [com.jmreader.data.JmRepository] 持有并委托，行为与拆分前一致。

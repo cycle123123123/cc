@@ -3,7 +3,6 @@ package com.jmreader.ui.common
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
 /** 接口的 addtime 是秒级时间戳字符串，转成 yyyy-MM-dd；解析失败原样返回。 */
 internal fun formatEpochSeconds(raw: String): String {
     val seconds = raw.toLongOrNull() ?: return raw

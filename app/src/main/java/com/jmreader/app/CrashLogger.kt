@@ -2,12 +2,13 @@ package com.jmreader.app
 
 import android.content.Context
 import android.os.Build
+
 import com.jmreader.BuildConfig
+
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
 /**
  * 本機崩潰日誌。
  *

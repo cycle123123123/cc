@@ -19,13 +19,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import com.jmreader.data.JmRepository
 import com.jmreader.data.local.LastRead
 import com.jmreader.data.model.AlbumBrief
 import com.jmreader.ui.components.AlbumCard
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosPink
-
 /** 「本地閱讀歷史」小节标题，右侧是清空按钮。 */
 @Composable
 internal fun LocalHistoryHeader(

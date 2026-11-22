@@ -1,8 +1,9 @@
 package com.jmreader.app
 
 import android.content.Context
-import com.jmreader.data.JmRepository
+
 import com.jmreader.data.FavoriteWatch
+import com.jmreader.data.JmRepository
 import com.jmreader.data.download.DownloadRepository
 import com.jmreader.data.local.AlbumMetaCache
 import com.jmreader.data.local.AppPrefs
@@ -13,7 +14,6 @@ import com.jmreader.data.local.ReadingHistory
 import com.jmreader.data.local.ReadingStats
 import com.jmreader.data.local.SearchHistory
 import com.jmreader.data.update.UpdateChecker
-
 /**
  * 应用级单例集合。由 [JmApplication] 创建，UI 通过
  * `com.jmreader.ui.common.LocalAppContainer` 取用。

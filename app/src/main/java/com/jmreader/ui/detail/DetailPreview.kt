@@ -1,6 +1,7 @@
 package com.jmreader.ui.detail
 
 import android.graphics.Bitmap
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,7 +24,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+
 import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.JmRepository
 import com.jmreader.data.model.ComicRead
@@ -55,8 +56,8 @@ import com.jmreader.ui.reader.savePageToGallery
 import com.jmreader.ui.theme.IosFillGray
 import com.jmreader.ui.theme.IosHairline
 import com.jmreader.ui.theme.IosLabelPrimary
-import kotlinx.coroutines.launch
 
+import kotlinx.coroutines.launch
 /** 详情页顶部预览：从第一话随机取几页，还原后等比裁切；点开是全屏看图。 */
 @Composable
 internal fun PreviewStrip(

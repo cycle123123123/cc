@@ -1,6 +1,13 @@
 package com.jmreader.data.net
 
+import com.jmreader.core.JmConfig
+import com.jmreader.core.JmCrypto
+import com.jmreader.core.awaitResponse
+import com.jmreader.data.JmRepository
+import com.jmreader.data.model.AppSetting
+
 import java.util.concurrent.TimeUnit
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -10,14 +17,9 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import com.jmreader.data.model.AppSetting
-import com.jmreader.core.JmConfig
-import com.jmreader.core.JmCrypto
-import com.jmreader.data.JmRepository
-import com.jmreader.core.awaitResponse
-
 /**
  * 线路探测：并发请求每个候选线路的 `/setting`，返回耗时最短的那条。
  *

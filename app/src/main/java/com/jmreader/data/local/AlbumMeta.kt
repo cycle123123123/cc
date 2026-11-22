@@ -1,7 +1,6 @@
 package com.jmreader.data.local
 
 import com.jmreader.core.formatCount
-
 /** 列表卡片要显示的补充信息：点击量 / 爱心数 / 页数 / 是否日文。都来自 `/album`。 */
 data class AlbumMeta(
     val views: Int = 0,

@@ -1,6 +1,7 @@
 package com.jmreader.ui.theme
 
 import android.app.Activity
+
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
@@ -17,8 +18,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
-import com.jmreader.data.local.AppPrefs
 
+import com.jmreader.data.local.AppPrefs
 /** 0 = 跟隨系統，1 = 淺色，2 = 深色。 */
 object ThemeMode {
     const val SYSTEM = 0

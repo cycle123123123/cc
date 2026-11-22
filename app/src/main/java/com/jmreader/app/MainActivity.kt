@@ -3,15 +3,16 @@ package com.jmreader.app
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.WindowManager
+
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+
 import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.navigation.AppRoot
 import com.jmreader.ui.reader.ReaderKeyBus
 import com.jmreader.ui.theme.JmTheme
-
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {

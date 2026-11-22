@@ -3,12 +3,13 @@ package com.jmreader.data.local
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+
 import java.security.KeyStore
+
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-
 /**
  * 用 Android Keystore 里的 AES 密钥加密记住的密码。
  * 密钥不可导出，就算 shared_prefs 被拷走也解不开（换设备/清应用数据后失效）。

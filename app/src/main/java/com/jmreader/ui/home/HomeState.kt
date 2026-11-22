@@ -4,11 +4,11 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+
 import com.jmreader.data.model.AlbumBrief
+import com.jmreader.data.model.AppSetting
 import com.jmreader.data.model.PromoteSection
 import com.jmreader.ui.common.PagedList
-import com.jmreader.data.model.AppSetting
-
 /**
  * 首页状态放在 AppRoot 层保活，避免每次从详情返回都重新加载、丢失滚动位置。
  * 也修掉了「返回后第一次点击没反应」的问题。

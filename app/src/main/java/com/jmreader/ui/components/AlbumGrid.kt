@@ -1,7 +1,5 @@
 package com.jmreader.ui.components
 
-import com.jmreader.ui.navigation.BottomBarMetrics
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+
 import com.jmreader.data.JmRepository
 import com.jmreader.data.local.AlbumMetaCache
 import com.jmreader.data.local.ContentFilter
@@ -35,10 +34,10 @@ import com.jmreader.data.local.metaTopBadge
 import com.jmreader.data.model.AlbumBrief
 import com.jmreader.ui.common.LocalAppContainer
 import com.jmreader.ui.common.OnBottomReached
+import com.jmreader.ui.navigation.BottomBarMetrics
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosPink
-
 /**
  * 全站统一的 3 列作品网格：屏蔽过滤、角标、触底自动加载、底部 loading / 重试。
  * 各屏特有的顶部内容用 [header] 传入（首页的继续阅读/分区横滑、搜索计数等）。

@@ -2,7 +2,6 @@ package com.jmreader.data.local
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-
 /**
  * 本機備份內容。
  *

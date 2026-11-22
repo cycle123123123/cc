@@ -7,7 +7,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
-
 /**
  * /album 与 /chapter 返回的 series 字段：
  * [{"id":"598174","name":"","sort":"1"}, ...]

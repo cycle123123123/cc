@@ -1,6 +1,7 @@
 package com.jmreader.data.net
 
 import com.jmreader.core.TtlCache
+import com.jmreader.data.JmRepository
 import com.jmreader.data.local.HomeCache
 import com.jmreader.data.model.AlbumBrief
 import com.jmreader.data.model.AlbumDetail
@@ -8,9 +9,8 @@ import com.jmreader.data.model.CategoryResponse
 import com.jmreader.data.model.ChapterInfo
 import com.jmreader.data.model.ComicRead
 import com.jmreader.data.model.SearchPage
-import kotlinx.serialization.builtins.ListSerializer
-import com.jmreader.data.JmRepository
 
+import kotlinx.serialization.builtins.ListSerializer
 /**
  * 浏览类只读接口：首页、详情、章节、阅读页、搜索、分类。
  * 缓存仍由 [com.jmreader.data.JmRepository] 构造后传入，容量与 TTL 不变。

@@ -12,12 +12,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+
 import com.jmreader.data.update.UpdateChecker
 import com.jmreader.data.update.UpdateInfo
 import com.jmreader.ui.common.rememberToaster
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 /**
  * 应用内更新弹窗：说明、安装包大小、下载进度、下载 + 静默安装（失败回退系统安装器）。
  * 状态仍由 [AppRoot] 持有，这里只通过回调改它。

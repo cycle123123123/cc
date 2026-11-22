@@ -1,7 +1,6 @@
 package com.jmreader.ui.navigation
 
 import androidx.compose.ui.unit.dp
-
 /** 悬浮玻璃底栏的尺寸与模糊参数，集中一处方便调。 */
 object BottomBarMetrics {
     val Height = 64.dp

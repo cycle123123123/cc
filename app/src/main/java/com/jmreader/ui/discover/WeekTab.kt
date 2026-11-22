@@ -19,17 +19,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+
+import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.JmRepository
 import com.jmreader.data.model.AlbumBrief
-import com.jmreader.core.runCatchingCancellable
 import com.jmreader.data.model.WeekOptions
 import com.jmreader.data.model.userMessage
+import com.jmreader.ui.common.RefreshPolicy
 import com.jmreader.ui.components.AlbumGrid
 import com.jmreader.ui.components.ErrorState
 import com.jmreader.ui.components.IosFilterPill
-import com.jmreader.ui.common.RefreshPolicy
 import com.jmreader.ui.theme.IosBlue
-
 @Composable
 internal fun WeekTab(
     repo: JmRepository,

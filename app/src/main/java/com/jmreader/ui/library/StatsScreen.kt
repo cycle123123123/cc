@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
 import com.jmreader.data.local.DayStat
 import com.jmreader.data.local.ReadingStats
 import com.jmreader.ui.common.LocalAppContainer
@@ -33,11 +34,10 @@ import com.jmreader.ui.components.IosNavigationBar
 import com.jmreader.ui.theme.IosBlue
 import com.jmreader.ui.theme.IosCardWhite
 import com.jmreader.ui.theme.IosGroupedBg
+import com.jmreader.ui.theme.IosHairline
 import com.jmreader.ui.theme.IosLabelPrimary
 import com.jmreader.ui.theme.IosLabelSecondary
 import com.jmreader.ui.theme.IosSeparator
-import com.jmreader.ui.theme.IosHairline
-
 /** 「閱讀統計」頁：全部數字都來自本機 [ReadingStats]，不上傳。 */
 @Composable
 fun StatsScreen(onBack: () -> Unit) {
